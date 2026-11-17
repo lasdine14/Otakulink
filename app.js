@@ -69,12 +69,20 @@ const ROUTES = {
   messages: { title: "Messages", tab: "messages", render: () => chips(["Toutes", "Privées", "Groupes"]) + empty("💬", "Aucune conversation", "Tes messages privés et tes groupes apparaîtront ici.") },
   connexions: { title: "Connexions", tab: "connexions", render: () => chips(["Amis", "Invitations", "Suggestions"]) + empty("🤝", "Aucune connexion", "Tes amis, tes invitations et les suggestions seront listés ici.") },
   profil: { title: "Profil", tab: "profil", action: "parametres", render: () => `
-    <section class="card profile"><div class="avatar">👤</div><h2>${esc(me?.pseudo || "…")}</h2><p class="sub">${esc(me?.bio || "Rêveur · Passionné · Otaku")}${me?.pays ? " · " + esc(me.pays) : ""}</p>
+    <section class="card profile"><div class="avatar">${me?.avatar_url ? `<img src="${esc(me.avatar_url)}" alt="">` : "👤"}</div><h2>${esc(me?.pseudo || "…")}</h2><p class="sub">${esc(me?.bio || "Rêveur · Passionné · Otaku")}${me?.pays ? " · " + esc(me.pays) : ""}</p>
       <div class="stats"><div><b>0</b><span>Amis</span></div><div><b>0</b><span>Abonnés</span></div><div><b>0</b><span>Abonnements</span></div></div></section>
-    <div class="h2"><span>Mes animes préférés</span></div>${empty("⭐", "Aucun anime pour l’instant", "Tes animes préférés s’afficheront ici.")}` },
+    <div class="h2"><span>Mes animes préférés</span></div>${me?.animes?.length ? `<div class="chips tags">${me.animes.map((a) => `<span>${esc(a)}</span>`).join("")}</div>` : empty("⭐", "Aucun anime pour l’instant", "Ajoute tes animes préférés dans Paramètres, puis Modifier mon profil.")}` },
+  editprofil: { title: "Mon profil", tab: "profil", back: "parametres", render: () => `
+    <form id="form-profil" class="auth-wrap" style="justify-content:flex-start;text-align:left">
+      <label class="field"><span>📷</span><input type="file" name="photo" accept="image/*" style="padding-top:12px"></label>
+      <label class="field"><span>✍</span><input type="text" name="bio" maxlength="160" placeholder="Ta bio" value="${esc(me?.bio)}"></label>
+      <label class="field"><span>🌐</span><select name="pays">${PAYS.map((p) => `<option${p === me?.pays ? " selected" : ""}>${p}</option>`).join("")}</select></label>
+      <label class="field"><span>⭐</span><input type="text" name="animes" placeholder="Animes préférés (séparés par des virgules)" value="${esc((me?.animes || []).join(", "))}"></label>
+      <button class="btn" type="submit">Enregistrer</button><p class="note" role="status"></p>
+    </form>` },
   parametres: { title: "Paramètres", tab: "profil", back: "profil", render: () => `
     <p class="group">Mon compte</p><div class="menu">
-      <a href="#parametres"><i>👤</i>Modifier mon profil</a><a href="#parametres"><i>🔒</i>Confidentialité et sécurité</a>
+      <a href="#editprofil"><i>👤</i>Modifier mon profil</a><a href="#parametres"><i>🔒</i>Confidentialité et sécurité</a>
       <a href="#parametres"><i>🔔</i>Notifications</a><a href="#parametres"><i>🎨</i>Apparence</a></div>
     <p class="group">Préférences Otaku</p><div class="menu">
       <a href="#parametres"><i>⭐</i>Mes favoris</a><a href="#parametres"><i>🌐</i>Langues</a><a href="#parametres"><i>ℹ</i>À propos d’OtakuLink</a></div>
@@ -126,6 +134,7 @@ screen.addEventListener("click", (e) => {
 screen.addEventListener("submit", async (e) => {
   e.preventDefault();
   const f = e.target, n = f.querySelector(".note"), btn = f.querySelector("button[type=submit]");
+  if (f.id === "form-profil") return saveProfil(f, n, btn);
   if (!sb) { n.textContent = "Connexion au serveur impossible (pas d’internet ?)."; return; }
   const v = Object.fromEntries(new FormData(f));
   const ins = location.hash === "#inscription";
@@ -138,10 +147,33 @@ screen.addEventListener("submit", async (e) => {
   if (ins && !data.session) n.textContent = "Compte créé ! Vérifie ta boîte mail pour confirmer ton adresse, puis connecte-toi.";
 });
 
+async function saveProfil(f, n, btn) {
+  const maj = {
+    bio: f.bio.value.trim().slice(0, 160),
+    pays: f.pays.value,
+    animes: f.animes.value.split(",").map((a) => a.trim()).filter(Boolean).slice(0, 8)
+  };
+  const file = f.photo.files[0];
+  btn.disabled = true; n.textContent = "Enregistrement…";
+  if (file) {
+    if (!file.type.startsWith("image/") || file.size > 2 * 1024 * 1024) { n.textContent = "Photo : une image de 2 Mo maximum."; btn.disabled = false; return; }
+    const ext = (file.type.split("/")[1] || "jpg").replace(/[^a-z0-9]/gi, "");
+    const path = `${session.user.id}/avatar-${Date.now()}.${ext}`;
+    const up = await sb.storage.from("avatars").upload(path, file, { contentType: file.type });
+    if (up.error) { n.textContent = "Envoi de la photo impossible."; btn.disabled = false; return; }
+    maj.avatar_url = sb.storage.from("avatars").getPublicUrl(path).data.publicUrl;
+  }
+  const { error } = await sb.from("profiles").update(maj).eq("id", session.user.id);
+  btn.disabled = false;
+  if (error) { n.textContent = "Enregistrement impossible pour le moment."; return; }
+  await loadMe();
+  location.hash = "#profil";
+}
+
 async function loadMe() {
   me = null;
   if (!session) return;
-  const { data } = await sb.from("profiles").select("pseudo,pays,bio").eq("id", session.user.id).maybeSingle();
+  const { data } = await sb.from("profiles").select("pseudo,pays,bio,avatar_url,animes").eq("id", session.user.id).maybeSingle();
   me = data;
 }
 
