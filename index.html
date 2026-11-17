@@ -546,10 +546,11 @@ render.rencontres=async()=>{
   if(meErr){toggle.textContent='Configuration requise';toggle.disabled=true;$('#dating-cards').innerHTML=empty('Rencontres à configurer','Exécute le script SQL de mise à jour fourni avec cette version pour activer cet espace.');return;}
   toggle.textContent=me?.rencontres_actives?'Désactiver mon profil Rencontres':'Activer mon profil Rencontres';
   toggle.dataset.enabled=me?.rencontres_actives?'true':'false';
-  toggle.onclick=async()=>{const enabled=toggle.dataset.enabled!=='true';const {error}=await state.client.from('profiles').update({rencontres_actives:enabled}).eq('id',state.user.id);if(error){toast('Impossible de modifier ton profil : '+error.message);return;}toast(enabled?'Ton profil Rencontres est activé.':'Ton profil Rencontres est désactivé.');render.rencontres();};
+  toggle.onclick=async()=>{const enabled=toggle.dataset.enabled!=='true';toggle.disabled=true;toggle.textContent='Mise à jour…';const {error}=await state.client.from('profiles').update({rencontres_actives:enabled}).eq('id',state.user.id);if(error){toast('Impossible de modifier ton profil : '+error.message);toggle.disabled=false;toggle.textContent=enabled?'Activer mon profil Rencontres':'Désactiver mon profil Rencontres';return;}if(state.profile)state.profile.rencontres_actives=enabled;toast(enabled?'Ton profil Rencontres est activé.':'Ton profil Rencontres est désactivé.');render.rencontres();};
   if(!me?.rencontres_actives){$('#dating-cards').innerHTML=empty('Active ton profil pour commencer','Tu pourras alors découvrir les membres qui souhaitent aussi faire des rencontres.');return;}
   const {data:people,error}=await state.client.from('profiles').select('id,pseudo,bio,pays,avatar_url').eq('rencontres_actives',true).neq('id',state.user.id).limit(50);
   if(error){$('#dating-cards').innerHTML=empty('Profils indisponibles','Vérifie la mise à jour SQL et les règles RLS de Supabase.');return;}
+  state.users=people||[];
   const {data:likes, error:likeErr}=await state.client.from('rencontres_actions').select('a,de,action').or(`de.eq.${state.user.id},a.eq.${state.user.id}`);
   if(likeErr){$('#dating-cards').innerHTML=empty('Interactions à configurer','La table des intérêts Rencontres doit être créée avec le script SQL fourni.');return;}
   const seen=new Set((likes||[]).filter(x=>x.de===state.user.id).map(x=>x.a));
@@ -631,7 +632,7 @@ document.addEventListener('click',async e=>{
   const datingPass=e.target.closest('[data-dating-pass]');
   if(datingLike||datingPass){
     const personId=(datingLike||datingPass).dataset[datingLike?'datingLike':'datingPass'];
-    const action=datingLike?'like':'pass';const {error}=await state.client.from('rencontres_actions').insert({de:state.user.id,a:personId,action});if(error){toast('Impossible d’enregistrer ton choix : '+error.message);return;}if(datingLike){const {data:back}=await state.client.from('rencontres_actions').select('de').eq('de',personId).eq('a',state.user.id).eq('action','like').maybeSingle();toast(back?'C’est réciproque ! Vous pouvez faire connaissance 💜':'Intérêt envoyé.');}else toast('Profil passé.');
+    const action=datingLike?'like':'pass';const control=datingLike||datingPass;control.disabled=true;const {error}=await state.client.from('rencontres_actions').insert({de:state.user.id,a:personId,action});if(error){control.disabled=false;toast('Impossible d’enregistrer ton choix : '+(error.code==='23505'?'Tu as déjà répondu à ce profil.':error.message));return;}if(datingLike){const {data:back,error:backError}=await state.client.from('rencontres_actions').select('de').eq('de',personId).eq('a',state.user.id).eq('action','like').maybeSingle();toast(backError?'Intérêt envoyé.':back?'C’est réciproque ! Vous pouvez faire connaissance 💜':'Intérêt envoyé.');}else toast('Profil passé.');
     render.rencontres();return;
   }
   const connect=e.target.closest('[data-connect]');
