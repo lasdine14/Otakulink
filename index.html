@@ -330,6 +330,33 @@ label:not(.field) input,label:not(.field) textarea{display:block;width:100%;marg
 html[data-theme="light"] body{background:#eef3ff;color:#17233f}
 html[data-theme="light"] .card,html[data-theme="light"] .pcard{background:#fff;color:#17233f}
 html[data-theme="light"] #bottomnav{background:rgba(255,255,255,.94)}
+
+/* ===== Refonte visuelle inspirée de la maquette OtakuLink ===== */
+:root{--bg:#020817;--bg2:#06132d;--card:#071735;--card2:#0b2045;--blue:#087cff;--cyan:#00e5ff;--violet:#8b5cf6;--pink:#ff3ea5;--text:#f2f7ff;--muted:#a8b9dc;--line:rgba(27,154,255,.48);--glow:0 0 18px rgba(0,177,255,.42),inset 0 0 14px rgba(0,133,255,.10)}
+body{background:radial-gradient(ellipse at 50% -15%,rgba(0,112,255,.27),transparent 48%),radial-gradient(ellipse at 100% 80%,rgba(90,32,190,.22),transparent 45%),linear-gradient(145deg,#020817,#06132b 55%,#03091b);}
+#screens{padding:12px 10px 100px;max-width:1500px;margin:0 auto;width:100%}
+.topbar{padding:7px 4px 12px;border-bottom:1px solid rgba(30,144,255,.18)}
+.topbar h1{font-size:22px;letter-spacing:-.4px}.topbar p{display:none}
+.card,.pcard{background:linear-gradient(155deg,rgba(8,28,66,.97),rgba(3,12,32,.98));border:1px solid rgba(28,150,255,.42);border-radius:19px;box-shadow:0 0 13px rgba(0,123,255,.24),inset 0 0 14px rgba(0,125,255,.07)}
+.btn{background:linear-gradient(100deg,#087cff,#00d9ff);color:#00122b;box-shadow:0 0 18px rgba(0,191,255,.45);font-weight:800}
+.btn.danger{background:linear-gradient(100deg,#ff174d,#e90054);color:white}
+.chip{background:rgba(4,20,50,.92);border-color:rgba(38,145,255,.4);font-size:13px;padding:8px 14px}
+.chip.active{background:linear-gradient(100deg,#087cff,#00cfff);color:#00152c}
+#bottomnav{left:5px;right:5px;bottom:max(5px,env(safe-area-inset-bottom));height:64px;border-radius:18px;background:rgba(2,10,29,.96);border:1px solid rgba(0,180,255,.55);box-shadow:0 0 22px rgba(0,149,255,.42);backdrop-filter:blur(16px)}
+#bottomnav .bn{font-size:10px;padding:5px 4px;min-width:48px}#bottomnav .bn .ic{font-size:20px}#bottomnav .bn.active{color:#00e5ff;text-shadow:0 0 12px #00dfff}
+#fab{width:48px;height:48px;margin-top:-17px;background:linear-gradient(145deg,#087cff,#00dfff);color:#00152a;border:2px solid #8df5ff;font-weight:900}
+.nav-item{border-radius:13px}.nav-item.active{background:linear-gradient(100deg,#087cff,#00cfff);color:#00152a}
+.av{border-color:#00dcff;box-shadow:0 0 12px rgba(0,220,255,.6);overflow:hidden}.av img{display:block}
+.stories{gap:12px;padding:7px 2px 13px}.story{width:68px}.story .av{width:58px;height:58px;border:2px solid #00dfff;padding:2px;background:linear-gradient(135deg,#00dfff,#a42cff)}
+.post-head{align-items:center}.post-img{height:auto;min-height:170px;max-height:360px;border-radius:13px}
+.searchbar input,.composer input,.field{background:rgba(5,20,49,.94);border-color:rgba(0,155,255,.48)}
+.banner{height:185px;background:radial-gradient(circle at 75% 25%,rgba(76,164,255,.6),transparent 22%),radial-gradient(circle at 15% 80%,rgba(112,41,220,.35),transparent 45%),linear-gradient(130deg,#07183c,#102d68 50%,#07122e)}
+.profile-top{margin-top:-48px}.stats{gap:8px}.stat{background:rgba(4,20,49,.88);border-color:rgba(0,160,255,.35)}
+.sheet{background:linear-gradient(160deg,#071a3b,#030b20);border-color:#078fff}
+.field{border-radius:13px}.auth-box{max-width:420px}.auth-box .logo{margin-bottom:10px}
+@media(min-width:900px){#screens{padding:18px 24px 100px}#bottomnav{left:244px;right:14px} .topbar h1{font-size:25px}}
+@media(max-width:600px){.topbar h1{font-size:20px}.card{padding:12px;margin-bottom:11px}.two-col{grid-template-columns:1fr}.profile-top{margin-left:8px;margin-right:8px}.av.lg{width:82px;height:82px}.stats .stat b{font-size:16px}}
+
 </style>
 </head>
 <body>
@@ -483,7 +510,7 @@ function buildChrome(){
   $('#bottomnav').innerHTML=BOTTOM.map(k=>k==='FAB'?'<button id="fab" aria-label="Créer une publication">+</button>':`<button class="bn" data-go="${k}"><span class="ic">${map[k][1]}</span>${map[k][2]}</button>`).join('');
 }
 document.addEventListener('click',e=>{
-  const g=e.target.closest('[data-go]'); if(g){go(g.dataset.go);return;}
+  const g=e.target.closest('[data-go]'); if(g){if(g.dataset.go==='profil')state.viewedProfile=null;go(g.dataset.go);return;}
   if(e.target.closest('#fab')) openComposer();
 });
 function go(route){state.route=route;$$('.screen').forEach(s=>s.classList.toggle('active',s.id==='s-'+route));$$('[data-go]').forEach(b=>{if(b.classList.contains('nav-item')||b.classList.contains('bn'))b.classList.toggle('active',b.dataset.go===route)});render[route]?.();$('#screens').scrollTo({top:0});}
@@ -498,21 +525,33 @@ async function loadDiscover(){
   const {data,error}=await q;
   if(error){console.error(error);return toast('Erreur de chargement des membres.');}
   state.users=data||[]; render.discoverList();
+  const strip=$('#member-strip');if(strip)strip.innerHTML=state.users.length?state.users.slice(0,16).map(u=>`<button class="story" data-profile="${u.id}">${avatar(u)}<span>${esc(u.pseudo||'Membre')}</span></button>`).join(''):empty('Aucun autre membre','Les nouveaux profils apparaîtront ici.');
 }
-render.decouvrir=()=>{
-  $('#s-decouvrir').innerHTML=`${topbar('Découvrir','Trouve des passionnés et explore la communauté.')}
-    <div class="searchbar"><input id="member-search" placeholder="🔍 Rechercher un pseudo..." value="${esc(state.query)}"><button class="btn sm" id="member-search-btn">Rechercher</button></div>
-    <div id="member-results">${SUPABASE_READY?empty('Chargement des membres…'):configNotice()}</div>`;
+render.decouvrir=async()=>{
+  $('#s-decouvrir').innerHTML=`<div class="topbar"><button class="icon-btn" data-go="parametres" aria-label="Menu">☰</button><div style="flex:1;text-align:center"><h1>Découvrir</h1></div><button class="icon-btn" id="discover-search-toggle" aria-label="Rechercher">⌕</button><button class="icon-btn" data-go="connexions" aria-label="Connexions">♧</button></div>
+    <div id="discover-search" class="searchbar hidden"><input id="member-search" placeholder="Rechercher un pseudo…" value="${esc(state.query)}"><button class="btn sm" id="member-search-btn">OK</button></div>
+    <div class="card" style="padding:10px 10px 4px"><h3 style="margin:0 0 7px">Membres de la communauté</h3><div id="member-strip" class="stories">${empty('Chargement des membres…')}</div></div>
+    <div class="chips" style="margin:4px 0 10px"><button class="chip active" data-feed-filter="Tous">Pour toi</button><button class="chip" data-feed-filter="Récents">Récents</button><button class="chip" data-go="communaute">Communauté</button></div>
+    <div id="discover-feed">${SUPABASE_READY?empty('Chargement des publications…'):configNotice()}</div>`;
+  $('#discover-search-toggle').onclick=()=>$('#discover-search').classList.toggle('hidden');
   $('#member-search-btn')?.addEventListener('click',()=>{state.query=$('#member-search').value;loadDiscover();});
   $('#member-search')?.addEventListener('keydown',e=>{if(e.key==='Enter'){state.query=e.target.value;loadDiscover();}});
-  if(state.client) loadDiscover();
+  if(!state.client)return;
+  await loadDiscover();
+  const {data:posts,error}=await state.client.from('posts').select('id,auteur,texte,categorie,created_at').order('created_at',{ascending:false}).limit(40);
+  const feed=$('#discover-feed');if(!feed)return;
+  if(error){feed.innerHTML=empty('Fil indisponible','Vérifie la configuration de la base de données.');return;}
+  const ids=(posts||[]).map(p=>p.id);let liked=new Set(),counts={};
+  if(ids.length){const res=await state.client.from('likes').select('post_id,user_id').in('post_id',ids);(res.data||[]).forEach(x=>{counts[x.post_id]=(counts[x.post_id]||0)+1;if(x.user_id===state.user.id)liked.add(x.post_id);});}
+  const profiles=state.users;
+  feed.innerHTML=posts?.length?posts.map(p=>{const u=profiles.find(x=>x.id===p.auteur);return `<article class="card"><div class="post-head">${avatar(u,'sm')}<div style="flex:1"><b>${esc(u?.pseudo||'Membre')}</b><small>${fmtDate(p.created_at)}</small></div><button class="icon-btn" aria-label="Options">⋯</button></div><p>${esc(p.texte)}</p><div class="post-actions" style="margin-top:13px"><button data-like="${p.id}" class="${liked.has(p.id)?'liked':''}">${liked.has(p.id)?'❤️':'♡'} ${counts[p.id]||0}</button><span class="sp"></span></div></article>`;}).join(''):empty('Aucune publication pour le moment','Les publications des membres apparaîtront ici.');
 };
 render.discoverList=()=>{
   const el=$('#member-results');if(!el)return;
   el.innerHTML=state.users.length?`<div class="grid">${state.users.map(u=>`<div class="pcard"><div class="cover g4">${avatar(u,'lg')}</div><div class="body"><b>${esc(u.pseudo)}</b><small>${esc(u.bio||'Aucune biographie renseignée')}</small><small>${esc(u.pays||'Pays non renseigné')}</small><div class="row"><button class="btn sm" data-connect="${u.id}">Ajouter</button><button class="btn sm ghost" data-profile="${u.id}">Profil</button></div></div></div>`).join('')}</div>`:empty('Aucun membre trouvé','Les profils apparaîtront ici lorsqu’ils auront créé un compte.');
 };
 render.communaute=async()=>{
-  $('#s-communaute').innerHTML=`${topbar('Communauté','Les publications réelles des membres OtakuLink.')}
+  $('#s-communaute').innerHTML=`${topbar('Communauté','Les publications des membres OtakuLink.')}
     <div class="card composer"><div class="av sm g4">${esc((state.profile?.pseudo||'?')[0].toUpperCase())}</div><input id="quick-post" placeholder="Quoi de neuf, Otaku ?" readonly><button class="icon-btn" id="quick-post-btn">✏️</button></div><div id="feed">${SUPABASE_READY?empty('Chargement du fil…'):configNotice()}</div>`;
   $('#quick-post').onclick=$('#quick-post-btn').onclick=openComposer;
   if(!state.client)return;
@@ -555,11 +594,11 @@ render.messages=async()=>{
   $('#chat-form')?.addEventListener('submit',async e=>{e.preventDefault();const content=$('#chat-input').value.trim();if(!content)return;const {error}=await state.client.from('messages').insert({de:state.user.id,a:selected,texte:content});if(error)toast(error.message);else render.messages();});
 };
 render.profil=async()=>{
-  const p=state.profile||{};
-  $('#s-profil').innerHTML=`<div class="banner"></div><div class="profile-top">${avatar(p,'lg')}<div style="flex:1;min-width:200px"><h2>${esc(p.pseudo||'Mon profil')}</h2><div style="color:var(--muted)">@${esc(p.pseudo||'')}</div><p style="margin-top:6px">${esc(p.bio||'Ajoute une biographie à ton profil.')}</p><small style="color:var(--muted)">${esc(p.pays||'Pays non renseigné')}</small></div><button class="btn sm" id="edit-profile">✏️ Modifier</button></div><div id="profile-editor"></div><div class="card"><h3>Mes publications</h3><div id="my-posts">${empty('Chargement…')}</div></div>`;
-  $('#edit-profile').onclick=()=>{$('#profile-editor').innerHTML=`<div class="card"><h3>Modifier mon profil</h3><form id="profile-form"><label>Nom d'utilisateur<input name="username" maxlength="24" minlength="3" value="${esc(p.pseudo||'')}" required></label><label>Biographie<textarea name="bio" maxlength="240">${esc(p.bio||'')}</textarea></label><label>Pays<input name="country" maxlength="80" value="${esc(p.pays||'')}"></label><button class="btn block">Enregistrer</button></form></div>`;};
+  const viewing=state.viewedProfile||null;const p=viewing||state.profile||{};
+  $('#s-profil').innerHTML=`<div class="banner"></div><div class="profile-top">${avatar(p,'lg')}<div style="flex:1;min-width:200px"><h2>${esc(p.pseudo||'Mon profil')}</h2><div style="color:var(--muted)">@${esc(p.pseudo||'')}</div><p style="margin-top:6px">${esc(p.bio||'Ajoute une biographie à ton profil.')}</p><small style="color:var(--muted)">${esc(p.pays||'Pays non renseigné')}</small></div>${!viewing?'<button class="btn sm" id="edit-profile">✏️ Modifier</button>':''}</div><div id="profile-editor"></div><div class="card"><h3>Mes publications</h3><div id="my-posts">${empty('Chargement…')}</div></div>`;
+  if($('#edit-profile'))$('#edit-profile').onclick=()=>{$('#profile-editor').innerHTML=`<div class="card"><h3>Modifier mon profil</h3><form id="profile-form"><label>Nom d'utilisateur<input name="username" maxlength="24" minlength="3" value="${esc(p.pseudo||'')}" required></label><label>Biographie<textarea name="bio" maxlength="240">${esc(p.bio||'')}</textarea></label><label>Pays<input name="country" maxlength="80" value="${esc(p.pays||'')}"></label><button class="btn block">Enregistrer</button></form></div>`;};
   $('#profile-form')?.addEventListener('submit',async e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.target));const {data,error}=await state.client.from('profiles').update({pseudo:d.username.trim(),bio:d.bio.trim(),pays:d.country.trim()}).eq('id',state.user.id).select().single();if(error)toast(error.message);else{state.profile=data;toast('Profil mis à jour.');render.profil();}});
-  if(state.client){const {data,error}=await state.client.from('posts').select('id,texte,created_at').eq('auteur',state.user.id).order('created_at',{ascending:false});$('#my-posts').innerHTML=error?empty('Impossible de charger les publications'):data?.length?data.map(x=>`<div class="comment">${esc(x.texte)}<small style="display:block;color:var(--muted)">${fmtDate(x.created_at)}</small><button class="btn sm danger" data-delete-post="${x.id}">Supprimer</button></div>`).join(''):empty('Tu n’as pas encore publié.');}
+  if(state.client){const {data,error}=await state.client.from('posts').select('id,texte,created_at').eq('auteur',viewing?.id||state.user.id).order('created_at',{ascending:false});$('#my-posts').innerHTML=error?empty('Impossible de charger les publications'):data?.length?data.map(x=>`<div class="comment">${esc(x.texte)}<small style="display:block;color:var(--muted)">${fmtDate(x.created_at)}</small>${!viewing?`<button class="btn sm danger" data-delete-post="${x.id}">Supprimer</button>`:''}</div>`).join(''):empty('Aucune publication pour le moment');}
 };
 render.parametres=()=>{
   $('#s-parametres').innerHTML=`${topbar('Paramètres','Préférences de ton compte.')}<div class="two-col"><div><div class="card"><h3>👤 Compte</h3><div class="row"><div class="t">Adresse e-mail<small>${esc(state.user?.email||'')}</small></div></div><div class="row"><div class="t">Thème sombre</div><button class="btn sm ghost" id="theme-toggle">${state.settings.dark?'Activé':'Désactivé'}</button></div><div class="row"><div class="t">Notifications e-mail<small>Préférence locale pour cette interface</small></div><button class="btn sm ghost" id="notif-toggle">${state.settings.notifications?'Activées':'Désactivées'}</button></div></div><div class="card"><h3>🔒 Confidentialité</h3><p style="color:var(--muted);font-size:13px">Les règles d’accès aux données sont appliquées côté Supabase (RLS). Les options de visibilité avancées seront ajoutées avec leurs règles serveur.</p></div></div><div><div class="card"><h3>⚠️ Zone de sécurité</h3><button class="btn ghost block" id="reset-password">Réinitialiser mon mot de passe</button><button class="btn danger block" id="logout" style="margin-top:12px">Se déconnecter</button></div><div class="card"><h3>À propos</h3><p style="color:var(--muted)">OtakuLink — communauté anime et manga.</p></div></div></div>`;
@@ -593,7 +632,7 @@ document.addEventListener('click',async e=>{
   const open=e.target.closest('[data-chat-open]');
   if(open){state.activeChat=open.dataset.chatOpen;render.messages();return;}
   const profile=e.target.closest('[data-profile]');
-  if(profile){toast('La consultation des profils publics sera ajoutée dans la prochaine étape.');return;}
+  if(profile){const u=state.users.find(x=>x.id===profile.dataset.profile);if(u){state.viewedProfile=u;go('profil');}return;}
 });
 try{const saved=JSON.parse(localStorage.getItem('otakulink_settings')||'{}');state.settings={...state.settings,...saved};applyTheme();}catch(_){}
 init();
