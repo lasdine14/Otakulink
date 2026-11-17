@@ -221,7 +221,7 @@ const ROUTES = {
     <p class="group">Préférences Otaku</p><div class="menu">
       <a href="#parametres"><i>⭐</i>Mes favoris</a><a href="#parametres"><i>🌐</i>Langues</a><a href="#parametres"><i>ℹ</i>À propos d’OtakuLink</a></div>
     <button class="btn" data-logout>Se déconnecter</button>
-    <p class="foot" style="text-align:center;margin-top:14px">OtakuLink · version 3 (profil)</p>` }
+    <p class="foot" style="text-align:center;margin-top:14px">OtakuLink · version 3.1 (photos)</p>` }
 };
 
 const $ = (id) => document.getElementById(id);
@@ -282,6 +282,16 @@ screen.addEventListener("submit", async (e) => {
   if (ins && !data.session) n.textContent = "Compte créé ! Vérifie ta boîte mail pour confirmer ton adresse, puis connecte-toi.";
 });
 
+async function reduire(file) {
+  const img = await createImageBitmap(file);
+  const t = Math.min(1, 512 / Math.max(img.width, img.height));
+  const c = document.createElement("canvas");
+  c.width = Math.round(img.width * t);
+  c.height = Math.round(img.height * t);
+  c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+  return new Promise((ok) => c.toBlob(ok, "image/jpeg", 0.85));
+}
+
 async function saveProfil(f, n, btn) {
   const maj = {
     bio: f.bio.value.trim().slice(0, 160),
@@ -291,10 +301,11 @@ async function saveProfil(f, n, btn) {
   const file = f.photo.files[0];
   btn.disabled = true; n.textContent = "Enregistrement…";
   if (file) {
-    if (!file.type.startsWith("image/") || file.size > 2 * 1024 * 1024) { n.textContent = "Photo : une image de 2 Mo maximum."; btn.disabled = false; return; }
-    const ext = (file.type.split("/")[1] || "jpg").replace(/[^a-z0-9]/gi, "");
-    const path = `${session.user.id}/avatar-${Date.now()}.${ext}`;
-    const up = await sb.storage.from("avatars").upload(path, file, { contentType: file.type });
+    if (!file.type.startsWith("image/") || file.size > 10 * 1024 * 1024) { n.textContent = "Photo : une image de 10 Mo maximum."; btn.disabled = false; return; }
+    const blob = await reduire(file).catch(() => null);
+    if (!blob) { n.textContent = "Format de photo non pris en charge. Essaie une photo JPG ou PNG."; btn.disabled = false; return; }
+    const path = `${session.user.id}/avatar-${Date.now()}.jpg`;
+    const up = await sb.storage.from("avatars").upload(path, blob, { contentType: "image/jpeg" });
     if (up.error) { n.textContent = "Envoi de la photo impossible."; btn.disabled = false; return; }
     maj.avatar_url = sb.storage.from("avatars").getPublicUrl(path).data.publicUrl;
   }
