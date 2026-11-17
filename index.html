@@ -343,8 +343,8 @@ async function feed(el, f, ok) {
   if (!ok()) return;
   el.querySelector("#zone").innerHTML = error ? empty("⚠", "Chargement impossible", "Réessaie dans un instant.") : data.length ? data.map(post).join("") : empty("⛩", "Aucune publication", "Sois le premier à publier !");
 }
-const loadAccueil = (el, _p, ok) => feed(el, null, ok);
-const loadCommunaute = (el, _p, ok) => feed(el, el.dataset.f || "Tous", ok);
+function loadAccueil(el, _p, ok) { return feed(el, null, ok); }
+function loadCommunaute(el, _p, ok) { return feed(el, el.dataset.f || "Tous", ok); }
 
 async function relations() {
   const [p, a] = await Promise.all([sb.from("profiles").select("id,pseudo,pays,bio,avatar_url,animes").limit(200), sb.from("amis").select("de,a,statut")]);
