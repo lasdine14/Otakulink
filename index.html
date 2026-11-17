@@ -381,6 +381,7 @@ body{background:radial-gradient(ellipse at 50% -15%,rgba(0,112,255,.27),transpar
   <div id="main">
     <div id="screens">
       <section class="screen" id="s-decouvrir"></section>
+      <section class="screen" id="s-rencontres"></section>
       <section class="screen" id="s-communaute"></section>
       <section class="screen" id="s-messages"></section>
       <section class="screen" id="s-connexions"></section>
@@ -412,8 +413,8 @@ const toast = message => {
 };
 const TORII = `<svg class="torii" viewBox="0 0 64 52" fill="none" stroke="#22d3ee" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10c14 4 42 4 56 0"/><path d="M10 20h44"/><path d="M16 10v38M48 10v38"/><path d="M32 12v8"/></svg>`;
 const LOGO = big => `<div class="logo ${big?'big':''}">${TORII}<b>Otaku<span>Link</span></b></div>`;
-const NAV = [['decouvrir','🔎','Découvrir'],['communaute','👥','Communauté'],['messages','💬','Messages'],['connexions','🤝','Connexions'],['profil','👤','Profil'],['parametres','⚙️','Paramètres']];
-const BOTTOM = ['decouvrir','communaute','FAB','messages','connexions','profil'];
+const NAV = [['decouvrir','🔎','Amis'],['rencontres','💘','Rencontres'],['communaute','👥','Communauté'],['messages','💬','Messages'],['connexions','🤝','Connexions'],['profil','👤','Profil'],['parametres','⚙️','Paramètres']];
+const BOTTOM = ['decouvrir','rencontres','communaute','FAB','messages','connexions','profil'];
 const state = { client:null, user:null, profile:null, route:'decouvrir', query:'', filter:'Tous', posts:[], users:[], requests:[], friends:[], conversations:[], activeChat:null, settings:{dark:true,private:false,notifications:true}, busy:false };
 
 function configNotice() {
@@ -528,23 +529,32 @@ async function loadDiscover(){
   const strip=$('#member-strip');if(strip)strip.innerHTML=state.users.length?state.users.slice(0,16).map(u=>`<button class="story" data-profile="${u.id}">${avatar(u)}<span>${esc(u.pseudo||'Membre')}</span></button>`).join(''):empty('Aucun autre membre','Les nouveaux profils apparaîtront ici.');
 }
 render.decouvrir=async()=>{
-  $('#s-decouvrir').innerHTML=`<div class="topbar"><button class="icon-btn" data-go="parametres" aria-label="Menu">☰</button><div style="flex:1;text-align:center"><h1>Découvrir</h1></div><button class="icon-btn" id="discover-search-toggle" aria-label="Rechercher">⌕</button><button class="icon-btn" data-go="connexions" aria-label="Connexions">♧</button></div>
-    <div id="discover-search" class="searchbar hidden"><input id="member-search" placeholder="Rechercher un pseudo…" value="${esc(state.query)}"><button class="btn sm" id="member-search-btn">OK</button></div>
-    <div class="card" style="padding:10px 10px 4px"><h3 style="margin:0 0 7px">Membres de la communauté</h3><div id="member-strip" class="stories">${empty('Chargement des membres…')}</div></div>
-    <div class="chips" style="margin:4px 0 10px"><button class="chip active" data-feed-filter="Tous">Pour toi</button><button class="chip" data-feed-filter="Récents">Récents</button><button class="chip" data-go="communaute">Communauté</button></div>
-    <div id="discover-feed">${SUPABASE_READY?empty('Chargement des publications…'):configNotice()}</div>`;
-  $('#discover-search-toggle').onclick=()=>$('#discover-search').classList.toggle('hidden');
+  $('#s-decouvrir').innerHTML=`<div class="topbar"><div><h1>Découvrir des amis</h1><p>Retrouve des passionnés et crée ton cercle Otaku</p></div><div class="sp"></div><button class="icon-btn" data-go="connexions">♧</button></div>
+    <div class="searchbar"><input id="member-search" placeholder="Rechercher un pseudo…" value="${esc(state.query)}"><button class="btn sm" id="member-search-btn">Rechercher</button></div>
+    <div id="member-results">${SUPABASE_READY?empty('Chargement des membres…'):configNotice()}</div>`;
   $('#member-search-btn')?.addEventListener('click',()=>{state.query=$('#member-search').value;loadDiscover();});
   $('#member-search')?.addEventListener('keydown',e=>{if(e.key==='Enter'){state.query=e.target.value;loadDiscover();}});
+  if(state.client) await loadDiscover();
+};
+render.rencontres=async()=>{
+  $('#s-rencontres').innerHTML=`<div class="topbar"><div><h1>Rencontres 💘</h1><p>Fais une belle rencontre parmi les Otakus</p></div></div>
+    <div class="card" style="background:linear-gradient(135deg,rgba(124,58,237,.35),rgba(8,15,40,.95))"><h3>💜 Un espace pour faire connaissance</h3><p style="color:var(--muted);font-size:14px;line-height:1.5">Ici, tu découvres uniquement les membres qui ont choisi d’activer leur profil Rencontres. Ton profil reste désactivé tant que tu ne l’actives pas.</p><button class="btn block" id="dating-toggle">Vérification de ton profil…</button></div>
+    <div id="dating-cards">${SUPABASE_READY?empty('Chargement des profils…'):configNotice()}</div>`;
   if(!state.client)return;
-  await loadDiscover();
-  const {data:posts,error}=await state.client.from('posts').select('id,auteur,texte,categorie,created_at').order('created_at',{ascending:false}).limit(40);
-  const feed=$('#discover-feed');if(!feed)return;
-  if(error){feed.innerHTML=empty('Fil indisponible','Vérifie la configuration de la base de données.');return;}
-  const ids=(posts||[]).map(p=>p.id);let liked=new Set(),counts={};
-  if(ids.length){const res=await state.client.from('likes').select('post_id,user_id').in('post_id',ids);(res.data||[]).forEach(x=>{counts[x.post_id]=(counts[x.post_id]||0)+1;if(x.user_id===state.user.id)liked.add(x.post_id);});}
-  const profiles=state.users;
-  feed.innerHTML=posts?.length?posts.map(p=>{const u=profiles.find(x=>x.id===p.auteur);return `<article class="card"><div class="post-head">${avatar(u,'sm')}<div style="flex:1"><b>${esc(u?.pseudo||'Membre')}</b><small>${fmtDate(p.created_at)}</small></div><button class="icon-btn" aria-label="Options">⋯</button></div><p>${esc(p.texte)}</p><div class="post-actions" style="margin-top:13px"><button data-like="${p.id}" class="${liked.has(p.id)?'liked':''}">${liked.has(p.id)?'❤️':'♡'} ${counts[p.id]||0}</button><span class="sp"></span></div></article>`;}).join(''):empty('Aucune publication pour le moment','Les publications des membres apparaîtront ici.');
+  const {data:me,error:meErr}=await state.client.from('profiles').select('rencontres_actives').eq('id',state.user.id).maybeSingle();
+  const toggle=$('#dating-toggle');
+  if(meErr){toggle.textContent='Configuration requise';toggle.disabled=true;$('#dating-cards').innerHTML=empty('Rencontres à configurer','Exécute le script SQL de mise à jour fourni avec cette version pour activer cet espace.');return;}
+  toggle.textContent=me?.rencontres_actives?'Désactiver mon profil Rencontres':'Activer mon profil Rencontres';
+  toggle.dataset.enabled=me?.rencontres_actives?'true':'false';
+  toggle.onclick=async()=>{const enabled=toggle.dataset.enabled!=='true';const {error}=await state.client.from('profiles').update({rencontres_actives:enabled}).eq('id',state.user.id);if(error){toast('Impossible de modifier ton profil : '+error.message);return;}toast(enabled?'Ton profil Rencontres est activé.':'Ton profil Rencontres est désactivé.');render.rencontres();};
+  if(!me?.rencontres_actives){$('#dating-cards').innerHTML=empty('Active ton profil pour commencer','Tu pourras alors découvrir les membres qui souhaitent aussi faire des rencontres.');return;}
+  const {data:people,error}=await state.client.from('profiles').select('id,pseudo,bio,pays,avatar_url').eq('rencontres_actives',true).neq('id',state.user.id).limit(50);
+  if(error){$('#dating-cards').innerHTML=empty('Profils indisponibles','Vérifie la mise à jour SQL et les règles RLS de Supabase.');return;}
+  const {data:likes, error:likeErr}=await state.client.from('rencontres_actions').select('a,de,action').or(`de.eq.${state.user.id},a.eq.${state.user.id}`);
+  if(likeErr){$('#dating-cards').innerHTML=empty('Interactions à configurer','La table des intérêts Rencontres doit être créée avec le script SQL fourni.');return;}
+  const seen=new Set((likes||[]).filter(x=>x.de===state.user.id).map(x=>x.a));
+  const available=(people||[]).filter(u=>!seen.has(u.id));
+  $('#dating-cards').innerHTML=available.length?`<div class="grid">${available.map(u=>`<article class="pcard"><div class="cover g4" style="height:190px">${avatar(u,'lg')}</div><div class="body"><b>${esc(u.pseudo||'Membre')}</b><small>${esc(u.pays||'Pays non renseigné')}</small><p style="font-size:13px;min-height:38px;margin:8px 0;color:var(--muted)">${esc(u.bio||'Ce membre souhaite faire de nouvelles rencontres.')}</p><div class="row"><button class="btn sm ghost" data-dating-pass="${u.id}">Passer</button><button class="btn sm" data-dating-like="${u.id}">💗 Intéressé</button></div></div></article>`).join('')}</div>`:empty('Plus de profils pour le moment','Reviens plus tard : de nouveaux membres pourront activer Rencontres.');
 };
 render.discoverList=()=>{
   const el=$('#member-results');if(!el)return;
@@ -617,6 +627,13 @@ function openComposer(){
   $('#m-pub').onclick=async()=>{const content=t.value.trim();if(!content)return toast('Écris quelque chose avant de publier.');const {error}=await state.client.from('posts').insert({auteur:state.user.id,texte:content,categorie:'general'});if(error)toast(error.message);else{$('#modal-root').innerHTML='';go('communaute');toast('Publication publiée.');}};
 }
 document.addEventListener('click',async e=>{
+  const datingLike=e.target.closest('[data-dating-like]');
+  const datingPass=e.target.closest('[data-dating-pass]');
+  if(datingLike||datingPass){
+    const personId=(datingLike||datingPass).dataset[datingLike?'datingLike':'datingPass'];
+    const action=datingLike?'like':'pass';const {error}=await state.client.from('rencontres_actions').insert({de:state.user.id,a:personId,action});if(error){toast('Impossible d’enregistrer ton choix : '+error.message);return;}if(datingLike){const {data:back}=await state.client.from('rencontres_actions').select('de').eq('de',personId).eq('a',state.user.id).eq('action','like').maybeSingle();toast(back?'C’est réciproque ! Vous pouvez faire connaissance 💜':'Intérêt envoyé.');}else toast('Profil passé.');
+    render.rencontres();return;
+  }
   const connect=e.target.closest('[data-connect]');
   if(connect){const {error}=await state.client.from('amis').insert({de:state.user.id,a:connect.dataset.connect,statut:'attente'});toast(error?error.message:'Demande envoyée.');return;}
   const accept=e.target.closest('[data-accept]');
