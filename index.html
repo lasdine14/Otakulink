@@ -616,14 +616,16 @@ render.connexions=async()=>{
 render.messages=async()=>{
   $('#s-messages').innerHTML=`${topbar('Messages','Échange avec tes connexions.')}<div id="messages-content">${SUPABASE_READY?empty('Chargement…'):configNotice()}</div>`;
   if(!state.client)return;
-  const {data,error}=await state.client.from('messages').select('id,de,a,texte,created_at,lu').or(`de.eq.${state.user.id},a.eq.${state.user.id}`).order('created_at',{ascending:true}).limit(500);
+  const mq=cols=>state.client.from('messages').select(cols).or(`de.eq.${state.user.id},a.eq.${state.user.id}`).order('created_at',{ascending:true}).limit(500);
+  let {data,error}=await mq('id,de,a,texte,created_at,lu');
+  if(error&&/\blu\b/.test(error.message||''))({data,error}=await mq('id,de,a,texte,created_at'));
   if(error){console.error('Chargement messages:',error);$('#messages-content').innerHTML=empty('Messages indisponibles',error.message||'Vérifie le schéma SQL et les règles RLS.');return;}
   
   const {data:friendRows,error:friendsError}=await state.client.from('amis').select('de,a,statut').eq('statut','ami').or(`de.eq.${state.user.id},a.eq.${state.user.id}`);
   if(friendsError)console.error('Chargement amis pour messages:',friendsError);
   await fetchProfiles([...(friendRows||[]).flatMap(r=>[r.de,r.a]),...(data||[]).flatMap(m=>[m.de,m.a])].filter(i=>i!==state.user.id));
   const msgs=(data||[]).filter(m=>!state.blocked.has(m.de===state.user.id?m.a:m.de)), people=new Map();
-  const unreadOf=id=>msgs.filter(m=>m.de===id&&m.a===state.user.id&&!m.lu).length;
+  const unreadOf=id=>msgs.filter(m=>m.de===id&&m.a===state.user.id&&m.lu===false).length;
   // A friend is a conversation contact even if neither person has sent a message yet.
   (friendRows||[]).forEach(row=>{
     const otherId=row.de===state.user.id?row.a:row.de;
@@ -642,7 +644,7 @@ render.messages=async()=>{
   const isMobile=window.matchMedia('(max-width:899px)').matches;
   $('#messages-content').innerHTML=`<div class="msg-wrap ${selected?'chat-open':''}"><div class="card conv-col" style="padding:10px">${people.size?[...people.values()].map(p=>`<div class="conv ${p.id===selected?'active':''}" data-chat-open="${p.id}"><div class="av sm g4">${esc((p.pseudo||'?')[0].toUpperCase())}</div><div class="meta"><b>${esc(p.pseudo||'Membre')}</b><small>Ouvrir la discussion</small></div>${unreadOf(p.id)?`<span class="badge">${unreadOf(p.id)}</span>`:''}</div>`).join(''):empty('Aucun ami disponible','Accepte une invitation pour pouvoir commencer une discussion.')}</div><div class="card chat" style="margin:0"><div class="chat-head">${isMobile&&selected?'<button type="button" class="icon-btn" id="chat-back" aria-label="Retour aux conversations">←</button>':''}<b>${selected?esc(people.get(selected)?.pseudo||'Membre'):'Choisis un ami'}</b></div><div class="chat-body" id="chat-body">${selected?(thread.map(m=>`<div class="bubble ${m.de===state.user.id?'out':'in'}">${esc(m.texte)}<small>${fmtDate(m.created_at)}</small></div>`).join('')||'<p style="color:var(--muted);text-align:center">Aucun message pour le moment. Envoie le premier !</p>'):'<p style="color:var(--muted);text-align:center">Sélectionne un ami dans la liste pour commencer.</p>'}</div>${selected?`<form class="chat-input" id="chat-form"><input id="chat-input" maxlength="2000" placeholder="Écrire un message…" autocomplete="off" required><button class="send" type="submit" aria-label="Envoyer le message">➤</button></form>`:''}</div></div>`;
   const body=$('#chat-body');if(body)body.scrollTop=body.scrollHeight;
-  if(selected&&thread.some(m=>m.de===selected&&!m.lu))state.client.from('messages').update({lu:true}).eq('de',selected).eq('a',state.user.id).eq('lu',false).then(()=>refreshUnread());
+  if(selected&&thread.some(m=>m.de===selected&&m.lu===false))state.client.from('messages').update({lu:true}).eq('de',selected).eq('a',state.user.id).eq('lu',false).then(()=>refreshUnread());
   $('#chat-back')?.addEventListener('click',()=>{state.activeChat=null;render.messages();});
   $('#chat-form')?.addEventListener('submit',async e=>{
     e.preventDefault();
