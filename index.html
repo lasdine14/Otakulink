@@ -342,9 +342,11 @@ body{background:radial-gradient(ellipse at 50% -15%,rgba(0,112,255,.27),transpar
 .btn.danger{background:linear-gradient(100deg,#ff174d,#e90054);color:white}
 .chip{background:rgba(4,20,50,.92);border-color:rgba(38,145,255,.4);font-size:13px;padding:8px 14px}
 .chip.active{background:linear-gradient(100deg,#087cff,#00cfff);color:#00152c}
-#bottomnav{left:5px;right:5px;bottom:max(5px,env(safe-area-inset-bottom));height:64px;border-radius:18px;background:rgba(2,10,29,.96);border:1px solid rgba(0,180,255,.55);box-shadow:0 0 22px rgba(0,149,255,.42);backdrop-filter:blur(16px)}
-#bottomnav .bn{font-size:10px;padding:5px 4px;min-width:48px}#bottomnav .bn .ic{font-size:20px}#bottomnav .bn.active{color:#00e5ff;text-shadow:0 0 12px #00dfff}
-#fab{width:48px;height:48px;margin-top:-17px;background:linear-gradient(145deg,#087cff,#00dfff);color:#00152a;border:2px solid #8df5ff;font-weight:900}
+#bottomnav{left:6px;right:6px;bottom:max(6px,env(safe-area-inset-bottom));height:66px;padding:4px;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:2px;align-items:center;border-radius:18px;background:rgba(2,10,29,.97);border:1px solid rgba(0,180,255,.55);box-shadow:0 0 22px rgba(0,149,255,.42);backdrop-filter:blur(16px)}
+#bottomnav .bn{width:100%;min-width:0;max-width:none;padding:5px 1px;gap:2px;font-size:clamp(8px,2.25vw,10px);line-height:1.05;white-space:nowrap;overflow:hidden;text-overflow:clip;border-radius:12px}
+#bottomnav .bn .ic{font-size:19px;line-height:1.1}#bottomnav .bn.active{color:#00e5ff;text-shadow:0 0 12px #00dfff}
+#fab{width:40px;height:40px;justify-self:center;margin:0;background:linear-gradient(145deg,#087cff,#00dfff);color:#00152a;border:2px solid #8df5ff;font-weight:900;font-size:28px}
+@media(max-width:360px){#bottomnav .bn{font-size:8px}#bottomnav .bn .ic{font-size:17px}#fab{width:36px;height:36px}}
 .nav-item{border-radius:13px}.nav-item.active{background:linear-gradient(100deg,#087cff,#00cfff);color:#00152a}
 .av{border-color:#00dcff;box-shadow:0 0 12px rgba(0,220,255,.6);overflow:hidden}.av img{display:block}
 .stories{gap:12px;padding:7px 2px 13px}.story{width:68px}.story .av{width:58px;height:58px;border:2px solid #00dfff;padding:2px;background:linear-gradient(135deg,#00dfff,#a42cff)}
@@ -414,7 +416,7 @@ const toast = message => {
 const TORII = `<svg class="torii" viewBox="0 0 64 52" fill="none" stroke="#22d3ee" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10c14 4 42 4 56 0"/><path d="M10 20h44"/><path d="M16 10v38M48 10v38"/><path d="M32 12v8"/></svg>`;
 const LOGO = big => `<div class="logo ${big?'big':''}">${TORII}<b>Otaku<span>Link</span></b></div>`;
 const NAV = [['decouvrir','🔎','Amis'],['rencontres','💘','Rencontres'],['communaute','👥','Communauté'],['messages','💬','Messages'],['connexions','🤝','Connexions'],['profil','👤','Profil'],['parametres','⚙️','Paramètres']];
-const BOTTOM = ['decouvrir','rencontres','communaute','FAB','messages','connexions','profil'];
+const BOTTOM = ['decouvrir','rencontres','communaute','FAB','messages','profil'];
 const state = { client:null, user:null, profile:null, route:'decouvrir', query:'', filter:'Tous', posts:[], users:[], requests:[], friends:[], conversations:[], activeChat:null, settings:{dark:true,private:false,notifications:true}, busy:false };
 
 function configNotice() {
@@ -592,17 +594,41 @@ render.connexions=async()=>{
 render.messages=async()=>{
   $('#s-messages').innerHTML=`${topbar('Messages','Échange avec tes connexions.')}<div id="messages-content">${SUPABASE_READY?empty('Chargement…'):configNotice()}</div>`;
   if(!state.client)return;
-  const {data,error}=await state.client.from('messages').select('id,de,a,texte,created_at').or(`de.eq.${state.user.id},a.eq.${state.user.id}`).order('created_at',{ascending:true}).limit(200);
-  if(error){console.error(error);$('#messages-content').innerHTML=empty('Messages indisponibles','Vérifie le schéma SQL et les règles RLS.');return;}
-  const {data:profilesData}=await state.client.from('profiles').select('id,pseudo,bio,pays,avatar_url'); state.users=profilesData||[];
-   const msgs=data||[], people=new Map();
-  msgs.forEach(m=>{const other=m.de===state.user.id?state.users.find(u=>u.id===m.a):state.users.find(u=>u.id===m.de);if(other)people.set(other.id,other);});
-  const selected=state.activeChat&&people.has(state.activeChat)?state.activeChat:(people.keys().next().value||null);
-  state.activeChat=selected;
+  const {data,error}=await state.client.from('messages').select('id,de,a,texte,created_at').or(`de.eq.${state.user.id},a.eq.${state.user.id}`).order('created_at',{ascending:true}).limit(500);
+  if(error){console.error('Chargement messages:',error);$('#messages-content').innerHTML=empty('Messages indisponibles',error.message||'Vérifie le schéma SQL et les règles RLS.');return;}
+  const {data:profilesData,error:profilesError}=await state.client.from('profiles').select('id,pseudo,bio,pays,avatar_url');
+  if(profilesError){console.error('Chargement profils:',profilesError);}
+  state.users=profilesData||[];
+  const {data:friendRows,error:friendsError}=await state.client.from('amis').select('de,a,statut').eq('statut','ami').or(`de.eq.${state.user.id},a.eq.${state.user.id}`);
+  if(friendsError)console.error('Chargement amis pour messages:',friendsError);
+  const msgs=data||[], people=new Map();
+  // A friend is a conversation contact even if neither person has sent a message yet.
+  (friendRows||[]).forEach(row=>{
+    const otherId=row.de===state.user.id?row.a:row.de;
+    const other=state.users.find(u=>u.id===otherId);
+    if(other)people.set(other.id,other);
+  });
+  // Keep any existing conversation even if the friendship row is no longer visible.
+  msgs.forEach(m=>{
+    const otherId=m.de===state.user.id?m.a:m.de;
+    const other=state.users.find(u=>u.id===otherId);
+    if(other)people.set(other.id,other);
+  });
+  const selected=state.activeChat&&people.has(state.activeChat)?state.activeChat:null;
+  if(state.activeChat&&!selected)state.activeChat=null;
   const thread=selected?msgs.filter(m=>(m.de===state.user.id&&m.a===selected)||(m.de===selected&&m.a===state.user.id)):[];
-  $('#messages-content').innerHTML=`<div class="msg-wrap"><div class="card conv-col" style="padding:10px">${people.size?[...people.values()].map(p=>`<div class="conv ${p.id===selected?'active':''}" data-chat-open="${p.id}"><div class="av sm g4">${esc((p.pseudo||'?')[0].toUpperCase())}</div><div class="meta"><b>${esc(p.pseudo)}</b><small>Conversation</small></div></div>`).join(''):empty('Aucune conversation','Tu pourras écrire aux membres avec lesquels tu es connecté.')}</div><div class="card chat" style="margin:0"><div class="chat-head"><b>${selected?esc(people.get(selected)?.pseudo):'Conversation'}</b></div><div class="chat-body" id="chat-body">${thread.map(m=>`<div class="bubble ${m.de===state.user.id?'out':'in'}">${esc(m.texte)}<small>${fmtDate(m.created_at)}</small></div>`).join('')||'<p style="color:var(--muted);text-align:center">Sélectionne une conversation pour commencer.</p>'}</div>${selected?`<form class="chat-input" id="chat-form"><input id="chat-input" maxlength="2000" placeholder="Écrire un message…" autocomplete="off" required><button class="send" type="submit">➤</button></form>`:''}</div></div>`;
+  const isMobile=window.matchMedia('(max-width:899px)').matches;
+  $('#messages-content').innerHTML=`<div class="msg-wrap ${selected?'chat-open':''}"><div class="card conv-col" style="padding:10px">${people.size?[...people.values()].map(p=>`<div class="conv ${p.id===selected?'active':''}" data-chat-open="${p.id}"><div class="av sm g4">${esc((p.pseudo||'?')[0].toUpperCase())}</div><div class="meta"><b>${esc(p.pseudo||'Membre')}</b><small>Ouvrir la discussion</small></div></div>`).join(''):empty('Aucun ami disponible','Accepte une invitation pour pouvoir commencer une discussion.')}</div><div class="card chat" style="margin:0"><div class="chat-head">${isMobile&&selected?'<button type="button" class="icon-btn" id="chat-back" aria-label="Retour aux conversations">←</button>':''}<b>${selected?esc(people.get(selected)?.pseudo||'Membre'):'Choisis un ami'}</b></div><div class="chat-body" id="chat-body">${selected?(thread.map(m=>`<div class="bubble ${m.de===state.user.id?'out':'in'}">${esc(m.texte)}<small>${fmtDate(m.created_at)}</small></div>`).join('')||'<p style="color:var(--muted);text-align:center">Aucun message pour le moment. Envoie le premier !</p>'):'<p style="color:var(--muted);text-align:center">Sélectionne un ami dans la liste pour commencer.</p>'}</div>${selected?`<form class="chat-input" id="chat-form"><input id="chat-input" maxlength="2000" placeholder="Écrire un message…" autocomplete="off" required><button class="send" type="submit" aria-label="Envoyer le message">➤</button></form>`:''}</div></div>`;
   const body=$('#chat-body');if(body)body.scrollTop=body.scrollHeight;
-  $('#chat-form')?.addEventListener('submit',async e=>{e.preventDefault();const content=$('#chat-input').value.trim();if(!content)return;const {error}=await state.client.from('messages').insert({de:state.user.id,a:selected,texte:content});if(error)toast(error.message);else render.messages();});
+  $('#chat-back')?.addEventListener('click',()=>{state.activeChat=null;render.messages();});
+  $('#chat-form')?.addEventListener('submit',async e=>{
+    e.preventDefault();
+    const input=$('#chat-input'),content=input?.value.trim();if(!content||!selected)return;
+    const send=e.submitter||e.target.querySelector('button[type="submit"]');if(send)send.disabled=true;
+    const {error:sendError}=await state.client.from('messages').insert({de:state.user.id,a:selected,texte:content});
+    if(sendError){console.error('Envoi message:',sendError);toast('Envoi impossible : '+sendError.message);if(send)send.disabled=false;return;}
+    state.activeChat=selected;await render.messages();
+  });
 };
 render.profil=async()=>{
   const viewing=state.viewedProfile||null;const p=viewing||state.profile||{};
