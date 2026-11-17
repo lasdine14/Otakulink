@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#050b1f">
+<title>OtakuLink</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <nav id="tabs" aria-label="Navigation principale">
+    <a href="#accueil" class="side-only" data-tab="accueil"><i>🏠</i>Accueil</a>
+    <a href="#decouvrir" data-tab="decouvrir"><i>🧭</i>Découvrir</a>
+    <a href="#communaute" data-tab="communaute"><i>👥</i>Communauté</a>
+    <a href="#messages" data-tab="messages"><i>💬</i>Messages</a>
+    <a href="#connexions" data-tab="connexions"><i>🤝</i>Connexions</a>
+    <a href="#profil" data-tab="profil"><i>👤</i>Profil</a>
+  </nav>
+  <div id="main">
+    <header id="top">
+      <button id="back" class="ico-btn" aria-label="Retour" hidden>‹</button>
+      <a id="logo-mini" href="#accueil" aria-label="Accueil">⛩</a>
+      <h1 id="title">Accueil</h1>
+      <button id="act" class="ico-btn" aria-label="Paramètres" hidden>⚙</button>
+    </header>
+    <main id="screen" tabindex="-1"></main>
+  </div>
+</div>
+<script src="app.js"></script>
+</body>
+</html>
