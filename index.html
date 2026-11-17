@@ -1,218 +1,602 @@
 <!DOCTYPE html>
-<html lang="fr"><head><meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#050b1f"><title>OtakuLink</title>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#050b1f">
+<meta name="description" content="OtakuLink — communauté des passionnés d’anime et de manga.">
+<meta name="color-scheme" content="dark light">
+<title>OtakuLink</title>
 <style>
-:root{--bg:#050b1f;--c:#0a1334;--c2:#101d45;--b:#1e90ff;--cy:#22d3ee;--t:#eaf1ff;--m:#8fa3d6;--l:rgba(60,130,255,.42);--g:0 0 14px rgba(30,144,255,.38),inset 0 0 16px rgba(30,144,255,.08);--r:#ef2b3d}
+:root{
+  --bg:#050b1f; --bg2:#0a1330; --card:#0b1432; --card2:#101c42;
+  --blue:#1e90ff; --cyan:#22d3ee; --violet:#8b5cf6; --pink:#ec4899;
+  --text:#eaf1ff; --muted:#93a4cf; --line:rgba(80,140,255,.35);
+  --glow:0 0 14px rgba(30,144,255,.55), inset 0 0 12px rgba(30,144,255,.12);
+  --red:#ef2b3d; --green:#22c55e; --gold:#fbbf24;
+}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-html,body{height:100%;background:#02050f}
-body{font:15px/1.4 "Segoe UI",Roboto,system-ui,sans-serif;color:var(--t);overflow:hidden}
+html,body{height:100%}
+body{
+  font-family:"Segoe UI",Roboto,system-ui,sans-serif;color:var(--text);
+  background:
+    radial-gradient(900px 500px at 85% -10%,rgba(139,92,246,.35),transparent 60%),
+    radial-gradient(800px 500px at -10% 110%,rgba(30,144,255,.30),transparent 60%),
+    var(--bg);
+  background-attachment:fixed; overflow:hidden;
+}
 button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
-input,select{font:inherit;color:var(--t)}a{color:var(--cy);text-decoration:none}[hidden]{display:none!important}
-:focus-visible{outline:2px solid var(--cy);outline-offset:2px}
-#app{height:100dvh;max-width:440px;margin:0 auto;display:flex;flex-direction:column;position:relative;overflow:hidden;
-background:radial-gradient(500px 300px at 90% -5%,rgba(60,100,255,.3),transparent 60%),radial-gradient(500px 400px at -10% 105%,rgba(30,144,255,.25),transparent 60%),var(--bg);box-shadow:0 0 0 1px var(--l),0 0 40px rgba(30,144,255,.25)}
-#top{display:flex;align-items:center;gap:8px;padding:calc(env(safe-area-inset-top,0px) + 10px) 14px 10px;border-bottom:1px solid var(--l)}
-#top h1{flex:1;text-align:center;font-size:18px;font-weight:700}
-.ib{position:relative;width:38px;height:38px;border-radius:12px;display:grid;place-items:center;border:1px solid var(--l);background:var(--c);box-shadow:var(--g)}
-.ib.ph{visibility:hidden}.dot{position:absolute;top:6px;right:7px;width:9px;height:9px;border-radius:50%;background:var(--r)}
-#scr{flex:1;overflow-y:auto;padding:14px;position:relative}
-#tabs{display:grid;grid-template-columns:repeat(5,1fr);padding-bottom:env(safe-area-inset-bottom,0);border-top:1px solid var(--l);background:rgba(5,11,31,.96)}
-#tabs a{position:relative;display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 0 7px;color:var(--m);font-size:11px}
-#tabs a.on{color:var(--b);text-shadow:0 0 10px rgba(30,144,255,.8)}#tabs a.on svg{filter:drop-shadow(0 0 5px var(--b))}
-.bd{position:absolute;top:3px;left:calc(50% + 6px);min-width:17px;height:17px;border-radius:9px;background:var(--r);color:#fff;font-size:10px;font-weight:700;display:grid;place-items:center;padding:0 4px}
-.bd.i{position:static;display:inline-grid;margin-left:6px}
-/* auth */
-body.auth #top,body.auth #tabs{display:none}body.auth #scr{padding:0}
-.aw{min-height:100%;display:flex;flex-direction:column;justify-content:flex-end;gap:12px;padding:22px 22px 26px;text-align:center;position:relative;z-index:1}
-.aw.f{justify-content:center}
-.bg{position:absolute;inset:0;z-index:0;background:radial-gradient(circle at 70% 16%,#cfe6ff 0 7%,#6fb1ff 8% 11%,rgba(60,130,255,.35) 12% 28%,transparent 45%),linear-gradient(180deg,rgba(5,11,31,0) 30%,var(--bg) 85%)}
-.bg svg{position:absolute;right:-30px;bottom:0;width:240px;opacity:.28}
-.logo{display:flex;flex-direction:column;align-items:center}.logo svg{filter:drop-shadow(0 0 8px var(--cy))}
-.logo b{font-size:36px;font-weight:800;letter-spacing:-.5px}.logo b span{color:var(--cy)}
-.tag{font-size:21px;font-weight:700;line-height:1.25}.tag span{color:var(--cy)}.sub{color:var(--m)}
-.field{display:flex;align-items:center;gap:10px;background:var(--c);border:1px solid var(--l);border-radius:14px;padding:0 14px;height:50px;text-align:left}
-.field input,.field select{flex:1;min-width:0;height:100%;background:none;border:0;outline:0}.field select option{background:var(--c)}
-.field:focus-within{border-color:var(--b);box-shadow:var(--g)}.field svg{color:var(--m);flex:none}
-.ck{display:flex;gap:10px;align-items:center;text-align:left;font-size:13px}.ck input{accent-color:var(--b);width:18px;height:18px}
-.btn{display:block;width:100%;height:50px;border-radius:999px;font-weight:700;font-size:16px;color:#fff;background:linear-gradient(90deg,#1e90ff,#00c2ff);box-shadow:0 0 18px rgba(30,144,255,.5);line-height:50px;text-align:center}
-.btn.d{background:#000;border:1px solid var(--l);box-shadow:none}.btn:disabled{opacity:.6}
-.sep{display:flex;align-items:center;gap:12px;color:var(--m);font-size:13px}.sep::before,.sep::after{content:"";flex:1;height:1px;background:var(--l)}
-.soc{display:flex;gap:12px;justify-content:center}.soc button{flex:1;max-width:96px;height:48px;border-radius:14px;border:1px solid var(--l);background:var(--c);font-weight:700}
-.note{min-height:18px;font-size:13px;color:var(--cy)}.row{display:flex;justify-content:space-between;font-size:13px}
-/* app */
-.chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:8px;margin-bottom:10px;scrollbar-width:none}
-.chips button{flex:none;padding:7px 16px;border-radius:999px;border:1px solid var(--l);background:var(--c);font-size:14px}
-.chips button.on{background:var(--b);border-color:var(--b);box-shadow:0 0 12px rgba(30,144,255,.6)}
-.card{background:var(--c);border:1px solid var(--l);border-radius:18px;padding:14px;box-shadow:var(--g);margin-bottom:12px}
-.av{flex:none;border-radius:50%;display:grid;place-items:center;font-weight:800;overflow:hidden;border:2px solid var(--b);box-shadow:var(--g);color:#fff}
-.av img{width:100%;height:100%;object-fit:cover}.av.ring{border-width:3px;box-shadow:0 0 22px var(--b)}
-.cmp{display:flex;align-items:center;gap:10px}.cmp input[type=text]{flex:1;min-width:0;background:none;border:0;outline:0}
-.cmp .btn{width:auto;height:36px;line-height:36px;padding:0 18px;font-size:14px}.ir{color:var(--m);display:grid;place-items:center}
-.pv{margin-top:10px;border-radius:12px;max-height:160px;object-fit:cover;width:100%}
-.ph2{display:flex;gap:10px;align-items:center}.ph2 .g{flex:1;min-width:0}.g{flex:1;min-width:0}
-.po p{margin:10px 0;white-space:pre-wrap;word-break:break-word}
-.art{height:170px;border-radius:14px;display:grid;place-items:center;font-size:64px;margin-bottom:10px}
-.art.img{padding:0;display:block;overflow:hidden}.art.img img{width:100%;height:100%;object-fit:cover}
-.act{display:flex;gap:18px;align-items:center;color:var(--m);font-size:14px}.act button{display:flex;gap:6px;align-items:center}.act .on{color:var(--r)}
-.cm{margin-top:8px;font-size:13px;color:var(--m)}.cm b{color:var(--t)}
-.pers{display:flex;align-items:center;gap:12px;padding:12px}
-.mini{width:38px;height:38px;border-radius:12px;border:1px solid var(--l);background:var(--c2);display:grid;place-items:center;margin-left:4px}
-.mini.y{background:var(--b)}.mini.n{color:var(--r)}
-.bubble{position:absolute;top:8px;left:0;right:0}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.gc{text-align:center;padding:14px 8px;margin:0}.gc .av{margin:0 auto 6px}
-.st{font-size:12px;color:var(--m)}.st i{display:inline-block;width:8px;height:8px;border-radius:50%;background:#2ee66b;margin-right:4px}.st i.o{background:var(--r)}
-.dc{position:relative;height:min(52vh,420px);border-radius:22px;border:1px solid var(--l);box-shadow:var(--g);overflow:hidden;display:flex;align-items:flex-end}
-.dc .ov{position:relative;width:100%;padding:60px 16px 14px;background:linear-gradient(0deg,rgba(5,11,31,.95) 40%,transparent)}
-.dc h2{font-size:24px}.cnt{position:absolute;top:12px;right:12px;padding:4px 12px;border-radius:999px;background:rgba(5,11,31,.7);border:1px solid var(--l);font-size:13px}
-.big{position:absolute;inset:0;display:grid;place-items:center;font-size:120px;opacity:.9}.big img{width:100%;height:100%;object-fit:cover}
-.tg{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}.tg span{padding:5px 14px;border-radius:999px;border:1px solid var(--l);background:rgba(16,29,69,.8);font-size:13px}
-.rd{display:flex;justify-content:center;gap:22px;margin-top:16px}.rd button{width:58px;height:58px;border-radius:50%;border:2px solid var(--b);background:var(--c);display:grid;place-items:center;box-shadow:var(--g)}.rd .h{background:var(--b)}
-.empty{text-align:center;padding:34px 18px}.empty .e{font-size:40px;margin-bottom:6px}.empty p{color:var(--m)}
-.msg{max-width:78%;padding:9px 14px;border-radius:18px;background:var(--c2);margin:6px 0;word-break:break-word}.msg.me{margin-left:auto;background:var(--b)}
-#fm{position:sticky;bottom:-14px;display:flex;gap:8px;padding:8px 0 4px;background:var(--bg)}
-#fm input{flex:1;height:46px;border-radius:999px;border:1px solid var(--l);background:var(--c);padding:0 16px;outline:0;min-width:0}#fm button{width:46px;border-radius:50%;background:var(--b);display:grid;place-items:center}
-.pf{text-align:center}.pf .av{margin:0 auto 8px}.stats{display:flex;justify-content:space-around;margin:14px 0 4px}.stats b{display:block;font-size:20px}.stats span{color:var(--m);font-size:13px}
-.h2{display:flex;justify-content:space-between;align-items:center;margin:16px 4px 8px;font-weight:700}.h2 a{font-weight:400;font-size:13px}
-.an{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.an div{aspect-ratio:3/4;border-radius:12px;border:1px solid var(--l);display:flex;align-items:flex-end;padding:5px;font-size:11px;font-weight:700;word-break:break-word}
-.mn{display:flex;align-items:center;gap:14px;padding:13px 6px;width:100%;text-align:left;border-bottom:1px solid rgba(60,130,255,.15)}
-.mn svg{color:var(--cy)}.gp{margin:16px 4px 4px;font-weight:700}
-.sw{width:44px;height:26px;border-radius:13px;background:var(--c2);border:1px solid var(--l);position:relative;margin-left:auto}
-.sw::after{content:"";position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:var(--m);transition:.2s}.sw.on{background:var(--b)}.sw.on::after{left:20px;background:#fff}
-#toast{position:absolute;left:50%;bottom:90px;transform:translateX(-50%);background:var(--c2);border:1px solid var(--b);box-shadow:var(--g);padding:10px 18px;border-radius:999px;font-size:14px;z-index:9;max-width:90%;text-align:center}
-.sq{margin-bottom:12px}
-#scr.an>*{animation:up .28s ease backwards}@keyframes up{from{opacity:0;transform:translateY(8px)}}
-@media(prefers-reduced-motion:reduce){#scr.an>*{animation:none}}
-.dc{touch-action:pan-y;user-select:none;cursor:grab}.dc img{-webkit-user-drag:none;pointer-events:none}
-.dc[data-s=y]{box-shadow:0 0 36px #2ee66b}.dc[data-s=n]{box-shadow:0 0 36px var(--r)}
-.fc{display:flex;gap:8px;margin-top:10px}.fc input{flex:1;min-width:0;height:38px;border-radius:999px;border:1px solid var(--l);background:var(--c2);padding:0 14px;outline:0}
-.btn.d:disabled{opacity:.7}.hint{font-size:12px;color:var(--m);text-align:left;margin:-4px 4px 0}
-.dng{color:var(--r)}
-</style></head><body>
-<div id="app">
-<header id="top"></header>
-<main id="scr" tabindex="-1"></main>
-<nav id="tabs"></nav>
-<div id="toast" hidden></div>
+input,textarea,select{font:inherit;color:var(--text)}
+a{color:var(--cyan);text-decoration:none}
+.hidden{display:none!important}
+
+/* ===== Layout ===== */
+#app{height:100%;display:flex}
+#sidebar{
+  width:230px;flex:none;padding:18px 14px;display:none;flex-direction:column;gap:6px;
+  border-right:1px solid var(--line);background:linear-gradient(180deg,rgba(10,19,48,.9),rgba(5,11,31,.9));
+  box-shadow:var(--glow);overflow-y:auto;
+}
+#main{flex:1;display:flex;flex-direction:column;min-width:0;height:100%}
+#screens{flex:1;overflow-y:auto;padding:14px 14px 96px;scroll-behavior:smooth}
+.screen{display:none;animation:fade .25s ease}
+.screen.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+/* ===== Logo ===== */
+.logo{display:flex;flex-direction:column;align-items:center;gap:2px;margin-bottom:12px}
+.torii{width:46px;height:38px;filter:drop-shadow(0 0 8px var(--cyan))}
+.logo b{font-size:26px;letter-spacing:.5px;font-weight:800}
+.logo b span,.grad{color:var(--cyan)}
+.logo.big b{font-size:38px}
+.logo.big .torii{width:70px;height:58px}
+
+/* ===== Nav ===== */
+.nav-item{
+  display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:14px;font-weight:600;
+  color:var(--text);position:relative;width:100%;text-align:left;
+}
+.nav-item .ic{font-size:19px;width:24px;text-align:center}
+.nav-item:hover{background:rgba(30,144,255,.12)}
+.nav-item.active{background:linear-gradient(90deg,#1478ff,#1e90ff);box-shadow:0 0 16px rgba(30,144,255,.7)}
+.badge{
+  min-width:19px;height:19px;border-radius:10px;background:var(--red);color:#fff;font-size:11px;font-weight:700;
+  display:inline-flex;align-items:center;justify-content:center;padding:0 5px;margin-left:auto;
+}
+.side-promo{
+  margin-top:auto;border:1px solid var(--line);border-radius:16px;padding:14px;box-shadow:var(--glow);
+  background:linear-gradient(160deg,rgba(139,92,246,.35),rgba(10,19,48,.9));
+}
+.side-promo h4{font-size:15px;margin-bottom:6px}
+.side-promo ul{list-style:none;font-size:13px;margin-bottom:10px;color:var(--muted)}
+.side-promo li::before{content:"✔ ";color:var(--green)}
+
+#bottomnav{
+  position:fixed;left:8px;right:8px;bottom:max(8px,env(safe-area-inset-bottom));height:68px;z-index:30;
+  display:flex;align-items:center;justify-content:space-around;
+  background:rgba(8,15,40,.92);backdrop-filter:blur(12px);border:1px solid var(--line);border-radius:26px;box-shadow:var(--glow);
+}
+#bottomnav .bn{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;color:var(--text);position:relative;padding:6px 8px;border-radius:16px}
+#bottomnav .bn .ic{font-size:21px}
+#bottomnav .bn.active{color:var(--cyan);text-shadow:0 0 8px var(--cyan)}
+#bottomnav .bn .badge{position:absolute;top:0;right:0;margin:0;min-width:16px;height:16px;font-size:10px}
+#fab{
+  width:58px;height:58px;border-radius:50%;border:2px solid var(--cyan);font-size:32px;line-height:1;
+  background:radial-gradient(circle,#0e2a6b,#071233);box-shadow:0 0 18px var(--cyan);margin-top:-22px;color:var(--text);
+}
+
+@media(min-width:900px){
+  #sidebar{display:flex}
+  #bottomnav{left:244px;right:14px}
+  #screens{padding:18px 22px 96px}
+}
+
+/* ===== Common blocks ===== */
+.topbar{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.topbar h1{font-size:26px;font-weight:800}
+.topbar p{font-size:13px;color:var(--muted)}
+.topbar .sp{flex:1}
+.icon-btn{
+  width:42px;height:42px;border-radius:50%;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;
+  font-size:18px;position:relative;background:rgba(15,27,66,.7);
+}
+.icon-btn .badge{position:absolute;top:-4px;right:-4px;margin:0}
+.card{
+  background:linear-gradient(180deg,rgba(14,26,62,.92),rgba(8,15,40,.92));
+  border:1px solid var(--line);border-radius:18px;padding:14px;box-shadow:var(--glow);margin-bottom:14px;
+}
+.card h3{font-size:16px;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.card h3 .more{margin-left:auto;font-size:13px;color:var(--cyan);font-weight:600}
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:12px 20px;border-radius:999px;font-weight:700;
+  background:linear-gradient(90deg,#1478ff,#1ec3ff);box-shadow:0 0 16px rgba(30,144,255,.6);color:#fff;transition:.15s;
+}
+.btn:hover{filter:brightness(1.12);transform:translateY(-1px)}
+.btn.block{width:100%}
+.btn.sm{padding:7px 14px;font-size:13px}
+.btn.ghost{background:rgba(15,27,66,.8);border:1px solid var(--line);box-shadow:none}
+.btn.gold{background:linear-gradient(90deg,#fbbf24,#f59e0b);color:#2b1a00;box-shadow:0 0 16px rgba(251,191,36,.5)}
+.btn.danger{background:var(--red)}
+.chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{
+  flex:none;padding:8px 16px;border-radius:999px;border:1px solid var(--line);background:rgba(15,27,66,.7);font-size:14px;font-weight:600;
+}
+.chip.active{background:linear-gradient(90deg,#1478ff,#1e90ff);box-shadow:0 0 12px rgba(30,144,255,.7);border-color:transparent}
+.tag{display:inline-block;padding:5px 12px;border-radius:999px;border:1px solid var(--line);background:rgba(15,27,66,.8);font-size:12px;margin:0 6px 6px 0}
+
+/* ===== Avatars (placeholders colorés) ===== */
+.av{
+  width:48px;height:48px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-size:22px;
+  border:2px solid var(--cyan);box-shadow:0 0 10px rgba(34,211,238,.6);position:relative;background:var(--g,linear-gradient(135deg,#6d28d9,#1e90ff));
+}
+.av.lg{width:96px;height:96px;font-size:44px}
+.av.sm{width:38px;height:38px;font-size:18px}
+.av .on{position:absolute;right:-1px;bottom:-1px;width:13px;height:13px;border-radius:50%;background:var(--green);border:2px solid var(--bg)}
+.av .on.off{background:#7c86a8}
+.g1{--g:linear-gradient(135deg,#7c3aed,#ec4899)}
+.g2{--g:linear-gradient(135deg,#f59e0b,#ef4444)}
+.g3{--g:linear-gradient(135deg,#ec4899,#f9a8d4)}
+.g4{--g:linear-gradient(135deg,#0ea5e9,#6366f1)}
+.g5{--g:linear-gradient(135deg,#10b981,#0ea5e9)}
+.g6{--g:linear-gradient(135deg,#dc2626,#7c3aed)}
+.verified{color:#38bdf8;font-size:14px}
+
+.stories{display:flex;gap:14px;overflow-x:auto;padding:4px 2px 10px;scrollbar-width:none}
+.stories::-webkit-scrollbar{display:none}
+.story{flex:none;text-align:center;font-size:12px;width:64px}
+.story .av{margin:0 auto 5px;width:58px;height:58px}
+.story.add .av{background:#06102c;font-size:30px}
+
+/* ===== Posts ===== */
+.post-head{display:flex;gap:10px;align-items:center;margin-bottom:8px}
+.post-head b{display:block}
+.post-head small{color:var(--muted)}
+.post-img{
+  border-radius:14px;height:200px;margin:10px 0;display:flex;align-items:center;justify-content:center;font-size:72px;
+  background:var(--g,linear-gradient(135deg,#1e3a8a,#7c3aed));border:1px solid var(--line);position:relative;overflow:hidden;
+}
+.post-img::after{content:"";position:absolute;inset:0;background:radial-gradient(circle at 70% 20%,rgba(255,255,255,.25),transparent 50%)}
+.post-actions{display:flex;gap:18px;align-items:center;color:var(--text);font-size:14px}
+.post-actions button{display:flex;gap:6px;align-items:center;font-weight:600}
+.post-actions button.liked{color:#ff4d6d}
+.post-actions .sp{flex:1}
+.comment{background:rgba(255,255,255,.05);border-radius:12px;padding:8px 12px;margin-top:10px;font-size:14px}
+.composer{display:flex;gap:10px;align-items:center}
+.composer input{flex:1;background:rgba(15,27,66,.8);border:1px solid var(--line);border-radius:999px;padding:12px 16px;outline:none}
+
+.two-col{display:grid;gap:14px}
+@media(min-width:1100px){.two-col{grid-template-columns:minmax(0,1fr) 320px}}
+
+.trend-row{display:flex;gap:10px;padding:8px 0;border-bottom:1px solid rgba(80,140,255,.15);font-size:14px}
+.trend-row:last-child{border:0}
+.trend-row b{width:18px;color:var(--muted)}
+.trend-row span:last-child{margin-left:auto;color:#fb923c}
+.group-row{display:flex;gap:10px;align-items:center;margin:8px 0;font-size:14px}
+.group-row small{display:block;color:var(--muted)}
+.group-row .btn{margin-left:auto}
+
+/* ===== Discover grid ===== */
+.searchbar{display:flex;gap:10px;margin-bottom:12px}
+.searchbar input{flex:1;background:rgba(15,27,66,.8);border:1px solid var(--line);border-radius:999px;padding:12px 16px;outline:none}
+.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(170px,1fr))}
+.pcard{
+  border:1px solid var(--line);border-radius:18px;overflow:hidden;box-shadow:var(--glow);background:var(--card);
+  display:flex;flex-direction:column;
+}
+.pcard .cover{
+  height:150px;display:flex;align-items:center;justify-content:center;font-size:60px;position:relative;
+  background:var(--g,linear-gradient(135deg,#1e3a8a,#7c3aed));
+}
+.pcard .status{
+  position:absolute;top:8px;left:8px;font-size:11px;padding:3px 9px;border-radius:999px;background:rgba(0,0,0,.55);border:1px solid var(--green);color:#4ade80;
+}
+.pcard .status.off{border-color:#7c86a8;color:#b6bfd9}
+.pcard .heart{position:absolute;top:6px;right:8px;font-size:20px}
+.pcard .heart.on{color:#ff4d6d}
+.pcard .body{padding:10px 12px 12px}
+.pcard .body b{font-size:15px}
+.pcard .body small{display:block;color:var(--muted);margin:2px 0 8px;font-size:12px}
+.pcard .row{display:flex;gap:8px}
+.pcard .row .btn{flex:1;padding:8px}
+
+/* ===== Messages ===== */
+.msg-wrap{display:grid;gap:14px}
+@media(min-width:900px){.msg-wrap{grid-template-columns:320px 1fr;height:calc(100vh - 190px)}}
+.conv-list{overflow-y:auto}
+.conv{display:flex;gap:10px;align-items:center;padding:10px;border-radius:14px;cursor:pointer;margin-bottom:4px}
+.conv:hover,.conv.active{background:rgba(30,144,255,.18);box-shadow:inset 0 0 0 1px var(--line)}
+.conv .meta{flex:1;min-width:0}
+.conv .meta b{display:block;font-size:15px}
+.conv .meta small{color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+.conv .time{font-size:12px;color:var(--muted);text-align:right}
+.conv .time .badge{margin:4px 0 0 auto}
+.chat{display:flex;flex-direction:column;min-height:420px}
+.chat-head{display:flex;gap:10px;align-items:center;padding-bottom:10px;border-bottom:1px solid var(--line)}
+.chat-body{flex:1;overflow-y:auto;padding:14px 4px;display:flex;flex-direction:column;gap:10px}
+.bubble{max-width:78%;padding:10px 14px;border-radius:16px;font-size:14.5px;line-height:1.35}
+.bubble small{display:block;font-size:11px;opacity:.7;margin-top:3px}
+.bubble.in{background:#1b2547;align-self:flex-start;border-bottom-left-radius:4px}
+.bubble.out{background:linear-gradient(135deg,#1478ff,#1e6bff);align-self:flex-end;border-bottom-right-radius:4px}
+.chat-input{display:flex;gap:8px;align-items:center;border:1px solid var(--line);border-radius:999px;padding:6px 6px 6px 14px;background:rgba(15,27,66,.8)}
+.chat-input input{flex:1;background:none;border:0;outline:none;padding:8px 0}
+.send{width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,#1478ff,#1ec3ff);font-size:18px}
+.back-mobile{display:inline-flex}
+@media(min-width:900px){.back-mobile{display:none}}
+@media(max-width:899px){
+  .msg-wrap.chat-open .conv-col{display:none}
+  .msg-wrap:not(.chat-open) .chat{display:none}
+}
+
+/* ===== Connexions ===== */
+.friend{display:flex;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid rgba(80,140,255,.15)}
+.friend:last-child{border:0}
+.friend .meta{flex:1;min-width:0}
+.friend .meta b{display:block}
+.friend .meta small{color:var(--muted);font-size:12px}
+.round{width:36px;height:36px;border-radius:10px;font-weight:700}
+.round.ok{background:#1478ff}
+.round.no{background:var(--red)}
+
+/* ===== Profile ===== */
+.banner{
+  height:160px;border-radius:18px;border:1px solid var(--line);box-shadow:var(--glow);position:relative;overflow:hidden;
+  background:
+    radial-gradient(circle at 70% 25%,#fff8,#fff0 7%),
+    radial-gradient(circle at 70% 25%,#c7d2fe55,#0000 25%),
+    linear-gradient(135deg,#1e1b4b,#4c1d95 50%,#1e3a8a);
+}
+.banner::after{content:"⛩️";position:absolute;right:18px;bottom:8px;font-size:60px;opacity:.5}
+.profile-top{display:flex;gap:14px;align-items:flex-end;margin:-44px 14px 10px;position:relative;flex-wrap:wrap}
+.profile-top h2{font-size:22px}
+.level{display:inline-block;padding:3px 12px;border-radius:999px;background:linear-gradient(90deg,#6d28d9,#a855f7);font-weight:700;font-size:13px}
+.stats{display:flex;gap:6px;margin:12px 0}
+.stat{flex:1;text-align:center;padding:10px 4px;border:1px solid var(--line);border-radius:14px;background:rgba(15,27,66,.7)}
+.stat b{display:block;font-size:18px}
+.stat small{color:var(--muted);font-size:12px}
+.badges{display:flex;gap:10px;font-size:34px;flex-wrap:wrap}
+.anime-row{display:flex;gap:10px;overflow-x:auto}
+.anime{flex:none;width:72px;text-align:center;font-size:12px}
+.anime .th{height:84px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:32px;border:1px solid var(--line);background:var(--g);margin-bottom:4px}
+
+/* ===== Settings ===== */
+.row{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid rgba(80,140,255,.15)}
+.row:last-child{border:0}
+.row .ic{font-size:20px;width:26px;text-align:center}
+.row .t{flex:1}
+.row .t small{display:block;color:var(--muted);font-size:12px}
+.row .val{color:var(--muted);font-size:13px}
+.switch{width:48px;height:27px;border-radius:999px;background:#2a3358;position:relative;flex:none;transition:.2s}
+.switch::after{content:"";position:absolute;top:3px;left:3px;width:21px;height:21px;border-radius:50%;background:#fff;transition:.2s}
+.switch.on{background:var(--blue);box-shadow:0 0 10px rgba(30,144,255,.7)}
+.switch.on::after{left:24px}
+.pro-card{background:linear-gradient(160deg,rgba(251,191,36,.18),rgba(139,92,246,.3),rgba(10,19,48,.9))}
+.pro-card ul{list-style:none;margin:8px 0 12px;font-size:14px}
+.pro-card li::before{content:"✔ ";color:var(--green)}
+.danger-t{color:#ff6070}
+
+/* ===== Create post ===== */
+.modal{
+  position:fixed;inset:0;z-index:60;background:rgba(2,5,16,.78);backdrop-filter:blur(6px);display:flex;align-items:flex-end;justify-content:center;
+}
+@media(min-width:700px){.modal{align-items:center}}
+.sheet{
+  width:100%;max-width:560px;max-height:92vh;overflow-y:auto;background:var(--bg2);border:1px solid var(--line);border-radius:22px 22px 0 0;
+  padding:16px;box-shadow:var(--glow);animation:fade .25s;
+}
+@media(min-width:700px){.sheet{border-radius:22px}}
+.sheet textarea{
+  width:100%;min-height:120px;background:rgba(15,27,66,.8);border:1px solid var(--line);border-radius:14px;padding:12px;outline:none;resize:vertical
+}
+.add-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0}
+.add-row button{border:1px dashed var(--line);border-radius:12px;padding:12px 4px;font-size:12px;color:var(--muted)}
+
+/* ===== Auth screens (plein écran) ===== */
+#auth{
+  position:fixed;inset:0;z-index:80;overflow-y:auto;display:flex;align-items:center;justify-content:center;padding:20px;
+  background:
+    radial-gradient(500px 500px at 75% 15%,rgba(199,210,254,.45),transparent 25%),
+    radial-gradient(700px 500px at 20% 90%,rgba(139,92,246,.45),transparent 60%),
+    linear-gradient(180deg,#07103a,#050b1f);
+}
+.auth-box{width:100%;max-width:400px;text-align:center}
+.auth-box h2{font-size:28px;margin:6px 0}
+.auth-box .sub{color:var(--muted);margin-bottom:18px;font-size:14px}
+.field{
+  display:flex;align-items:center;gap:10px;background:rgba(15,27,66,.85);border:1px solid var(--line);border-radius:14px;padding:0 14px;margin-bottom:12px;
+  box-shadow:var(--glow);
+}
+.field input{flex:1;background:none;border:0;outline:none;padding:15px 0;min-width:0}
+.field .eye{font-size:16px;opacity:.8}
+.check{display:flex;align-items:center;gap:8px;font-size:13px;margin:4px 0 14px;text-align:left}
+.check input{accent-color:var(--blue);width:18px;height:18px}
+.sep{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:13px;margin:16px 0}
+.sep::before,.sep::after{content:"";flex:1;height:1px;background:var(--line)}
+.socials{display:flex;gap:12px;justify-content:center;margin-bottom:16px}
+.socials button{width:84px;height:48px;border-radius:999px;border:1px solid var(--line);background:rgba(15,27,66,.8);font-weight:800;font-size:17px}
+.auth-foot{font-size:14px;color:var(--text)}
+.slogan{font-style:italic;color:var(--cyan);margin-top:14px}
+.hero-list{list-style:none;text-align:left;margin:16px auto;display:inline-block;font-size:14px}
+.hero-list li{margin:6px 0}
+.err{color:#ff7a88;font-size:13px;min-height:18px;margin-bottom:6px}
+.toast{
+  position:fixed;left:50%;bottom:100px;transform:translateX(-50%);background:#0e1c4a;border:1px solid var(--cyan);border-radius:999px;
+  padding:10px 20px;z-index:100;font-size:14px;box-shadow:0 0 18px rgba(34,211,238,.5);animation:fade .2s;
+}
+.env{font-size:60px;filter:drop-shadow(0 0 14px var(--cyan));margin:10px 0}
+
+label:not(.field){display:block;font-size:13px;color:var(--muted);margin:10px 0}
+label:not(.field) input,label:not(.field) textarea{display:block;width:100%;margin-top:6px;background:rgba(15,27,66,.8);border:1px solid var(--line);border-radius:12px;padding:11px;color:var(--text);outline:none}
+html[data-theme="light"] body{background:#eef3ff;color:#17233f}
+html[data-theme="light"] .card,html[data-theme="light"] .pcard{background:#fff;color:#17233f}
+html[data-theme="light"] #bottomnav{background:rgba(255,255,255,.94)}
+</style>
+</head>
+<body>
+
+<!-- ===== Écrans d'authentification ===== -->
+<div id="auth">
+  <div class="auth-box" id="auth-content"></div>
 </div>
-<script>
-// OtakuLink — version locale (localStorage). Étape suivante : remplacer DB/auth par Supabase.
-const I={cal:'<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/>',compass:'<circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/>',users:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-4 3-6 6.5-6s6.5 2 6.5 6M16 4.5a3.5 3.5 0 010 7M18 14c2.5.6 3.5 2.6 3.5 6"/>',chat:'<path d="M4 5h16v11H9l-5 4z"/>',uc:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-4 3-6 6.5-6s6.5 2 6.5 6M16 11l2 2 4-4"/>',user:'<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.5 3.5-7 8-7s8 2.5 8 7"/>',heart:'<path d="M12 20s-8-5-8-11a4.5 4.5 0 018-2.5A4.5 4.5 0 0120 9c0 6-8 11-8 11z"/>',star:'<path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/>',x:'<path d="M6 6l12 12M18 6L6 18"/>',search:'<circle cx="11" cy="11" r="7"/><path d="M16 16l5 5"/>',bell:'<path d="M6 16v-5a6 6 0 0112 0v5l2 2H4zM10 21h4"/>',menu:'<path d="M4 7h16M4 12h16M4 17h16"/>',back:'<path d="M15 5l-7 7 7 7"/>',gear:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>',img:'<rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="1.5"/><path d="M4 18l5-5 4 4 3-3 4 4"/>',send:'<path d="M3 11l18-8-8 18-2-8z"/>',pen:'<path d="M4 20l1-5L16 4l4 4L9 19z"/>',share:'<path d="M14 4l7 7-7 7v-4c-6 0-9 2-11 6 0-7 4-11 11-11z"/>',eye:'<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',mail:'<rect x="3" y="5" width="18" height="14" rx="3"/><path d="M3 7l9 6 9-6"/>',lock:'<rect x="5" y="11" width="14" height="10" rx="3"/><path d="M8 11V8a4 4 0 018 0v3"/>',globe:'<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/>',ok:'<path d="M5 12l5 5 9-10"/>',plus:'<path d="M12 5v14M5 12h14"/>',trash:'<path d="M5 7h14M9 7V4h6v3M7 7l1 13h8l1-13"/>',sl:'<path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/>',pal:'<circle cx="12" cy="12" r="9"/><circle cx="8" cy="10" r="1"/><circle cx="12" cy="7" r="1"/><circle cx="16" cy="10" r="1"/>',info:'<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/>'};
-const ic=(n,s=22)=>`<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${I[n]}</svg>`;
-const TORII='<svg width="64" height="52" viewBox="0 0 64 52" fill="none" stroke="#22d3ee" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10c14 4 42 4 56 0"/><path d="M10 20h44"/><path d="M16 10v38M48 10v38"/><path d="M32 12v8"/></svg>';
-const LOGO=`<div class="logo">${TORII}<b>Otaku<span>Link</span></b></div>`;
-const PAYS=["France","Congo","Gabon","Cameroun","Côte d’Ivoire","Sénégal","Belgique","Canada","Autre"];
-const esc=t=>String(t??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const $=s=>document.querySelector(s),scr=$("#scr");
-const mk=(t,m,ago)=>({m,t,ts:Date.now()-ago});
-function seed(){return{users:{},acc:[],me:null,d:{},posts:[]}}
-let S;try{S=JSON.parse(localStorage.otk2)}catch(e){}if(!S||!S.users)S=seed();S.reports=S.reports||[];
-let ui={f:null,sq:0,q:"",pt:"",pi:null};
-const save=()=>{try{localStorage.otk2=JSON.stringify({...S,me:null})}catch(e){toast("Stockage plein : image trop lourde")}};
-const me=()=>S.users[S.me],D=()=>S.d[S.me],U=i=>S.users[i];
-const hue=s=>[...s].reduce((a,c)=>a+c.charCodeAt(0),0)*37%360;
-const av=(u,z=44,r)=>`<div class="av${r?" ring":""}" style="width:${z}px;height:${z}px;font-size:${z*.42}px;${u.img?"":`background:linear-gradient(135deg,hsl(${hue(u.pseudo)} 80% 52%),hsl(${hue(u.pseudo)+60} 70% 22%))`}">${u.img?`<img src="${u.img}" alt="">`:esc(u.pseudo[0].toUpperCase())}</div>`;
-const ago=ts=>{const m=Math.round((Date.now()-ts)/6e4);return m<1?"à l’instant":m<60?m+" min":m<1440?Math.round(m/60)+" h":"Hier"};
-const artS=h=>`background:radial-gradient(circle at 78% 24%,rgba(255,255,255,.9) 0 5%,transparent 6%),linear-gradient(150deg,hsl(${h} 80% 45%),hsl(${+h+55} 70% 16%))`;
-let tt;function toast(m){const e=$("#toast");e.textContent=m;e.hidden=false;clearTimeout(tt);tt=setTimeout(()=>e.hidden=true,2400)}
-function initD(){S.d[S.me]={rel:{},fav:[],pass:[],seen:0,un:{},msgs:{},set:{notif:1,priv:0,acc:0}}}
-const D0=()=>{const d=D();document.documentElement.style.setProperty("--b",["#1e90ff","#8b5cf6","#06b6d4"][d.set.acc||0])};
-const imgOf=p=>p.img&&p.img.startsWith("art:")?`<div class="art" style="${artS(p.img.split(":")[1])}">${p.img.split(":")[2]}</div>`:p.img?`<div class="art img"><img src="${p.img}" alt=""></div>`:"";
-async function shrink(f,max){const i=await new Promise((ok,ko)=>{const x=new Image();x.onload=()=>ok(x);x.onerror=ko;x.src=URL.createObjectURL(f)});const t=Math.min(1,max/Math.max(i.width,i.height)),c=document.createElement("canvas");c.width=i.width*t;c.height=i.height*t;c.getContext("2d").drawImage(i,0,0,c.width,c.height);return c.toDataURL("image/jpeg",.75)}
-const empty=(e,t,p)=>`<div class="card empty"><div class="e">${e}</div><h2>${t}</h2><p>${p}</p></div>`;
-const chips=(l,def)=>{const f=ui.f||def;ui.f=f;return`<div class="chips">${l.map(c=>`<button data-a="chip|${c}" class="${c==f?"on":""}">${c}${c=="Invitations"&&inv()?`<span class="bd i">${inv()}</span>`:""}</button>`).join("")}</div>`};
-const inv=()=>Object.values(D().rel).filter(r=>r=="recu").length;
-const unread=()=>Object.values(D().un).reduce((a,b)=>a+b,0);
-const sbar=()=>ui.sq?`<label class="field sq">${ic("search",18)}<input id="q" placeholder="Rechercher…" value="${esc(ui.q)}" autocomplete="off"></label>`:"";
-const comp=cat=>`<form id="fp" class="card"><div class="cmp">${av(me(),46)}<input type="text" id="pt" maxlength="500" placeholder="Quoi de neuf, Otaku ?" value="${esc(ui.pt)}"><label class="ir" aria-label="Ajouter une image">${ic("img")}<input type="file" id="pi" accept="image/*" hidden></label><button class="btn" type="submit">Publier</button></div>${ui.pi?`<img class="pv" src="${ui.pi}" alt="">`:""}</form>`;
-function post(p){const a=U(p.u)||me(),mine=p.u==S.me,lk=p.l.includes(S.me),q=ui.q.toLowerCase();
-return`<article class="card po"><div class="ph2"><span data-a="go|membre/${a.id}">${av(a,38)}</span><div class="g"><b>${esc(a.pseudo)}</b> <span class="sub">· ${ago(p.ts)}</span></div>${mine?`<button data-a="del|${p.id}" aria-label="Supprimer" class="sub">${ic("trash",18)}</button>`:""}</div><p>${esc(p.t)}</p>${imgOf(p)}
-<div class="act"><button class="${lk?"on":""}" data-a="like|${p.id}">${ic("heart",20)} ${p.n+p.l.length}</button><button data-a="cm|${p.id}">${ic("chat",20)} ${p.cn+p.c.length}</button><button data-a="sh|${p.id}">${ic("share",20)} ${p.sh}</button></div>
-${p.c.slice(-2).map(c=>`<div class="cm"><b>${esc(c.u)}</b> ${esc(c.t)}</div>`).join("")}${ui.cmt==p.id?`<form class="fc" data-id="${p.id}"><input maxlength="200" placeholder="Ton commentaire…" required><button class="mini y" aria-label="Envoyer">${ic("send",18)}</button></form>`:""}</article>`}
-const feed=f=>{const l=S.posts.filter(p=>!blk().includes(p.u)&&(!f||f=="Tous"||p.cat==f)&&(!ui.q||p.t.toLowerCase().includes(ui.q.toLowerCase())));return l.length?l.map(post).join(""):empty("⛩","Aucune publication","Sois le premier à publier !")};
-const rel=()=>D().rel,blk=()=>D().blk||(D().blk=[]),vis=u=>!blk().includes(u.id)&&!(S.d[u.id]&&S.d[u.id].set.priv);
-const friends=()=>Object.keys(rel()).filter(i=>rel()[i]=="ami");
-function dis(){const d=D();return Object.values(S.users).filter(u=>u.id!=S.me&&!u.g&&!rel()[u.id]&&!d.pass.includes(u.id)&&!d.fav.includes(u.id)&&vis(u))}
-const ib=(i,a,l)=>`<button class="ib" data-a="${a}" aria-label="${l}">${ic(i,20)}</button>`,PH='<span class="ib ph"></span>';
-const ROUTES={
-bienvenue:{auth:1,r:()=>`<div class="bg">${TORII.replace('width="64" height="52"','').replace(/#22d3ee/,"#3a7bff")}</div><div class="aw">${LOGO}<p class="tag">Find your people.<br>Share your <span>universe.</span></p><a class="btn" href="#inscription">Commencer</a><a class="btn d" href="#connexion">Se connecter</a><p class="sub" style="font-size:13px">Passion Anime · Amitié · Communauté</p></div>`},
-inscription:{auth:1,r:()=>`<form class="aw f" id="fa">${LOGO}<p>Rejoins la communauté des Otakus !</p><label class="field">${ic("user")}<input name="pseudo" placeholder="Pseudo" minlength="3" maxlength="20" required autocomplete="username"></label><label class="field">${ic("mail")}<input name="email" type="email" placeholder="Email" required autocomplete="email"></label><label class="field">${ic("lock")}<input name="mdp" type="password" placeholder="Mot de passe (8 caractères min.)" minlength="8" required autocomplete="new-password"><button type="button" data-a="eye" aria-label="Afficher le mot de passe">${ic("eye",20)}</button></label><label class="field">${ic("cal")}<input name="naiss" type="date" required max="${new Date().toISOString().slice(0,10)}" aria-label="Date de naissance"></label><p class="hint">Date de naissance · OtakuLink est réservé aux 18 ans et plus</p><label class="field">${ic("globe")}<select name="pays" required><option value="">Pays</option>${PAYS.map(p=>`<option>${p}</option>`).join("")}</select></label><label class="ck"><input type="checkbox" required><span>J’accepte les Conditions d’utilisation et la <a href="#inscription">Politique de confidentialité</a></span></label><button class="btn" type="submit">Créer mon compte</button><p class="note" role="status"></p><div class="sep">ou</div><div class="soc"><button type="button" data-a="soc">G</button><button type="button" data-a="soc">Discord</button><button type="button" data-a="soc">Apple</button></div><p class="sub">Déjà un compte ? <a href="#connexion">Se connecter</a></p></form>`},
-connexion:{auth:1,r:()=>`<form class="aw f" id="fa">${LOGO}<p><b>Bon retour !</b> 👋<br><span class="sub">Connecte-toi à ton univers</span></p><label class="field">${ic("mail")}<input name="email" placeholder="Email ou pseudo" required autocomplete="username"></label><label class="field">${ic("lock")}<input name="mdp" type="password" placeholder="Mot de passe" required autocomplete="current-password"><button type="button" data-a="eye" aria-label="Afficher le mot de passe">${ic("eye",20)}</button></label><div class="row"><label class="ck"><input type="checkbox" name="rm" checked>Se souvenir de moi</label><a href="#connexion" data-a="forgot">Mot de passe oublié ?</a></div><button class="btn" type="submit">Se connecter</button><p class="note" role="status"></p><div class="sep">ou</div><div class="soc"><button type="button" data-a="soc">G</button><button type="button" data-a="soc">Discord</button><button type="button" data-a="soc">Apple</button></div><p class="sub">Pas encore de compte ? <a href="#inscription">Inscription</a></p></form>`},
-accueil:{t:"Accueil",tab:"communaute",h:()=>[ib("menu","go|parametres","Menu"),`<button class="ib" data-a="bell" aria-label="Notifications">${ic("bell",20)}${inv()?'<i class="dot"></i>':""}</button><a href="#profil" aria-label="Mon profil">${av(me(),38)}</a>`],r:()=>comp()+feed()},
-decouvrir:{t:"Découvrir",tab:"decouvrir",h:()=>[ib("menu","go|accueil","Accueil"),ib("sl","flt","Filtrer par pays")],r:()=>{const l=dis().filter(u=>!ui.pays||u.pays==ui.pays),u=l[0],d=D();if(!u)return empty("🧭","Plus personne à découvrir",ui.pays?"Aucun otaku en "+esc(ui.pays)+". Change le filtre.":"Reviens plus tard, ou crée un 2e compte (autre onglet) pour tester.");const h=hue(u.pseudo);
-return`${ui.pays?`<p class="sub" style="margin-bottom:8px">Filtre : ${esc(ui.pays)}</p>`:""}<div class="dc" data-id="${u.id}" style="${artS(h)}"><div class="big">${u.img?`<img src="${u.img}" alt="">`:["🌸","⚔️","🍥","🎮","🌙","📚"][h%6]}</div><span class="cnt">${d.seen+1} / ${d.seen+l.length}</span><div class="ov"><h2>${esc(u.pseudo)}</h2><div class="sub">📍 ${esc(u.pays)}</div><p style="margin-top:6px">${esc(u.bio)}</p>${(u.animes||[]).length?`<div class="tg">${u.animes.map(a=>`<span>${esc(a)}</span>`).join("")}</div>`:""}</div></div><div class="rd"><button data-a="pass|${u.id}" aria-label="Passer">${ic("x",28)}</button><button data-a="fav|${u.id}" aria-label="Ajouter aux favoris">${ic("star",26)}</button><button class="h" data-a="add|${u.id}" aria-label="Inviter">${ic("heart",26)}</button></div>`}},
-communaute:{t:"Communauté",tab:"communaute",h:()=>[ib("back","go|accueil","Retour"),ib("search","sq","Rechercher")],r:()=>sbar()+chips(["Tous","Animes","Mangas","Débats","Clubs"],"Tous")+comp()+feed(ui.f)},
-messages:{t:"Messages",tab:"messages",h:()=>[ib("menu","go|accueil","Accueil"),`<span style="display:flex;gap:8px">${ib("search","sq","Rechercher")}${ib("pen","go|connexions","Nouveau message")}</span>`],r:()=>{const d=D(),f=ui.f||"Toutes";ui.f=f;let l=Object.keys(d.msgs).filter(i=>U(i)&&d.msgs[i].length&&(f=="Toutes"||(f=="Groupes")==!!U(i).g)&&U(i).pseudo.toLowerCase().includes(ui.q.toLowerCase())).sort((a,b)=>d.msgs[b].at(-1).ts-d.msgs[a].at(-1).ts);
-return sbar()+chips(["Toutes","Privées","Groupes"],"Toutes")+(l.length?l.map(i=>{const m=d.msgs[i].at(-1),n=d.un[i]||0;return`<a class="card pers" href="#chat/${i}" style="color:var(--t)">${av(U(i),46)}<div class="g"><b>${esc(U(i).pseudo)}</b><div class="sub" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${m.m?"Toi : ":""}${esc(m.t)}</div></div><div style="text-align:right" class="sub">${ago(m.ts)}${n?`<br><span class="bd i">${n}</span>`:""}</div></a>`}).join(""):empty("💬","Aucune conversation","Ajoute des amis dans Connexions, puis touche 💬 pour discuter."))}},
-chat:{tab:"messages",back:"messages",r:p=>{const m=(D().msgs[p]||[]);return m.map(x=>`<div class="msg${x.m?" me":""}">${esc(x.t)}</div>`).join("")+`<form id="fm"><input id="mi" maxlength="1000" placeholder="Ton message…" autocomplete="off"><button type="submit" aria-label="Envoyer">${ic("send",20)}</button></form>`}},
-membre:{t:"Profil",tab:"connexions",back:"-1",r:p=>{const u=U(p);if(!u)return empty("🔍","Membre introuvable","Ce profil n’existe plus.");const r=rel()[p],b=r=="ami"?`<button class="btn" data-a="chat|${p}">Discuter</button>`:r=="env"?`<button class="btn d" disabled>Invitation envoyée</button>`:r=="recu"?`<button class="btn" data-a="ok|${p}">Accepter l’invitation</button>`:`<button class="btn" data-a="add|${p}">Ajouter en ami</button>`;return`<section class="pf">${av(u,104,1)}<h2>${esc(u.pseudo)}</h2><p class="sub">${esc(u.bio||"Pas encore de bio")}<br>📍 ${esc(u.pays||"")}</p>${(u.animes||[]).length?`<div class="tg" style="justify-content:center">${u.animes.map(a=>`<span>${esc(a)}</span>`).join("")}</div>`:""}<div style="display:grid;gap:10px;margin-top:18px">${b}<div class="grid"><button class="btn d" style="height:42px;line-height:40px;font-size:14px" data-a="blk|${p}">Bloquer</button><button class="btn d dng" style="height:42px;line-height:40px;font-size:14px" data-a="rep|${p}">Signaler</button></div></div></section>`}},
-bloques:{t:"Membres bloqués",tab:"profil",back:"parametres",r:()=>blk().length?blk().map(U).filter(Boolean).map(u=>`<div class="card pers">${av(u,46)}<div class="g"><b>${esc(u.pseudo)}</b></div><button class="mini" data-a="unblk|${u.id}" aria-label="Débloquer">${ic("ok",18)}</button></div>`).join(""):empty("🛡","Aucun membre bloqué","Les membres que tu bloques apparaissent ici.")},
-mdp:{t:"Mot de passe",tab:"profil",back:"parametres",r:()=>`<form id="fw" class="aw f" style="text-align:left;justify-content:flex-start;padding:6px 0"><label class="field">${ic("lock")}<input name="old" type="password" placeholder="Mot de passe actuel" required autocomplete="current-password"></label><label class="field">${ic("lock")}<input name="nw" type="password" placeholder="Nouveau mot de passe (8 caractères min.)" minlength="8" required autocomplete="new-password"></label><button class="btn" type="submit">Mettre à jour</button><p class="note" role="status"></p></form>`},
-connexions:{t:"Connexions",tab:"connexions",h:()=>[ib("menu","go|accueil","Accueil"),`<span style="display:flex;gap:8px">${ib("search","sq","Rechercher")}${ib("plus","sug","Suggestions")}</span>`],r:()=>{const f=ui.f||"Amis",q=ui.q.toLowerCase(),r=rel(),ok=i=>U(i).pseudo.toLowerCase().includes(q);ui.f=f;let b;
-if(f=="Amis"){const l=friends().filter(ok);b=l.length?`<div class="grid">${l.map(i=>`<div class="card gc"><span data-a="go|membre/${i}">${av(U(i),64)}</span><b>${esc(U(i).pseudo)}</b><div class="st">${esc(U(i).pays||"")}</div><button class="mini y" style="margin:8px auto 0" data-a="chat|${i}" aria-label="Discuter">${ic("chat",18)}</button></div>`).join("")}</div>`:empty("🤝","Aucun ami","Ajoute des otakus depuis Suggestions ou Découvrir.")}
-else if(f=="Invitations"){const l=Object.keys(r).filter(i=>r[i]=="recu"&&ok(i));b=l.length?l.map(i=>`<div class="card pers"><span data-a="go|membre/${i}">${av(U(i),46)}</span><div class="g"><b>${esc(U(i).pseudo)}</b><div class="sub">${esc(U(i).bio)}</div></div><button class="mini y" data-a="ok|${i}" aria-label="Accepter">${ic("ok",18)}</button><button class="mini n" data-a="no|${i}" aria-label="Refuser">${ic("x",18)}</button></div>`).join(""):empty("📨","Aucune invitation","Tes invitations reçues apparaîtront ici.")}
-else{const l=Object.values(S.users).filter(u=>u.id!=S.me&&!u.g&&!r[u.id]&&ok(u.id)&&vis(u));b=l.length?l.map(u=>`<div class="card pers"><span data-a="go|membre/${u.id}">${av(u,46)}</span><div class="g"><b>${esc(u.pseudo)}</b><div class="sub">${esc(u.pays)}</div></div><button class="mini y" data-a="add|${u.id}" aria-label="Ajouter">${ic("plus",18)}</button></div>`).join(""):empty("🤝","Rien ici","Tu as déjà vu tout le monde !")}
-return sbar()+chips(["Amis","Invitations","Suggestions"],"Amis")+b}},
-profil:{t:"Profil",tab:"profil",h:()=>[ib("back","go|accueil","Retour"),ib("gear","go|parametres","Paramètres")],r:()=>{const m=me(),d=D(),n=S.posts.filter(p=>p.u==S.me).length;return`<section class="pf">${av(m,104,1)}<h2>${esc(m.pseudo)}</h2><p class="sub">${esc(m.bio||"Ajoute une bio dans Modifier mon profil")}<br>${esc(m.pays||"")}</p><div class="stats"><div><b>${friends().length}</b><span>Amis</span></div><div><b>${n}</b><span>Publications</span></div><div><b>${d.fav.length}</b><span>Favoris</span></div></div><button class="btn d" style="height:40px;line-height:38px;margin-top:10px" data-a="go|editprofil">Modifier mon profil</button></section><div class="h2"><span>Mes animes préférés</span><a href="#editprofil">Modifier</a></div>${m.animes&&m.animes.length?`<div class="an">${m.animes.map(a=>`<div style="${artS(hue(a))}">${esc(a)}</div>`).join("")}</div>`:empty("⭐","Aucun anime","Ajoute tes animes dans Modifier mon profil.")}`}},
-editprofil:{t:"Mon profil",tab:"profil",back:"parametres",r:()=>{const m=me();return`<form id="fe" class="aw f" style="text-align:left;justify-content:flex-start;padding:6px 0">${av(m,90,1)}<label class="field">${ic("img",20)}<input type="file" name="photo" accept="image/*" style="padding-top:12px"></label><label class="field">${ic("pen",20)}<input name="bio" maxlength="160" placeholder="Ta bio" value="${esc(m.bio)}"></label><label class="field">${ic("globe",20)}<select name="pays">${PAYS.map(p=>`<option${p==m.pays?" selected":""}>${p}</option>`).join("")}</select></label><label class="field">${ic("star",20)}<input name="animes" placeholder="Animes préférés (séparés par des virgules)" value="${esc((m.animes||[]).join(", "))}"></label><button class="btn" type="submit">Enregistrer</button><p class="note" role="status"></p></form>`}},
-favoris:{t:"Mes favoris",tab:"profil",back:"parametres",r:()=>{const l=D().fav.map(U).filter(Boolean);return l.length?l.map(u=>`<div class="card pers">${av(u,46)}<div class="g"><b>${esc(u.pseudo)}</b><div class="sub">${esc(u.bio)}</div></div><button class="mini y" data-a="add|${u.id}" aria-label="Inviter">${ic("plus",18)}</button><button class="mini n" data-a="unfav|${u.id}" aria-label="Retirer">${ic("x",18)}</button></div>`).join(""):empty("⭐","Aucun favori","Touche ★ dans Découvrir pour garder un profil.")}},
-parametres:{t:"Paramètres",tab:"profil",back:"profil",r:()=>{const s=D().set,sw=k=>`<span class="sw${s[k]?" on":""}"></span>`,it=(i,l,a,x="")=>`<button class="mn" data-a="${a}">${ic(i)}${l}${x}</button>`;return`<p class="gp">Mon compte</p>${it("user","Modifier mon profil","go|editprofil")}${it("lock","Changer le mot de passe","go|mdp")}${it("lock","Profil privé (masqué dans Découvrir)","tog|priv",sw("priv"))}${it("bell","Notifications","tog|notif",sw("notif"))}${it("pal","Apparence : "+["Bleu","Violet","Cyan"][s.acc||0],"acc")}<p class="gp">Préférences Otaku</p>${it("star","Mes favoris","go|favoris")}${it("x","Membres bloqués ("+blk().length+")","go|bloques")}${it("globe","Langues : Français","lang")}${it("info","À propos d’OtakuLink","about")}<p class="gp">Mes données</p>${it("send","Télécharger mes données","exp")}${it("trash","<span class=\"dng\">Supprimer mon compte</span>","del2")}<button class="btn" style="margin-top:20px" data-a="out">Se déconnecter</button>`}}};
-function render(keep){let [k,p]=location.hash.slice(1).split("/");const au=ROUTES[k]&&ROUTES[k].auth;if(k=="membre"&&p==S.me){location.replace("#profil");return}
-if(!S.me&&!au)k="bienvenue";else if(S.me&&(au||!ROUTES[k]))k="accueil";else if(!ROUTES[k])k="bienvenue";
-if(k!=location.hash.slice(1).split("/")[0]){location.replace("#"+k);return}
-const R=ROUTES[k];if(S.me)D0();document.body.classList.toggle("auth",!!R.auth);
-const y=scr.scrollTop;let c=ib("back","go|"+R.back,"Retour"),rt=PH,title=R.t||"";
-if(R.h){const h=R.h();c=h[0];rt=h[1]}else if(k=="chat"){const u=U(p);title=u?u.pseudo:"Discussion"}
-$("#top").innerHTML=R.auth?"":`${c}<h1>${esc(title)}</h1>${rt}`;
-scr.classList.toggle("an",!keep);scr.innerHTML=R.r(p);scr.scrollTop=keep?y:(k=="chat"?1e6:0);
-$("#tabs").innerHTML=R.auth?"":[["decouvrir","compass","Découvrir"],["communaute","users","Communauté"],["messages","chat","Messages"],["connexions","uc","Connexions"],["profil","user","Profil"]].map(t=>`<a href="#${t[0]}" class="${R.tab==t[0]?"on":""}">${ic(t[1],23)}${t[2]}${t[0]=="messages"&&unread()?`<span class="bd">${unread()}</span>`:""}</a>`).join("");
-if(k=="chat"){const d=D();if(d.un[p]){delete d.un[p];save()}}}
-const go=h=>{ui={f:null,sq:0,q:"",pt:"",pi:null,pays:ui.pays};location.hash="#"+h};
-addEventListener("hashchange",()=>{ui={f:null,sq:0,q:"",pt:"",pi:null,pays:ui.pays};render()});
-const A={go:a=>a=="-1"?history.back():go(a),
-blk:a=>{if(!confirm("Bloquer "+U(a).pseudo+" ?"))return;const d=D();d.blk=[...new Set([...blk(),a])];delete d.rel[a];delete d.msgs[a];delete d.un[a];d.fav=d.fav.filter(x=>x!=a);if(S.d[a])delete S.d[a].rel[S.me];save();toast("Membre bloqué");go("connexions")},
-unblk:a=>{D().blk=blk().filter(x=>x!=a);save();render(1)},
-rep:a=>{const t=(prompt("Pourquoi signales-tu ce profil ?")||"").trim();if(t){S.reports.push({by:S.me,id:a,t:t.slice(0,300),ts:Date.now()});save();toast("Signalement envoyé. Merci !")}},
-exp:()=>{const b=new Blob([JSON.stringify({profil:me(),donnees:D(),publications:S.posts.filter(p=>p.u==S.me)},null,2)],{type:"application/json"}),l=document.createElement("a");l.href=URL.createObjectURL(b);l.download="otakulink-mes-donnees.json";l.click()},
-del2:()=>{if(!confirm("Supprimer définitivement ton compte et toutes tes données ? Cette action est irréversible."))return;const m=S.me;delete S.users[m];delete S.d[m];S.acc=S.acc.filter(a=>a.id!=m);S.posts=S.posts.filter(p=>p.u!=m);Object.values(S.d).forEach(d=>{delete d.rel[m];delete d.msgs[m];delete d.un[m];d.fav=d.fav.filter(x=>x!=m);d.pass=d.pass.filter(x=>x!=m);if(d.blk)d.blk=d.blk.filter(x=>x!=m)});A.out();toast("Compte supprimé")},
-eye:(a,e)=>{const i=e.closest("label").querySelector("input");i.type=i.type=="password"?"text":"password"},
-soc:()=>$(".note").textContent="Cette connexion sera activée avec Supabase (étape suivante).",
-forgot:()=>{const m=$("[name=email]").value.trim();$(".note").textContent=m?"Un lien de réinitialisation sera envoyé à "+m+" (activé avec Supabase).":"Écris ton email ci-dessus, puis touche « Mot de passe oublié ? »."},
-chip:a=>{ui.f=a;render()},sq:()=>{ui.sq=!ui.sq;ui.q="";render()},sug:()=>{ui.f="Suggestions";render()},
-bell:()=>toast(inv()?"📨 "+inv()+" invitation(s) en attente":"Aucune nouvelle notification"),
-flt:()=>{const l=[null,...PAYS],i=(l.indexOf(ui.pays||null)+1)%l.length;ui.pays=l[i];render()},
-like:a=>{const p=S.posts.find(x=>x.id==a),i=p.l.indexOf(S.me);i<0?p.l.push(S.me):p.l.splice(i,1);save();render(1)},
-del:a=>{if(confirm("Supprimer cette publication ?")){S.posts=S.posts.filter(p=>p.id!=a);save();render(1)}},
-cm:a=>{ui.cmt=ui.cmt==a?null:a;render(1);const i=$(".fc input");if(i)i.focus()},
-sh:a=>{const p=S.posts.find(x=>x.id==a);p.sh++;save();try{navigator.clipboard.writeText(p.t)}catch(e){}toast("Publication copiée 🔗");render(1)},
-pass:a=>{const d=D();d.pass.push(a);d.seen++;save();render()},fav:a=>{const d=D();d.fav.push(a);d.seen++;save();toast("⭐ Ajouté à tes favoris");render()},
-unfav:a=>{const d=D();d.fav=d.fav.filter(x=>x!=a);save();render(1)},
-add:a=>{const d=D();d.fav=d.fav.filter(x=>x!=a);d.rel[a]="env";if(S.d[a])S.d[a].rel[S.me]="recu";if(location.hash=="#decouvrir")d.seen++;save();toast("💙 Invitation envoyée à "+U(a).pseudo);render(1)},
-ok:a=>{D().rel[a]="ami";if(S.d[a])S.d[a].rel[S.me]="ami";save();toast("Vous êtes amis !");render(1)},no:a=>{delete D().rel[a];if(S.d[a])delete S.d[a].rel[S.me];save();render(1)},
-chat:a=>{const d=D();d.msgs[a]=d.msgs[a]||[];go("chat/"+a)},
-tog:a=>{const s=D().set;s[a]=s[a]?0:1;save();render(1)},acc:()=>{const s=D().set;s.acc=((s.acc||0)+1)%3;save();render(1)},
-lang:()=>toast("Français uniquement pour l’instant"),about:()=>toast("OtakuLink · version locale 1.0"),
-out:()=>{sessionStorage.removeItem("otm");localStorage.removeItem("otm");delete S.me;S.me=null;save();location.hash="#bienvenue";render()}};
-let sw=null;
-document.addEventListener("pointerdown",e=>{const c=e.target.closest(".dc");if(c)sw={c,x:e.clientX,dx:0}});
-document.addEventListener("pointermove",e=>{if(!sw)return;sw.dx=e.clientX-sw.x;sw.c.style.transition="none";sw.c.style.transform=`translateX(${sw.dx}px) rotate(${sw.dx/18}deg)`;sw.c.dataset.s=sw.dx>40?"y":sw.dx<-40?"n":""});
-const swEnd=()=>{if(!sw)return;const{c,dx}=sw;sw=null;const id=c.dataset.id;if(Math.abs(dx)>110){c.style.transition=".25s";c.style.transform=`translateX(${dx>0?500:-500}px) rotate(${dx/8}deg)`;setTimeout(()=>A[dx>0?"add":"pass"](id),200)}else if(Math.abs(dx)<6)go("membre/"+id);else{c.style.transition=".2s";c.style.transform="";c.dataset.s=""}};
-document.addEventListener("pointerup",swEnd);document.addEventListener("pointercancel",swEnd);
-document.addEventListener("click",e=>{const b=e.target.closest("[data-a]");if(!b)return;const[a,v]=b.dataset.a.split("|");if(A[a]){if(a=="forgot")e.preventDefault();A[a](v,b)}});
-document.addEventListener("input",e=>{if(e.target.id=="pt")ui.pt=e.target.value;if(e.target.id=="q"){ui.q=e.target.value;render(1);const q=$("#q");q.focus();q.setSelectionRange(q.value.length,q.value.length)}});
-document.addEventListener("change",async e=>{if(e.target.id=="pi"&&e.target.files[0]){try{ui.pi=await shrink(e.target.files[0],800);render(1)}catch(x){toast("Image illisible")}}});
-document.addEventListener("submit",async e=>{e.preventDefault();const f=e.target,n=f.querySelector(".note");
-if(f.id=="fp"){const t=ui.pt.trim();if(!t&&!ui.pi)return toast("Écris quelque chose ou ajoute une image");const cat=ui.f&&ui.f!="Tous"?ui.f:(location.hash=="#communaute"?"Animes":"Animes");S.posts.unshift({id:"p"+Date.now(),u:S.me,t,img:ui.pi,cat,n:0,l:[],cn:0,c:[],sh:0,ts:Date.now()});save();ui.pt="";ui.pi=null;toast("Publié !");render(1)}
-else if(f.id=="fm"){const i=location.hash.split("/")[1],t=$("#mi").value.trim();if(!t)return;const m=mk(t,1,0);D().msgs[i].push(m);const o=S.d[i];if(o){(o.msgs[S.me]=o.msgs[S.me]||[]).push(mk(t,0,0));o.un[S.me]=(o.un[S.me]||0)+1}save();f.insertAdjacentHTML("beforebegin",`<div class="msg me">${esc(t)}</div>`);$("#mi").value="";scr.scrollTop=1e6}
-else if(f.className=="fc"){const t=f.querySelector("input").value.trim();if(t){S.posts.find(p=>p.id==f.dataset.id).c.push({u:me().pseudo,t:t.slice(0,200)});ui.cmt=null;save();render(1)}}
-else if(f.id=="fw"){const a=S.acc.find(a=>a.id==S.me);if(a.pw!=f.old.value)return n.textContent="Mot de passe actuel incorrect.";a.pw=f.nw.value;save();toast("Mot de passe mis à jour");go("parametres")}
-else if(f.id=="fe"){const m=me(),b=f.querySelector("button");b.disabled=1;n.textContent="Enregistrement…";try{if(f.photo.files[0])m.img=await shrink(f.photo.files[0],256)}catch(x){n.textContent="Photo illisible.";b.disabled=0;return}
-m.bio=f.bio.value.trim().slice(0,160);m.pays=f.pays.value;m.animes=f.animes.value.split(",").map(a=>a.trim()).filter(Boolean).slice(0,8);save();toast("Profil enregistré");go("profil")}
-else if(f.id=="fa"){const v=Object.fromEntries(new FormData(f)),ins=location.hash=="#inscription";
-if(ins){const ps=v.pseudo.trim(),lim=new Date();lim.setFullYear(lim.getFullYear()-18);if(!(new Date(v.naiss)<=lim))return n.textContent="OtakuLink est réservé aux personnes de 18 ans et plus.";if(Object.values(S.users).some(u=>u.pseudo.toLowerCase()==ps.toLowerCase()))return n.textContent="Ce pseudo est déjà pris. Essaie-en un autre.";if(S.acc.some(a=>a.email==v.email.toLowerCase()))return n.textContent="Cet email a déjà un compte.";
-const id="u"+Date.now();S.users[id]={id,pseudo:ps,pays:v.pays,bio:"",animes:[],on:1,naiss:v.naiss};S.acc.push({id,email:v.email.toLowerCase(),pw:v.mdp});S.me=id;initD();sessionStorage.otm=id;localStorage.otm=id;save();toast("Bienvenue "+ps+" ! ⛩");location.hash="#accueil";render()}
-else{const k=v.email.trim().toLowerCase(),a=S.acc.find(a=>a.email==k||S.users[a.id].pseudo.toLowerCase()==k);if(!a||a.pw!=v.mdp)return n.textContent="Email ou mot de passe incorrect.";S.me=a.id;sessionStorage.otm=a.id;v.rm?localStorage.otm=a.id:localStorage.removeItem("otm");save();location.hash="#accueil";render()}}});
-S.me=sessionStorage.otm||localStorage.otm||null;if(!S.users[S.me]||!S.d[S.me])S.me=null;
-addEventListener("storage",e=>{if(e.key!="otk2"||!e.newValue)return;const m=S.me,b=m&&S.d[m]?unread():0;S=JSON.parse(e.newValue);S.me=S.users[m]?m:null;if(!S.me||/^#(editprofil|inscription|connexion)/.test(location.hash))return;const v=$("#mi")&&$("#mi").value;render(1);if(v&&$("#mi"))$("#mi").value=v;if(unread()>b&&D().set.notif)toast("💬 Nouveau message")});
-render();
-</script></body></html>
+
+<!-- ===== Application ===== -->
+<div id="app" class="hidden">
+  <aside id="sidebar">
+    <div class="logo" id="side-logo"></div>
+    <div id="side-nav"></div>
+    <div class="side-promo">
+      <h4>Rejoins <span class="grad">OtakuLink Pro</span></h4>
+      <ul><li>Plus d'avantages</li><li>Badge premium</li><li>Mode sans pub</li></ul>
+      <button class="btn sm block" data-go="parametres">Passer Pro ✨</button>
+    </div>
+  </aside>
+
+  <div id="main">
+    <div id="screens">
+      <section class="screen" id="s-decouvrir"></section>
+      <section class="screen" id="s-communaute"></section>
+      <section class="screen" id="s-messages"></section>
+      <section class="screen" id="s-connexions"></section>
+      <section class="screen" id="s-profil"></section>
+      <section class="screen" id="s-parametres"></section>
+    </div>
+    <nav id="bottomnav"></nav>
+  </div>
+</div>
+
+<div id="modal-root"></div>
+
+<script type="module">
+/* OtakuLink — version préparée pour Supabase.
+   Aucune donnée de démonstration : les listes proviennent uniquement de la base.
+   Configure SUPABASE_URL et SUPABASE_ANON_KEY avant de déployer. */
+const SUPABASE_URL = 'https://jnepjuszrppaasdopnlo.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_aST32y-TGzIttH9RAnm64w_dv3d_Wdc';
+const SUPABASE_READY = /^https:\/\/.+\.supabase\.co$/.test(SUPABASE_URL) &&
+  SUPABASE_ANON_KEY.startsWith('sb_publishable_');
+
+const $ = (s, r=document) => r.querySelector(s);
+const $$ = (s, r=document) => [...r.querySelectorAll(s)];
+const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmtDate = v => v ? new Date(v).toLocaleString('fr-FR',{dateStyle:'short',timeStyle:'short'}) : '';
+const toast = message => {
+  const el=document.createElement('div'); el.className='toast'; el.textContent=message;
+  document.body.appendChild(el); setTimeout(()=>el.remove(),3000);
+};
+const TORII = `<svg class="torii" viewBox="0 0 64 52" fill="none" stroke="#22d3ee" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10c14 4 42 4 56 0"/><path d="M10 20h44"/><path d="M16 10v38M48 10v38"/><path d="M32 12v8"/></svg>`;
+const LOGO = big => `<div class="logo ${big?'big':''}">${TORII}<b>Otaku<span>Link</span></b></div>`;
+const NAV = [['decouvrir','🔎','Découvrir'],['communaute','👥','Communauté'],['messages','💬','Messages'],['connexions','🤝','Connexions'],['profil','👤','Profil'],['parametres','⚙️','Paramètres']];
+const BOTTOM = ['decouvrir','communaute','FAB','messages','connexions','profil'];
+const state = { client:null, user:null, profile:null, route:'decouvrir', query:'', filter:'Tous', posts:[], users:[], requests:[], friends:[], conversations:[], activeChat:null, settings:{dark:true,private:false,notifications:true}, busy:false };
+
+function configNotice() {
+  return `<div class="card" style="border-color:#fbbf24">
+    <h3>⚙️ Connexion à Supabase à configurer</h3>
+    <p style="color:var(--muted);line-height:1.6">L'interface ne contient aucun faux membre. Pour activer les comptes, publications, connexions et messages, ajoute l'URL et la clé publique de ton projet Supabase dans le début du script, puis exécute le fichier <b>supabase/schema.sql</b> dans le SQL Editor de Supabase.</p>
+  </div>`;
+}
+function showAuth(view='welcome') {
+  const box=$('#auth-content');
+  const screens={
+    welcome:`${LOGO(true)}<p style="margin:18px 0 6px;font-size:20px;font-weight:700">La communauté des passionnés d'anime et de manga.</p>
+      <ul class="hero-list"><li>🤝 Rencontrer des passionnés</li><li>🌌 Partager ses univers</li><li>✨ Découvrir de nouveaux membres</li></ul>
+      ${!SUPABASE_READY?`<div class="err">La configuration Supabase est nécessaire avant de créer un compte.</div>`:''}
+      <button class="btn block" data-auth="signup">Créer un compte →</button><button class="btn ghost block" style="margin-top:12px" data-auth="login">Se connecter</button><p class="slogan">Share your universe.</p>`,
+    signup:`${LOGO()}<h2>Inscription</h2><p class="sub">Crée ton compte OtakuLink</p>
+      <form id="f-signup" novalidate>
+      <label class="field">👤<input name="username" minlength="3" maxlength="24" placeholder="Nom d'utilisateur" autocomplete="username" required></label>
+      <label class="field">✉️<input name="email" type="email" placeholder="Adresse e-mail" autocomplete="email" required></label>
+      <label class="field">🔒<input name="password" type="password" minlength="8" placeholder="Mot de passe (8 caractères minimum)" autocomplete="new-password" required><span class="eye" data-eye>👁</span></label>
+      <label class="check"><input type="checkbox" name="terms" required> J'accepte les conditions d'utilisation et la politique de confidentialité.</label>
+      <div class="err" id="auth-error"></div><button class="btn block" type="submit">Créer mon compte →</button></form>
+      <p class="auth-foot">Déjà inscrit ? <a href="#" data-auth="login">Se connecter</a></p>`,
+    login:`${LOGO()}<h2>Bon retour !</h2><p class="sub">Connecte-toi à ton compte</p>
+      <form id="f-login" novalidate><label class="field">✉️<input name="email" type="email" placeholder="Adresse e-mail" autocomplete="email" required></label>
+      <label class="field">🔒<input name="password" type="password" placeholder="Mot de passe" autocomplete="current-password" required><span class="eye" data-eye>👁</span></label>
+      <div class="err" id="auth-error"></div><button class="btn block" type="submit">Se connecter →</button></form>
+      <p style="margin:12px 0"><a href="#" data-auth="forgot">Mot de passe oublié ?</a></p><p class="auth-foot">Pas encore de compte ? <a href="#" data-auth="signup">S'inscrire</a></p>`,
+    forgot:`${LOGO()}<h2>Réinitialiser le mot de passe</h2><p class="sub">Un lien sera envoyé à ton adresse e-mail.</p>
+      <form id="f-forgot"><label class="field">✉️<input name="email" type="email" placeholder="Adresse e-mail" required></label><div class="err" id="auth-error"></div><button class="btn block">Envoyer le lien</button></form>
+      <p style="margin-top:14px"><a href="#" data-auth="login">Retour à la connexion</a></p>`
+  };
+  box.innerHTML=screens[view]||screens.welcome;
+  $('#auth').classList.remove('hidden'); $('#app').classList.add('hidden');
+}
+function showApp() { $('#auth').classList.add('hidden'); $('#app').classList.remove('hidden'); buildChrome(); go(state.route); }
+function authError(msg) { const el=$('#auth-error'); if(el) el.textContent=msg; else toast(msg); }
+function requireClient() { if(!state.client){toast('Configure Supabase pour activer cette fonctionnalité.');return false;} return true; }
+
+async function init() {
+  showAuth('welcome');
+  if(!SUPABASE_READY) return;
+  try {
+    const {createClient}=await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm');
+    state.client=createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+    const {data:{session}}=await state.client.auth.getSession();
+    if(session) await onSignedIn(session.user);
+    state.client.auth.onAuthStateChange(async (_event,session)=>{
+      if(session && !state.user) await onSignedIn(session.user);
+      else if(!session && state.user){state.user=null;state.profile=null;showAuth('welcome');}
+    });
+  } catch(err) { console.error(err); toast('Impossible de charger Supabase. Vérifie la configuration.'); }
+}
+async function onSignedIn(user) {
+  state.user=user;
+  const {data,error}=await state.client.from('profiles').select('*').eq('id',user.id).maybeSingle();
+  if(error){console.error(error);toast('Compte connecté, mais profil indisponible. Vérifie le schéma SQL.');}
+  state.profile=data||{id:user.id,pseudo:user.user_metadata?.pseudo || user.user_metadata?.username || user.email?.split('@')[0] || 'Mon profil',bio:'',pays:'',avatar_url:null};
+  showApp();
+}
+document.addEventListener('click',async e=>{
+  const a=e.target.closest('[data-auth]');
+  if(a){e.preventDefault();showAuth(a.dataset.auth);return;}
+  const eye=e.target.closest('[data-eye]');
+  if(eye){const input=eye.parentElement.querySelector('input');input.type=input.type==='password'?'text':'password';}
+});
+document.addEventListener('submit',async e=>{
+  const f=e.target;
+  if(!['f-signup','f-login','f-forgot'].includes(f.id)) return;
+  e.preventDefault();
+  if(!requireClient()) return;
+  const d=Object.fromEntries(new FormData(f));
+  if(f.id==='f-signup'){
+    if(!d.terms) return authError('Tu dois accepter les conditions.');
+    if((d.username||'').trim().length<3) return authError('Le pseudo doit contenir au moins 3 caractères.');
+    if((d.password||'').length<8) return authError('Le mot de passe doit contenir au moins 8 caractères.');
+    const {error}=await state.client.auth.signUp({email:d.email,password:d.password,options:{data:{pseudo:d.username.trim()}}});
+    if(error) return authError(error.message);
+    toast('Inscription envoyée. Vérifie ta boîte e-mail pour confirmer ton compte.');
+    showAuth('login');
+  } else if(f.id==='f-login'){
+    const {error}=await state.client.auth.signInWithPassword({email:d.email,password:d.password});
+    if(error) authError(error.message);
+  } else {
+    const {error}=await state.client.auth.resetPasswordForEmail(d.email,{redirectTo:location.href});
+    if(error) authError(error.message); else {toast('Si cette adresse existe, un lien de réinitialisation a été envoyé.');showAuth('login');}
+  }
+});
+
+function buildChrome(){
+  $('#side-logo').innerHTML=LOGO();
+  $('#side-nav').innerHTML=NAV.map(([k,ic,l])=>`<button class="nav-item" data-go="${k}"><span class="ic">${ic}</span>${l}</button>`).join('');
+  const map=Object.fromEntries(NAV.map(n=>[n[0],n]));
+  $('#bottomnav').innerHTML=BOTTOM.map(k=>k==='FAB'?'<button id="fab" aria-label="Créer une publication">+</button>':`<button class="bn" data-go="${k}"><span class="ic">${map[k][1]}</span>${map[k][2]}</button>`).join('');
+}
+document.addEventListener('click',e=>{
+  const g=e.target.closest('[data-go]'); if(g){go(g.dataset.go);return;}
+  if(e.target.closest('#fab')) openComposer();
+});
+function go(route){state.route=route;$$('.screen').forEach(s=>s.classList.toggle('active',s.id==='s-'+route));$$('[data-go]').forEach(b=>{if(b.classList.contains('nav-item')||b.classList.contains('bn'))b.classList.toggle('active',b.dataset.go===route)});render[route]?.();$('#screens').scrollTo({top:0});}
+const topbar=(title,sub='')=>`<div class="topbar"><div><h1>${title}</h1><p>${esc(sub)}</p></div><div class="sp"></div><button class="av sm g4" data-go="profil">👤</button></div>`;
+const render={};
+function empty(title,desc='Aucun élément pour le moment.') {return `<div class="card" style="text-align:center;padding:30px"><div style="font-size:36px;margin-bottom:8px">🌱</div><b>${esc(title)}</b><p style="color:var(--muted);margin-top:8px">${esc(desc)}</p></div>`;}
+function avatar(profile,cls='') {const letter=(profile?.pseudo||'?').trim().charAt(0).toUpperCase();return `<div class="av ${cls} g4">${profile?.avatar_url?`<img src="${esc(profile.avatar_url)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`:esc(letter)}</div>`;}
+async function loadDiscover(){
+  if(!requireClient()) return;
+  let q=state.client.from('profiles').select('id,pseudo,bio,pays,avatar_url').neq('id',state.user.id).order('created_at',{ascending:false}).limit(50);
+  if(state.query.trim()) q=q.ilike('pseudo',`%${state.query.trim().replace(/[%_]/g,'')}%`);
+  const {data,error}=await q;
+  if(error){console.error(error);return toast('Erreur de chargement des membres.');}
+  state.users=data||[]; render.discoverList();
+}
+render.decouvrir=()=>{
+  $('#s-decouvrir').innerHTML=`${topbar('Découvrir','Trouve des passionnés et explore la communauté.')}
+    <div class="searchbar"><input id="member-search" placeholder="🔍 Rechercher un pseudo..." value="${esc(state.query)}"><button class="btn sm" id="member-search-btn">Rechercher</button></div>
+    <div id="member-results">${SUPABASE_READY?empty('Chargement des membres…'):configNotice()}</div>`;
+  $('#member-search-btn')?.addEventListener('click',()=>{state.query=$('#member-search').value;loadDiscover();});
+  $('#member-search')?.addEventListener('keydown',e=>{if(e.key==='Enter'){state.query=e.target.value;loadDiscover();}});
+  if(state.client) loadDiscover();
+};
+render.discoverList=()=>{
+  const el=$('#member-results');if(!el)return;
+  el.innerHTML=state.users.length?`<div class="grid">${state.users.map(u=>`<div class="pcard"><div class="cover g4">${avatar(u,'lg')}</div><div class="body"><b>${esc(u.pseudo)}</b><small>${esc(u.bio||'Aucune biographie renseignée')}</small><small>${esc(u.pays||'Pays non renseigné')}</small><div class="row"><button class="btn sm" data-connect="${u.id}">Ajouter</button><button class="btn sm ghost" data-profile="${u.id}">Profil</button></div></div></div>`).join('')}</div>`:empty('Aucun membre trouvé','Les profils apparaîtront ici lorsqu’ils auront créé un compte.');
+};
+render.communaute=async()=>{
+  $('#s-communaute').innerHTML=`${topbar('Communauté','Les publications réelles des membres OtakuLink.')}
+    <div class="card composer"><div class="av sm g4">${esc((state.profile?.pseudo||'?')[0].toUpperCase())}</div><input id="quick-post" placeholder="Quoi de neuf, Otaku ?" readonly><button class="icon-btn" id="quick-post-btn">✏️</button></div><div id="feed">${SUPABASE_READY?empty('Chargement du fil…'):configNotice()}</div>`;
+  $('#quick-post').onclick=$('#quick-post-btn').onclick=openComposer;
+  if(!state.client)return;
+  const {data,error}=await state.client.from('posts').select('id,auteur,texte,categorie,created_at').order('created_at',{ascending:false}).limit(50);
+  if(error){console.error(error);$('#feed').innerHTML=empty('Impossible de charger le fil','Vérifie les tables et les règles RLS dans Supabase.');return;}
+  state.posts=data||[];
+  const {data:profilesData}=await state.client.from('profiles').select('id,pseudo,bio,pays,avatar_url'); state.users=profilesData||[];
+  const ids=state.posts.map(p=>p.id);
+  let liked=new Set(),counts={};
+  if(ids.length){
+    const likesRes=await state.client.from('likes').select('post_id,user_id').in('post_id',ids);
+    (likesRes.data||[]).forEach(x=>{counts[x.post_id]=(counts[x.post_id]||0)+1;if(x.user_id===state.user.id)liked.add(x.post_id);});
+    
+  }
+  $('#feed').innerHTML=state.posts.length?state.posts.map(p=>`<div class="card"><div class="post-head">${avatar(state.users.find(u=>u.id===p.auteur),'sm')}<div><b>${esc(state.users.find(u=>u.id===p.auteur)?.pseudo||'Membre')}</b><small>${fmtDate(p.created_at)}</small></div></div><p>${esc(p.texte)}</p><div class="post-actions" style="margin-top:12px"><button data-like="${p.id}" class="${liked.has(p.id)?'liked':''}">${liked.has(p.id)?'❤️':'🤍'} ${counts[p.id]||0}</button><span class="sp"></span></div></div>`).join(''):empty('Pas encore de publication','Sois le premier à partager quelque chose avec la communauté.');
+};
+render.connexions=async()=>{
+  $('#s-connexions').innerHTML=`${topbar('Connexions','Gère tes demandes et tes relations.')}<div id="connection-content">${SUPABASE_READY?empty('Chargement…'):configNotice()}</div>`;
+  if(!state.client)return;
+  const {data,error}=await state.client.from('amis').select('de,a,statut,created_at').or(`de.eq.${state.user.id},a.eq.${state.user.id}`);
+  if(error){console.error(error);$('#connection-content').innerHTML=empty('Connexions indisponibles','Vérifie le schéma SQL et les règles RLS.');return;}
+  const {data:profilesData}=await state.client.from('profiles').select('id,pseudo,bio,pays,avatar_url'); state.users=profilesData||[];
+   const rows=data||[], incoming=rows.filter(x=>x.a===state.user.id&&x.statut==='attente'), outgoing=rows.filter(x=>x.de===state.user.id&&x.statut==='attente'), friends=rows.filter(x=>x.statut==='ami');
+  const person=x=>x.de===state.user.id?state.users.find(u=>u.id===x.a):state.users.find(u=>u.id===x.de);
+  $('#connection-content').innerHTML=`<div class="two-col"><div class="card"><h3>Mes amis (${friends.length})</h3>${friends.length?friends.map(x=>`<div class="friend">${avatar(person(x))}<div class="meta"><b>${esc(person(x)?.pseudo||'Membre')}</b><small>Connexion acceptée</small></div><button class="btn sm ghost" data-message="${person(x)?.id}">Message</button></div>`).join(''):empty('Aucun ami pour le moment')}</div><div><div class="card"><h3>Demandes reçues (${incoming.length})</h3>${incoming.length?incoming.map(x=>`<div class="friend">${avatar(state.users.find(u=>u.id===x.de))}<div class="meta"><b>${esc(state.users.find(u=>u.id===x.de)?.pseudo||'Membre')}</b><small>Souhaite se connecter</small></div><button class="round ok" data-accept="${x.de}">✓</button><button class="round no" data-decline="${x.de}">✕</button></div>`).join(''):empty('Aucune demande reçue')}</div><div class="card"><h3>Demandes envoyées (${outgoing.length})</h3>${outgoing.length?outgoing.map(x=>`<div class="friend">${avatar(state.users.find(u=>u.id===x.a))}<div class="meta"><b>${esc(state.users.find(u=>u.id===x.a)?.pseudo||'Membre')}</b><small>En attente</small></div></div>`).join(''):empty('Aucune demande envoyée')}</div></div></div>`;
+};
+render.messages=async()=>{
+  $('#s-messages').innerHTML=`${topbar('Messages','Échange avec tes connexions.')}<div id="messages-content">${SUPABASE_READY?empty('Chargement…'):configNotice()}</div>`;
+  if(!state.client)return;
+  const {data,error}=await state.client.from('messages').select('id,de,a,texte,created_at').or(`de.eq.${state.user.id},a.eq.${state.user.id}`).order('created_at',{ascending:true}).limit(200);
+  if(error){console.error(error);$('#messages-content').innerHTML=empty('Messages indisponibles','Vérifie le schéma SQL et les règles RLS.');return;}
+  const {data:profilesData}=await state.client.from('profiles').select('id,pseudo,bio,pays,avatar_url'); state.users=profilesData||[];
+   const msgs=data||[], people=new Map();
+  msgs.forEach(m=>{const other=m.de===state.user.id?state.users.find(u=>u.id===m.a):state.users.find(u=>u.id===m.de);if(other)people.set(other.id,other);});
+  const selected=state.activeChat&&people.has(state.activeChat)?state.activeChat:(people.keys().next().value||null);
+  state.activeChat=selected;
+  const thread=selected?msgs.filter(m=>(m.de===state.user.id&&m.a===selected)||(m.de===selected&&m.a===state.user.id)):[];
+  $('#messages-content').innerHTML=`<div class="msg-wrap"><div class="card conv-col" style="padding:10px">${people.size?[...people.values()].map(p=>`<div class="conv ${p.id===selected?'active':''}" data-chat-open="${p.id}"><div class="av sm g4">${esc((p.pseudo||'?')[0].toUpperCase())}</div><div class="meta"><b>${esc(p.pseudo)}</b><small>Conversation</small></div></div>`).join(''):empty('Aucune conversation','Tu pourras écrire aux membres avec lesquels tu es connecté.')}</div><div class="card chat" style="margin:0"><div class="chat-head"><b>${selected?esc(people.get(selected)?.pseudo):'Conversation'}</b></div><div class="chat-body" id="chat-body">${thread.map(m=>`<div class="bubble ${m.de===state.user.id?'out':'in'}">${esc(m.texte)}<small>${fmtDate(m.created_at)}</small></div>`).join('')||'<p style="color:var(--muted);text-align:center">Sélectionne une conversation pour commencer.</p>'}</div>${selected?`<form class="chat-input" id="chat-form"><input id="chat-input" maxlength="2000" placeholder="Écrire un message…" autocomplete="off" required><button class="send" type="submit">➤</button></form>`:''}</div></div>`;
+  const body=$('#chat-body');if(body)body.scrollTop=body.scrollHeight;
+  $('#chat-form')?.addEventListener('submit',async e=>{e.preventDefault();const content=$('#chat-input').value.trim();if(!content)return;const {error}=await state.client.from('messages').insert({de:state.user.id,a:selected,texte:content});if(error)toast(error.message);else render.messages();});
+};
+render.profil=async()=>{
+  const p=state.profile||{};
+  $('#s-profil').innerHTML=`<div class="banner"></div><div class="profile-top">${avatar(p,'lg')}<div style="flex:1;min-width:200px"><h2>${esc(p.pseudo||'Mon profil')}</h2><div style="color:var(--muted)">@${esc(p.pseudo||'')}</div><p style="margin-top:6px">${esc(p.bio||'Ajoute une biographie à ton profil.')}</p><small style="color:var(--muted)">${esc(p.pays||'Pays non renseigné')}</small></div><button class="btn sm" id="edit-profile">✏️ Modifier</button></div><div id="profile-editor"></div><div class="card"><h3>Mes publications</h3><div id="my-posts">${empty('Chargement…')}</div></div>`;
+  $('#edit-profile').onclick=()=>{$('#profile-editor').innerHTML=`<div class="card"><h3>Modifier mon profil</h3><form id="profile-form"><label>Nom d'utilisateur<input name="username" maxlength="24" minlength="3" value="${esc(p.pseudo||'')}" required></label><label>Biographie<textarea name="bio" maxlength="240">${esc(p.bio||'')}</textarea></label><label>Pays<input name="country" maxlength="80" value="${esc(p.pays||'')}"></label><button class="btn block">Enregistrer</button></form></div>`;};
+  $('#profile-form')?.addEventListener('submit',async e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.target));const {data,error}=await state.client.from('profiles').update({pseudo:d.username.trim(),bio:d.bio.trim(),pays:d.country.trim()}).eq('id',state.user.id).select().single();if(error)toast(error.message);else{state.profile=data;toast('Profil mis à jour.');render.profil();}});
+  if(state.client){const {data,error}=await state.client.from('posts').select('id,texte,created_at').eq('auteur',state.user.id).order('created_at',{ascending:false});$('#my-posts').innerHTML=error?empty('Impossible de charger les publications'):data?.length?data.map(x=>`<div class="comment">${esc(x.texte)}<small style="display:block;color:var(--muted)">${fmtDate(x.created_at)}</small><button class="btn sm danger" data-delete-post="${x.id}">Supprimer</button></div>`).join(''):empty('Tu n’as pas encore publié.');}
+};
+render.parametres=()=>{
+  $('#s-parametres').innerHTML=`${topbar('Paramètres','Préférences de ton compte.')}<div class="two-col"><div><div class="card"><h3>👤 Compte</h3><div class="row"><div class="t">Adresse e-mail<small>${esc(state.user?.email||'')}</small></div></div><div class="row"><div class="t">Thème sombre</div><button class="btn sm ghost" id="theme-toggle">${state.settings.dark?'Activé':'Désactivé'}</button></div><div class="row"><div class="t">Notifications e-mail<small>Préférence locale pour cette interface</small></div><button class="btn sm ghost" id="notif-toggle">${state.settings.notifications?'Activées':'Désactivées'}</button></div></div><div class="card"><h3>🔒 Confidentialité</h3><p style="color:var(--muted);font-size:13px">Les règles d’accès aux données sont appliquées côté Supabase (RLS). Les options de visibilité avancées seront ajoutées avec leurs règles serveur.</p></div></div><div><div class="card"><h3>⚠️ Zone de sécurité</h3><button class="btn ghost block" id="reset-password">Réinitialiser mon mot de passe</button><button class="btn danger block" id="logout" style="margin-top:12px">Se déconnecter</button></div><div class="card"><h3>À propos</h3><p style="color:var(--muted)">OtakuLink — communauté anime et manga.</p></div></div></div>`;
+  $('#theme-toggle').onclick=()=>{state.settings.dark=!state.settings.dark;localStorage.setItem('otakulink_settings',JSON.stringify(state.settings));applyTheme();render.parametres();};
+  $('#notif-toggle').onclick=()=>{state.settings.notifications=!state.settings.notifications;localStorage.setItem('otakulink_settings',JSON.stringify(state.settings));render.parametres();};
+  $('#logout').onclick=async()=>{await state.client.auth.signOut();state.user=null;state.profile=null;showAuth('welcome');};
+  $('#reset-password').onclick=async()=>{const {error}=await state.client.auth.resetPasswordForEmail(state.user.email,{redirectTo:location.href});toast(error?error.message:'Si ton adresse est valide, un lien sera envoyé.');};
+};
+function applyTheme(){document.body.style.filter='';document.documentElement.dataset.theme=state.settings.dark?'dark':'light';}
+function openComposer(){
+  if(!requireClient())return;
+  $('#modal-root').innerHTML=`<div class="modal" id="modal"><div class="sheet"><div style="display:flex;align-items:center;gap:10px;margin-bottom:12px"><button class="icon-btn" id="m-close">←</button><h3 style="flex:1">Nouvelle publication</h3><button class="btn sm" id="m-pub">Publier</button></div><textarea id="m-text" maxlength="2000" placeholder="Quoi de neuf, Otaku ?"></textarea><div style="text-align:right;color:var(--muted);font-size:12px"><span id="m-count">0</span>/2000</div></div></div>`;
+  const t=$('#m-text');t.focus();t.oninput=()=>$('#m-count').textContent=t.value.length;
+  $('#m-close').onclick=()=>$('#modal-root').innerHTML='';
+  $('#modal').onclick=e=>{if(e.target.id==='modal')$('#modal-root').innerHTML='';};
+  $('#m-pub').onclick=async()=>{const content=t.value.trim();if(!content)return toast('Écris quelque chose avant de publier.');const {error}=await state.client.from('posts').insert({auteur:state.user.id,texte:content,categorie:'general'});if(error)toast(error.message);else{$('#modal-root').innerHTML='';go('communaute');toast('Publication publiée.');}};
+}
+document.addEventListener('click',async e=>{
+  const connect=e.target.closest('[data-connect]');
+  if(connect){const {error}=await state.client.from('amis').insert({de:state.user.id,a:connect.dataset.connect,statut:'attente'});toast(error?error.message:'Demande envoyée.');return;}
+  const accept=e.target.closest('[data-accept]');
+  if(accept){const {error}=await state.client.from('amis').update({statut:'ami'}).eq('de',accept.dataset.accept).eq('a',state.user.id);toast(error?error.message:'Demande acceptée.');render.connexions();return;}
+  const decline=e.target.closest('[data-decline]');
+  if(decline){const {error}=await state.client.from('amis').delete().eq('de',decline.dataset.decline).eq('a',state.user.id);toast(error?error.message:'Demande refusée.');render.connexions();return;}
+  const like=e.target.closest('[data-like]');
+  if(like){const id=like.dataset.like;const {data:existing}=await state.client.from('likes').select('post_id').eq('post_id',id).eq('user_id',state.user.id).maybeSingle();const result=existing?await state.client.from('likes').delete().eq('post_id',id).eq('user_id',state.user.id):await state.client.from('likes').insert({post_id:id,user_id:state.user.id});if(result.error)toast(result.error.message);else render.communaute();return;}
+  const del=e.target.closest('[data-delete-post]');
+  if(del){if(!confirm('Supprimer cette publication ?'))return;const {error}=await state.client.from('posts').delete().eq('id',del.dataset.deletePost);toast(error?error.message:'Publication supprimée.');render.profil();return;}
+  const chat=e.target.closest('[data-message]');
+  if(chat){state.activeChat=chat.dataset.message;go('messages');return;}
+  const open=e.target.closest('[data-chat-open]');
+  if(open){state.activeChat=open.dataset.chatOpen;render.messages();return;}
+  const profile=e.target.closest('[data-profile]');
+  if(profile){toast('La consultation des profils publics sera ajoutée dans la prochaine étape.');return;}
+});
+try{const saved=JSON.parse(localStorage.getItem('otakulink_settings')||'{}');state.settings={...state.settings,...saved};applyTheme();}catch(_){}
+init();
+</script>
+</body>
+</html>
