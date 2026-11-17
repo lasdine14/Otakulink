@@ -5,6 +5,21 @@ const TORII = `<svg class="torii" viewBox="0 0 64 52" fill="none" stroke="#22d3e
 const LOGO = `<div class="logo">${TORII}<b>Otaku<span>Link</span></b></div>`;
 const PAYS = ["France","Congo","Gabon","Cameroun","Côte d’Ivoire","Sénégal","Belgique","Canada","Autre"];
 
+const SB_URL = "https://jnepjuszrppaasdopnlo.supabase.co";
+const SB_KEY = "sb_publishable_aST32y-TGzIttH9RAnm64w_dv3d_Wdc";
+const sb = window.supabase ? window.supabase.createClient(SB_URL, SB_KEY) : null;
+let me = null, session = null;
+const esc = (t) => String(t ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+function erreur(e, ins) {
+  const m = (e.message || "").toLowerCase();
+  if (m.includes("database error")) return "Ce pseudo est déjà pris. Essaie-en un autre.";
+  if (m.includes("already registered")) return "Cet email a déjà un compte.";
+  if (m.includes("invalid login")) return "Email ou mot de passe incorrect.";
+  if (m.includes("not confirmed")) return "Confirme d’abord ton email (regarde ta boîte mail).";
+  if (m.includes("rate limit")) return "Trop d’essais. Réessaie dans quelques minutes.";
+  return ins ? "Inscription impossible pour le moment." : "Connexion impossible pour le moment.";
+}
+
 const empty = (i, t, p) => `<section class="card empty"><div class="big">${i}</div><h2>${t}</h2><p>${p}</p></section>`;
 const chips = (l) => `<div class="chips">${l.map((c, i) => `<button${i ? "" : ' class="on"'}>${c}</button>`).join("")}</div>`;
 const field = (icon, type, ph, name, extra = "") =>
@@ -18,7 +33,6 @@ const ROUTES = {
       <a class="btn" href="#inscription" style="line-height:50px">Commencer</a>
       <a class="btn dark" href="#connexion" style="line-height:50px">Se connecter</a>
       <p class="foot">Passion Anime · Amitié · Communauté</p>
-      <a class="foot" href="#accueil">Explorer sans compte</a>
     </div>` },
 
   inscription: { auth: true, render: () => `
@@ -38,9 +52,9 @@ const ROUTES = {
   connexion: { auth: true, render: () => `
     <form class="auth-wrap" id="form-auth">${LOGO}
       <p><b>Bon retour !</b> 👋<br><span class="sub">Connecte-toi à ton univers</span></p>
-      ${field("✉", "text", "Email ou pseudo", "id", 'autocomplete="username"')}
+      ${field("✉", "email", "Email", "email", 'autocomplete="email"')}
       ${field("🔒", "password", "Mot de passe", "mdp", 'autocomplete="current-password"')}
-      <div class="row"><label class="check"><input type="checkbox">Se souvenir de moi</label><a href="#connexion">Mot de passe oublié ?</a></div>
+      <div class="row" style="justify-content:flex-end"><a href="#connexion" data-forgot>Mot de passe oublié ?</a></div>
       <button class="btn" type="submit">Se connecter</button>
       <p class="note" role="status"></p>
       <div class="sep">ou</div>${socials}
@@ -55,7 +69,7 @@ const ROUTES = {
   messages: { title: "Messages", tab: "messages", render: () => chips(["Toutes", "Privées", "Groupes"]) + empty("💬", "Aucune conversation", "Tes messages privés et tes groupes apparaîtront ici.") },
   connexions: { title: "Connexions", tab: "connexions", render: () => chips(["Amis", "Invitations", "Suggestions"]) + empty("🤝", "Aucune connexion", "Tes amis, tes invitations et les suggestions seront listés ici.") },
   profil: { title: "Profil", tab: "profil", action: "parametres", render: () => `
-    <section class="card profile"><div class="avatar">👤</div><h2>Ton pseudo</h2><p class="sub">Réveur · Passionné · Otaku</p>
+    <section class="card profile"><div class="avatar">👤</div><h2>${esc(me?.pseudo || "…")}</h2><p class="sub">${esc(me?.bio || "Rêveur · Passionné · Otaku")}${me?.pays ? " · " + esc(me.pays) : ""}</p>
       <div class="stats"><div><b>0</b><span>Amis</span></div><div><b>0</b><span>Abonnés</span></div><div><b>0</b><span>Abonnements</span></div></div></section>
     <div class="h2"><span>Mes animes préférés</span></div>${empty("⭐", "Aucun anime pour l’instant", "Tes animes préférés s’afficheront ici.")}` },
   parametres: { title: "Paramètres", tab: "profil", back: "profil", render: () => `
@@ -64,15 +78,19 @@ const ROUTES = {
       <a href="#parametres"><i>🔔</i>Notifications</a><a href="#parametres"><i>🎨</i>Apparence</a></div>
     <p class="group">Préférences Otaku</p><div class="menu">
       <a href="#parametres"><i>⭐</i>Mes favoris</a><a href="#parametres"><i>🌐</i>Langues</a><a href="#parametres"><i>ℹ</i>À propos d’OtakuLink</a></div>
-    <a class="btn" href="#bienvenue" style="line-height:50px;text-align:center">Se déconnecter</a>` }
+    <button class="btn" data-logout>Se déconnecter</button>` }
 };
 
 const $ = (id) => document.getElementById(id);
 const screen = $("screen");
 
 function show() {
-  const key = location.hash.slice(1);
-  const r = ROUTES[ROUTES[key] ? key : "bienvenue"];
+  let key = location.hash.slice(1);
+  if (!ROUTES[key]) key = session ? "accueil" : "bienvenue";
+  if (!session && !ROUTES[key].auth) key = "bienvenue";
+  if (session && ROUTES[key].auth) key = "accueil";
+  if (location.hash.slice(1) !== key) { location.replace("#" + key); return; }
+  const r = ROUTES[key];
   document.body.classList.toggle("auth", !!r.auth);
   screen.innerHTML = r.render();
   screen.scrollTop = 0;
@@ -94,12 +112,47 @@ screen.addEventListener("click", (e) => {
   if (chip) { chip.parentNode.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b === chip)); return; }
   const eye = e.target.closest(".eye");
   if (eye) { const i = eye.previousElementSibling; i.type = i.type === "password" ? "text" : "password"; return; }
+  if (e.target.closest("[data-logout]")) { sb.auth.signOut(); return; }
+  const forgot = e.target.closest("[data-forgot]");
+  if (forgot) {
+    e.preventDefault();
+    const n = screen.querySelector(".note"), mail = screen.querySelector("[name=email]").value.trim();
+    if (!mail) { n.textContent = "Écris ton email ci-dessus, puis touche « Mot de passe oublié ? »."; return; }
+    sb.auth.resetPasswordForEmail(mail).then(({ error }) => { n.textContent = error ? "Impossible d’envoyer l’email pour le moment." : "Email envoyé : vérifie ta boîte de réception."; });
+    return;
+  }
   if (e.target.closest("[data-soc]")) { const n = screen.querySelector(".note"); if (n) n.textContent = "Cette connexion sera activée à l’étape suivante."; }
 });
-screen.addEventListener("submit", (e) => {
+screen.addEventListener("submit", async (e) => {
   e.preventDefault();
-  e.target.querySelector(".note").textContent = "Les comptes ne sont pas encore actifs : ils seront branchés à l’étape suivante (Supabase).";
+  const f = e.target, n = f.querySelector(".note"), btn = f.querySelector("button[type=submit]");
+  if (!sb) { n.textContent = "Connexion au serveur impossible (pas d’internet ?)."; return; }
+  const v = Object.fromEntries(new FormData(f));
+  const ins = location.hash === "#inscription";
+  btn.disabled = true; n.textContent = "Un instant…";
+  const { data, error } = ins
+    ? await sb.auth.signUp({ email: v.email, password: v.mdp, options: { data: { pseudo: v.pseudo.trim(), pays: v.pays } } })
+    : await sb.auth.signInWithPassword({ email: v.email, password: v.mdp });
+  btn.disabled = false;
+  if (error) { n.textContent = erreur(error, ins); return; }
+  if (ins && !data.session) n.textContent = "Compte créé ! Vérifie ta boîte mail pour confirmer ton adresse, puis connecte-toi.";
 });
 
+async function loadMe() {
+  me = null;
+  if (!session) return;
+  const { data } = await sb.from("profiles").select("pseudo,pays,bio").eq("id", session.user.id).maybeSingle();
+  me = data;
+}
+
 window.addEventListener("hashchange", show);
-show();
+if (sb) {
+  sb.auth.onAuthStateChange(async (evt, s) => {
+    const had = !!session;
+    session = s;
+    await loadMe();
+    if (evt === "SIGNED_IN" && !had) location.hash = "#accueil";
+    else if (evt === "SIGNED_OUT") location.hash = "#bienvenue";
+    show();
+  });
+} else show();
