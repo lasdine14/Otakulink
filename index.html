@@ -359,6 +359,7 @@ body{background:radial-gradient(ellipse at 50% -15%,rgba(0,112,255,.27),transpar
 @media(min-width:900px){#screens{padding:18px 24px 100px}#bottomnav{left:244px;right:14px} .topbar h1{font-size:25px}}
 @media(max-width:600px){.topbar h1{font-size:20px}.card{padding:12px;margin-bottom:11px}.two-col{grid-template-columns:1fr}.profile-top{margin-left:8px;margin-right:8px}.av.lg{width:82px;height:82px}.stats .stat b{font-size:16px}}
 
+.btn.ghost{color:var(--text)}
 html[data-theme="light"]{--text:#17233f;--muted:#55648a;--bg2:#fff;--line:rgba(30,100,220,.35);--glow:0 1px 8px rgba(30,100,220,.15)}
 html[data-theme="light"] #auth{background:#eef3ff}
 html[data-theme="light"] #sidebar,html[data-theme="light"] .sheet{background:#fff}
@@ -432,6 +433,7 @@ async function loadBlocks(){const {data}=await state.client.from('blocages').sel
 async function fetchProfiles(ids){ids=[...new Set(ids)].filter(Boolean);if(!ids.length){state.users=[];return state.users;}const {data}=await state.client.from('profiles').select('id,pseudo,bio,pays,avatar_url').in('id',ids);state.users=data||[];return state.users;}
 async function refreshUnread(){if(!state.client||!state.user)return;const {count}=await state.client.from('messages').select('id',{count:'exact',head:true}).eq('a',state.user.id).eq('lu',false);state.unread=count||0;$$('[data-go="messages"]').forEach(b=>{let bd=b.querySelector('.badge');if(!state.unread){bd?.remove();return;}if(!bd){bd=document.createElement('span');bd.className='badge';b.appendChild(bd);}bd.textContent=state.unread>99?'99+':state.unread;});}
 function startRealtime(){state.client.channel('msgs-'+state.user.id).on('postgres_changes',{event:'INSERT',schema:'public',table:'messages',filter:`a=eq.${state.user.id}`},p=>{if(state.blocked.has(p.new.de))return;if(state.route==='messages'&&(!state.activeChat||state.activeChat===p.new.de)&&!$('#chat-input')?.value)render.messages();else toast('💬 Nouveau message');refreshUnread();}).subscribe();}
+const relBtn=id=>{const x=state.rel?.get(id);if(!x)return `<button class="btn sm" data-connect="${id}">Ajouter</button>`;if(x.statut==='ami')return `<button class="btn sm ghost" data-message="${id}">💬 Message</button>`;if(x.de===state.user.id)return `<button class="btn sm ghost" disabled>Demande envoyée</button>`;return `<button class="btn sm" data-accept="${id}">Accepter</button>`;};
 function configNotice() {
   return `<div class="card" style="border-color:#fbbf24">
     <h3>⚙️ Connexion à Supabase à configurer</h3>
@@ -543,6 +545,7 @@ async function loadDiscover(){
   if(state.query.trim()) q=q.ilike('pseudo',`%${state.query.trim().replace(/[%_]/g,'')}%`);
   const {data,error}=await q;
   if(error){console.error(error);return toast('Erreur de chargement des membres.');}
+  const {data:relRows}=await state.client.from('amis').select('de,a,statut').or(`de.eq.${state.user.id},a.eq.${state.user.id}`);state.rel=new Map((relRows||[]).map(x=>[x.de===state.user.id?x.a:x.de,x]));
   state.users=(data||[]).filter(u=>!state.blocked.has(u.id)); render.discoverList();
   const strip=$('#member-strip');if(strip)strip.innerHTML=state.users.length?state.users.slice(0,16).map(u=>`<button class="story" data-profile="${u.id}">${avatar(u)}<span>${esc(u.pseudo||'Membre')}</span></button>`).join(''):empty('Aucun autre membre','Les nouveaux profils apparaîtront ici.');
 }
@@ -580,7 +583,7 @@ render.rencontres=async()=>{
 };
 render.discoverList=()=>{
   const el=$('#member-results');if(!el)return;
-  el.innerHTML=state.users.length?`<div class="grid">${state.users.map(u=>`<div class="pcard"><div class="cover g4">${avatar(u,'lg')}</div><div class="body"><b>${esc(u.pseudo)}</b><small>${esc(u.bio||'Aucune biographie renseignée')}</small><small>${esc(u.pays||'Pays non renseigné')}</small><div class="row"><button class="btn sm" data-connect="${u.id}">Ajouter</button><button class="btn sm ghost" data-profile="${u.id}">Profil</button></div></div></div>`).join('')}</div>`:empty('Aucun membre trouvé','Les profils apparaîtront ici lorsqu’ils auront créé un compte.');
+  el.innerHTML=state.users.length?`<div class="grid">${state.users.map(u=>`<div class="pcard"><div class="cover g4">${avatar(u,'lg')}</div><div class="body"><b>${esc(u.pseudo)}</b><small>${esc(u.bio||'Aucune biographie renseignée')}</small><small>${esc(u.pays||'Pays non renseigné')}</small><div class="row">${relBtn(u.id)}<button class="btn sm ghost" data-profile="${u.id}">Profil</button></div></div></div>`).join('')}</div>`:empty('Aucun membre trouvé','Les profils apparaîtront ici lorsqu’ils auront créé un compte.');
 };
 render.communaute=async()=>{
   $('#s-communaute').innerHTML=`${topbar('Communauté','Les publications des membres OtakuLink.')}
@@ -688,9 +691,9 @@ document.addEventListener('click',async e=>{
     render.rencontres();return;
   }
   const connect=e.target.closest('[data-connect]');
-  if(connect){const {error}=await state.client.from('amis').insert({de:state.user.id,a:connect.dataset.connect,statut:'attente'});toast(error?error.message:'Demande envoyée.');return;}
+  if(connect){const {error}=await state.client.from('amis').insert({de:state.user.id,a:connect.dataset.connect,statut:'attente'});toast(error?(error.code==='23505'?'Demande déjà envoyée, ou vous êtes déjà amis.':error.message):'Demande envoyée.');if(state.route==='decouvrir')loadDiscover();return;}
   const accept=e.target.closest('[data-accept]');
-  if(accept){const {error}=await state.client.from('amis').update({statut:'ami'}).eq('de',accept.dataset.accept).eq('a',state.user.id);toast(error?error.message:'Demande acceptée.');render.connexions();return;}
+  if(accept){const {error}=await state.client.from('amis').update({statut:'ami'}).eq('de',accept.dataset.accept).eq('a',state.user.id);toast(error?error.message:'Demande acceptée.');state.route==='decouvrir'?loadDiscover():render.connexions();return;}
   const decline=e.target.closest('[data-decline]');
   if(decline){const {error}=await state.client.from('amis').delete().eq('de',decline.dataset.decline).eq('a',state.user.id);toast(error?error.message:'Demande refusée.');render.connexions();return;}
   const like=e.target.closest('[data-like]');
