@@ -359,6 +359,14 @@ body{background:radial-gradient(ellipse at 50% -15%,rgba(0,112,255,.27),transpar
 @media(min-width:900px){#screens{padding:18px 24px 100px}#bottomnav{left:244px;right:14px} .topbar h1{font-size:25px}}
 @media(max-width:600px){.topbar h1{font-size:20px}.card{padding:12px;margin-bottom:11px}.two-col{grid-template-columns:1fr}.profile-top{margin-left:8px;margin-right:8px}.av.lg{width:82px;height:82px}.stats .stat b{font-size:16px}}
 
+html[data-theme="light"]{--text:#17233f;--muted:#55648a;--bg2:#fff;--line:rgba(30,100,220,.35);--glow:0 1px 8px rgba(30,100,220,.15)}
+html[data-theme="light"] #auth{background:#eef3ff}
+html[data-theme="light"] #sidebar,html[data-theme="light"] .sheet{background:#fff}
+html[data-theme="light"] .side-promo{background:#f1ebff}
+html[data-theme="light"] .field,html[data-theme="light"] .searchbar input,html[data-theme="light"] .composer input,html[data-theme="light"] .chat-input,html[data-theme="light"] .chip,html[data-theme="light"] .stat,html[data-theme="light"] .icon-btn,html[data-theme="light"] label:not(.field) input,html[data-theme="light"] label:not(.field) textarea,html[data-theme="light"] .sheet textarea,html[data-theme="light"] .btn.ghost{background:#f4f7ff}
+html[data-theme="light"] .bubble.in{background:#e6ecfb}
+html[data-theme="light"] .comment{background:#f1f4fb}
+html[data-theme="light"] .btn:not(.ghost):not(.danger),html[data-theme="light"] .nav-item.active,html[data-theme="light"] .chip.active{color:#fff}
 </style>
 </head>
 <body>
@@ -376,7 +384,7 @@ body{background:radial-gradient(ellipse at 50% -15%,rgba(0,112,255,.27),transpar
     <div class="side-promo">
       <h4>Rejoins <span class="grad">OtakuLink Pro</span></h4>
       <ul><li>Plus d'avantages</li><li>Badge premium</li><li>Mode sans pub</li></ul>
-      <button class="btn sm block" data-go="parametres">Passer Pro ✨</button>
+      <button class="btn sm block" id="pro-soon">Passer Pro ✨</button>
     </div>
   </aside>
 
@@ -417,8 +425,13 @@ const TORII = `<svg class="torii" viewBox="0 0 64 52" fill="none" stroke="#22d3e
 const LOGO = big => `<div class="logo ${big?'big':''}">${TORII}<b>Otaku<span>Link</span></b></div>`;
 const NAV = [['decouvrir','🔎','Amis'],['rencontres','💘','Rencontres'],['communaute','👥','Communauté'],['messages','💬','Messages'],['connexions','🤝','Connexions'],['profil','👤','Profil'],['parametres','⚙️','Paramètres']];
 const BOTTOM = ['decouvrir','rencontres','communaute','FAB','messages','profil'];
-const state = { client:null, user:null, profile:null, route:'decouvrir', query:'', filter:'Tous', posts:[], users:[], requests:[], friends:[], conversations:[], activeChat:null, settings:{dark:true,private:false,notifications:true}, busy:false };
+const state = { client:null, user:null, profile:null, route:'decouvrir', query:'', filter:'Tous', posts:[], users:[], requests:[], friends:[], conversations:[], activeChat:null, settings:{dark:true,private:false,notifications:true}, busy:false, blocked:new Set(), unread:0 };
 
+function ageOf(d){const b=new Date(d),n=new Date();let a=n.getFullYear()-b.getFullYear();if(n<new Date(n.getFullYear(),b.getMonth(),b.getDate()))a--;return a;}
+async function loadBlocks(){const {data}=await state.client.from('blocages').select('de,a');state.blocked=new Set((data||[]).map(x=>x.de===state.user.id?x.a:x.de));}
+async function fetchProfiles(ids){ids=[...new Set(ids)].filter(Boolean);if(!ids.length){state.users=[];return state.users;}const {data}=await state.client.from('profiles').select('id,pseudo,bio,pays,avatar_url').in('id',ids);state.users=data||[];return state.users;}
+async function refreshUnread(){if(!state.client||!state.user)return;const {count}=await state.client.from('messages').select('id',{count:'exact',head:true}).eq('a',state.user.id).eq('lu',false);state.unread=count||0;$$('[data-go="messages"]').forEach(b=>{let bd=b.querySelector('.badge');if(!state.unread){bd?.remove();return;}if(!bd){bd=document.createElement('span');bd.className='badge';b.appendChild(bd);}bd.textContent=state.unread>99?'99+':state.unread;});}
+function startRealtime(){state.client.channel('msgs-'+state.user.id).on('postgres_changes',{event:'INSERT',schema:'public',table:'messages',filter:`a=eq.${state.user.id}`},p=>{if(state.blocked.has(p.new.de))return;if(state.route==='messages'&&(!state.activeChat||state.activeChat===p.new.de)&&!$('#chat-input')?.value)render.messages();else toast('💬 Nouveau message');refreshUnread();}).subscribe();}
 function configNotice() {
   return `<div class="card" style="border-color:#fbbf24">
     <h3>⚙️ Connexion à Supabase à configurer</h3>
@@ -436,6 +449,7 @@ function showAuth(view='welcome') {
       <form id="f-signup" novalidate>
       <label class="field">👤<input name="username" minlength="3" maxlength="24" placeholder="Nom d'utilisateur" autocomplete="username" required></label>
       <label class="field">✉️<input name="email" type="email" placeholder="Adresse e-mail" autocomplete="email" required></label>
+      <label class="field">🎂<input name="birthdate" type="date" aria-label="Date de naissance" max="${new Date().toISOString().slice(0,10)}" required></label>
       <label class="field">🔒<input name="password" type="password" minlength="8" placeholder="Mot de passe (8 caractères minimum)" autocomplete="new-password" required><span class="eye" data-eye>👁</span></label>
       <label class="check"><input type="checkbox" name="terms" required> J'accepte les conditions d'utilisation et la politique de confidentialité.</label>
       <div class="err" id="auth-error"></div><button class="btn block" type="submit">Créer mon compte →</button></form>
@@ -452,7 +466,7 @@ function showAuth(view='welcome') {
   box.innerHTML=screens[view]||screens.welcome;
   $('#auth').classList.remove('hidden'); $('#app').classList.add('hidden');
 }
-function showApp() { $('#auth').classList.add('hidden'); $('#app').classList.remove('hidden'); buildChrome(); go(state.route); }
+function showApp() { $('#auth').classList.add('hidden'); $('#app').classList.remove('hidden'); buildChrome(); go(state.route); refreshUnread(); }
 function authError(msg) { const el=$('#auth-error'); if(el) el.textContent=msg; else toast(msg); }
 function requireClient() { if(!state.client){toast('Configure Supabase pour activer cette fonctionnalité.');return false;} return true; }
 
@@ -475,6 +489,7 @@ async function onSignedIn(user) {
   const {data,error}=await state.client.from('profiles').select('*').eq('id',user.id).maybeSingle();
   if(error){console.error(error);toast('Compte connecté, mais profil indisponible. Vérifie le schéma SQL.');}
   state.profile=data||{id:user.id,pseudo:user.user_metadata?.pseudo || user.user_metadata?.username || user.email?.split('@')[0] || 'Mon profil',bio:'',pays:'',avatar_url:null};
+  await loadBlocks(); if(!state.rt){state.rt=true;startRealtime();}
   showApp();
 }
 document.addEventListener('click',async e=>{
@@ -492,8 +507,9 @@ document.addEventListener('submit',async e=>{
   if(f.id==='f-signup'){
     if(!d.terms) return authError('Tu dois accepter les conditions.');
     if((d.username||'').trim().length<3) return authError('Le pseudo doit contenir au moins 3 caractères.');
+    if(!d.birthdate||ageOf(d.birthdate)<13) return authError('Tu dois avoir au moins 13 ans pour t’inscrire.');
     if((d.password||'').length<8) return authError('Le mot de passe doit contenir au moins 8 caractères.');
-    const {error}=await state.client.auth.signUp({email:d.email,password:d.password,options:{data:{pseudo:d.username.trim()}}});
+    const {error}=await state.client.auth.signUp({email:d.email,password:d.password,options:{data:{pseudo:d.username.trim(),birthdate:d.birthdate}}});
     if(error) return authError(error.message);
     toast('Inscription envoyée. Vérifie ta boîte e-mail pour confirmer ton compte.');
     showAuth('login');
@@ -527,7 +543,7 @@ async function loadDiscover(){
   if(state.query.trim()) q=q.ilike('pseudo',`%${state.query.trim().replace(/[%_]/g,'')}%`);
   const {data,error}=await q;
   if(error){console.error(error);return toast('Erreur de chargement des membres.');}
-  state.users=data||[]; render.discoverList();
+  state.users=(data||[]).filter(u=>!state.blocked.has(u.id)); render.discoverList();
   const strip=$('#member-strip');if(strip)strip.innerHTML=state.users.length?state.users.slice(0,16).map(u=>`<button class="story" data-profile="${u.id}">${avatar(u)}<span>${esc(u.pseudo||'Membre')}</span></button>`).join(''):empty('Aucun autre membre','Les nouveaux profils apparaîtront ici.');
 }
 render.decouvrir=async()=>{
@@ -546,17 +562,20 @@ render.rencontres=async()=>{
   const {data:me,error:meErr}=await state.client.from('profiles').select('rencontres_actives').eq('id',state.user.id).maybeSingle();
   const toggle=$('#dating-toggle');
   if(meErr){toggle.textContent='Configuration requise';toggle.disabled=true;$('#dating-cards').innerHTML=empty('Rencontres à configurer','Exécute le script SQL de mise à jour fourni avec cette version pour activer cet espace.');return;}
+  const {data:priv}=await state.client.from('infos_privees').select('date_naissance').eq('id',state.user.id).maybeSingle();
+  if(!priv?.date_naissance){toggle.disabled=true;toggle.textContent='Date de naissance requise';$('#dating-cards').innerHTML=`<div class="card"><h3>🎂 Ta date de naissance</h3><form id="dob-form"><label>Date de naissance<input type="date" name="dob" required></label><small style="color:var(--muted)">Elle sert à vérifier ton âge et à te montrer des profils de ta tranche d’âge. Elle ne pourra plus être modifiée.</small><button class="btn block" style="margin-top:10px">Valider</button></form></div>`;$('#dob-form').onsubmit=async e=>{e.preventDefault();const v=new FormData(e.target).get('dob');if(!v||ageOf(v)<13)return toast('Date invalide.');const {error}=await state.client.from('infos_privees').insert({id:state.user.id,date_naissance:v});if(error)toast(error.message);else render.rencontres();};return;}
+  if(ageOf(priv.date_naissance)<16){toggle.disabled=true;toggle.textContent='Réservé aux 16 ans et plus';$('#dating-cards').innerHTML=empty('Bientôt !','La section Rencontres est réservée aux 16 ans et plus.');return;}
   toggle.textContent=me?.rencontres_actives?'Désactiver mon profil Rencontres':'Activer mon profil Rencontres';
   toggle.dataset.enabled=me?.rencontres_actives?'true':'false';
   toggle.onclick=async()=>{const enabled=toggle.dataset.enabled!=='true';toggle.disabled=true;toggle.textContent='Mise à jour…';const {error}=await state.client.from('profiles').update({rencontres_actives:enabled}).eq('id',state.user.id);if(error){toast('Impossible de modifier ton profil : '+error.message);toggle.disabled=false;toggle.textContent=enabled?'Activer mon profil Rencontres':'Désactiver mon profil Rencontres';return;}if(state.profile)state.profile.rencontres_actives=enabled;toast(enabled?'Ton profil Rencontres est activé.':'Ton profil Rencontres est désactivé.');render.rencontres();};
   if(!me?.rencontres_actives){$('#dating-cards').innerHTML=empty('Active ton profil pour commencer','Tu pourras alors découvrir les membres qui souhaitent aussi faire des rencontres.');return;}
-  const {data:people,error}=await state.client.from('profiles').select('id,pseudo,bio,pays,avatar_url').eq('rencontres_actives',true).neq('id',state.user.id).limit(50);
+  const {data:people,error}=await state.client.rpc('rencontres_profils');
   if(error){$('#dating-cards').innerHTML=empty('Profils indisponibles','Vérifie la mise à jour SQL et les règles RLS de Supabase.');return;}
   state.users=people||[];
   const {data:likes, error:likeErr}=await state.client.from('rencontres_actions').select('a,de,action').or(`de.eq.${state.user.id},a.eq.${state.user.id}`);
   if(likeErr){$('#dating-cards').innerHTML=empty('Interactions à configurer','La table des intérêts Rencontres doit être créée avec le script SQL fourni.');return;}
   const seen=new Set((likes||[]).filter(x=>x.de===state.user.id).map(x=>x.a));
-  const available=(people||[]).filter(u=>!seen.has(u.id));
+  const available=(people||[]).filter(u=>!seen.has(u.id)&&!state.blocked.has(u.id));
   $('#dating-cards').innerHTML=available.length?`<div class="grid">${available.map(u=>`<article class="pcard"><div class="cover g4" style="height:190px">${avatar(u,'lg')}</div><div class="body"><b>${esc(u.pseudo||'Membre')}</b><small>${esc(u.pays||'Pays non renseigné')}</small><p style="font-size:13px;min-height:38px;margin:8px 0;color:var(--muted)">${esc(u.bio||'Ce membre souhaite faire de nouvelles rencontres.')}</p><div class="row"><button class="btn sm ghost" data-dating-pass="${u.id}">Passer</button><button class="btn sm" data-dating-like="${u.id}">💗 Intéressé</button></div></div></article>`).join('')}</div>`:empty('Plus de profils pour le moment','Reviens plus tard : de nouveaux membres pourront activer Rencontres.');
 };
 render.discoverList=()=>{
@@ -571,7 +590,7 @@ render.communaute=async()=>{
   const {data,error}=await state.client.from('posts').select('id,auteur,texte,categorie,created_at').order('created_at',{ascending:false}).limit(50);
   if(error){console.error(error);$('#feed').innerHTML=empty('Impossible de charger le fil','Vérifie les tables et les règles RLS dans Supabase.');return;}
   state.posts=data||[];
-  const {data:profilesData}=await state.client.from('profiles').select('id,pseudo,bio,pays,avatar_url'); state.users=profilesData||[];
+  state.posts=state.posts.filter(p=>!state.blocked.has(p.auteur));await fetchProfiles(state.posts.map(p=>p.auteur));
   const ids=state.posts.map(p=>p.id);
   let liked=new Set(),counts={};
   if(ids.length){
@@ -579,47 +598,48 @@ render.communaute=async()=>{
     (likesRes.data||[]).forEach(x=>{counts[x.post_id]=(counts[x.post_id]||0)+1;if(x.user_id===state.user.id)liked.add(x.post_id);});
     
   }
-  $('#feed').innerHTML=state.posts.length?state.posts.map(p=>`<div class="card"><div class="post-head">${avatar(state.users.find(u=>u.id===p.auteur),'sm')}<div><b>${esc(state.users.find(u=>u.id===p.auteur)?.pseudo||'Membre')}</b><small>${fmtDate(p.created_at)}</small></div></div><p>${esc(p.texte)}</p><div class="post-actions" style="margin-top:12px"><button data-like="${p.id}" class="${liked.has(p.id)?'liked':''}">${liked.has(p.id)?'❤️':'🤍'} ${counts[p.id]||0}</button><span class="sp"></span></div></div>`).join(''):empty('Pas encore de publication','Sois le premier à partager quelque chose avec la communauté.');
+  $('#feed').innerHTML=state.posts.length?state.posts.map(p=>`<div class="card"><div class="post-head">${avatar(state.users.find(u=>u.id===p.auteur),'sm')}<div><b>${esc(state.users.find(u=>u.id===p.auteur)?.pseudo||'Membre')}</b><small>${fmtDate(p.created_at)}</small></div></div><p>${esc(p.texte)}</p><div class="post-actions" style="margin-top:12px"><button data-like="${p.id}" class="${liked.has(p.id)?'liked':''}">${liked.has(p.id)?'❤️':'🤍'} ${counts[p.id]||0}</button><span class="sp"></span>${p.auteur!==state.user.id?`<button data-report-post="${p.id}" aria-label="Signaler">🚩</button>`:''}</div></div>`).join(''):empty('Pas encore de publication','Sois le premier à partager quelque chose avec la communauté.');
 };
 render.connexions=async()=>{
   $('#s-connexions').innerHTML=`${topbar('Connexions','Gère tes demandes et tes relations.')}<div id="connection-content">${SUPABASE_READY?empty('Chargement…'):configNotice()}</div>`;
   if(!state.client)return;
   const {data,error}=await state.client.from('amis').select('de,a,statut,created_at').or(`de.eq.${state.user.id},a.eq.${state.user.id}`);
   if(error){console.error(error);$('#connection-content').innerHTML=empty('Connexions indisponibles','Vérifie le schéma SQL et les règles RLS.');return;}
-  const {data:profilesData}=await state.client.from('profiles').select('id,pseudo,bio,pays,avatar_url'); state.users=profilesData||[];
-   const rows=data||[], incoming=rows.filter(x=>x.a===state.user.id&&x.statut==='attente'), outgoing=rows.filter(x=>x.de===state.user.id&&x.statut==='attente'), friends=rows.filter(x=>x.statut==='ami');
+  await fetchProfiles((data||[]).flatMap(x=>[x.de,x.a]).filter(i=>i!==state.user.id));
+   const rows=(data||[]).filter(x=>!state.blocked.has(x.de===state.user.id?x.a:x.de)), incoming=rows.filter(x=>x.a===state.user.id&&x.statut==='attente'), outgoing=rows.filter(x=>x.de===state.user.id&&x.statut==='attente'), friends=rows.filter(x=>x.statut==='ami');
   const person=x=>x.de===state.user.id?state.users.find(u=>u.id===x.a):state.users.find(u=>u.id===x.de);
   $('#connection-content').innerHTML=`<div class="two-col"><div class="card"><h3>Mes amis (${friends.length})</h3>${friends.length?friends.map(x=>`<div class="friend">${avatar(person(x))}<div class="meta"><b>${esc(person(x)?.pseudo||'Membre')}</b><small>Connexion acceptée</small></div><button class="btn sm ghost" data-message="${person(x)?.id}">Message</button></div>`).join(''):empty('Aucun ami pour le moment')}</div><div><div class="card"><h3>Demandes reçues (${incoming.length})</h3>${incoming.length?incoming.map(x=>`<div class="friend">${avatar(state.users.find(u=>u.id===x.de))}<div class="meta"><b>${esc(state.users.find(u=>u.id===x.de)?.pseudo||'Membre')}</b><small>Souhaite se connecter</small></div><button class="round ok" data-accept="${x.de}">✓</button><button class="round no" data-decline="${x.de}">✕</button></div>`).join(''):empty('Aucune demande reçue')}</div><div class="card"><h3>Demandes envoyées (${outgoing.length})</h3>${outgoing.length?outgoing.map(x=>`<div class="friend">${avatar(state.users.find(u=>u.id===x.a))}<div class="meta"><b>${esc(state.users.find(u=>u.id===x.a)?.pseudo||'Membre')}</b><small>En attente</small></div></div>`).join(''):empty('Aucune demande envoyée')}</div></div></div>`;
 };
 render.messages=async()=>{
   $('#s-messages').innerHTML=`${topbar('Messages','Échange avec tes connexions.')}<div id="messages-content">${SUPABASE_READY?empty('Chargement…'):configNotice()}</div>`;
   if(!state.client)return;
-  const {data,error}=await state.client.from('messages').select('id,de,a,texte,created_at').or(`de.eq.${state.user.id},a.eq.${state.user.id}`).order('created_at',{ascending:true}).limit(500);
+  const {data,error}=await state.client.from('messages').select('id,de,a,texte,created_at,lu').or(`de.eq.${state.user.id},a.eq.${state.user.id}`).order('created_at',{ascending:true}).limit(500);
   if(error){console.error('Chargement messages:',error);$('#messages-content').innerHTML=empty('Messages indisponibles',error.message||'Vérifie le schéma SQL et les règles RLS.');return;}
-  const {data:profilesData,error:profilesError}=await state.client.from('profiles').select('id,pseudo,bio,pays,avatar_url');
-  if(profilesError){console.error('Chargement profils:',profilesError);}
-  state.users=profilesData||[];
+  
   const {data:friendRows,error:friendsError}=await state.client.from('amis').select('de,a,statut').eq('statut','ami').or(`de.eq.${state.user.id},a.eq.${state.user.id}`);
   if(friendsError)console.error('Chargement amis pour messages:',friendsError);
-  const msgs=data||[], people=new Map();
+  await fetchProfiles([...(friendRows||[]).flatMap(r=>[r.de,r.a]),...(data||[]).flatMap(m=>[m.de,m.a])].filter(i=>i!==state.user.id));
+  const msgs=(data||[]).filter(m=>!state.blocked.has(m.de===state.user.id?m.a:m.de)), people=new Map();
+  const unreadOf=id=>msgs.filter(m=>m.de===id&&m.a===state.user.id&&!m.lu).length;
   // A friend is a conversation contact even if neither person has sent a message yet.
   (friendRows||[]).forEach(row=>{
     const otherId=row.de===state.user.id?row.a:row.de;
     const other=state.users.find(u=>u.id===otherId);
-    if(other)people.set(other.id,other);
+    if(other&&!state.blocked.has(other.id))people.set(other.id,other);
   });
   // Keep any existing conversation even if the friendship row is no longer visible.
   msgs.forEach(m=>{
     const otherId=m.de===state.user.id?m.a:m.de;
     const other=state.users.find(u=>u.id===otherId);
-    if(other)people.set(other.id,other);
+    if(other&&!state.blocked.has(other.id))people.set(other.id,other);
   });
   const selected=state.activeChat&&people.has(state.activeChat)?state.activeChat:null;
   if(state.activeChat&&!selected)state.activeChat=null;
   const thread=selected?msgs.filter(m=>(m.de===state.user.id&&m.a===selected)||(m.de===selected&&m.a===state.user.id)):[];
   const isMobile=window.matchMedia('(max-width:899px)').matches;
-  $('#messages-content').innerHTML=`<div class="msg-wrap ${selected?'chat-open':''}"><div class="card conv-col" style="padding:10px">${people.size?[...people.values()].map(p=>`<div class="conv ${p.id===selected?'active':''}" data-chat-open="${p.id}"><div class="av sm g4">${esc((p.pseudo||'?')[0].toUpperCase())}</div><div class="meta"><b>${esc(p.pseudo||'Membre')}</b><small>Ouvrir la discussion</small></div></div>`).join(''):empty('Aucun ami disponible','Accepte une invitation pour pouvoir commencer une discussion.')}</div><div class="card chat" style="margin:0"><div class="chat-head">${isMobile&&selected?'<button type="button" class="icon-btn" id="chat-back" aria-label="Retour aux conversations">←</button>':''}<b>${selected?esc(people.get(selected)?.pseudo||'Membre'):'Choisis un ami'}</b></div><div class="chat-body" id="chat-body">${selected?(thread.map(m=>`<div class="bubble ${m.de===state.user.id?'out':'in'}">${esc(m.texte)}<small>${fmtDate(m.created_at)}</small></div>`).join('')||'<p style="color:var(--muted);text-align:center">Aucun message pour le moment. Envoie le premier !</p>'):'<p style="color:var(--muted);text-align:center">Sélectionne un ami dans la liste pour commencer.</p>'}</div>${selected?`<form class="chat-input" id="chat-form"><input id="chat-input" maxlength="2000" placeholder="Écrire un message…" autocomplete="off" required><button class="send" type="submit" aria-label="Envoyer le message">➤</button></form>`:''}</div></div>`;
+  $('#messages-content').innerHTML=`<div class="msg-wrap ${selected?'chat-open':''}"><div class="card conv-col" style="padding:10px">${people.size?[...people.values()].map(p=>`<div class="conv ${p.id===selected?'active':''}" data-chat-open="${p.id}"><div class="av sm g4">${esc((p.pseudo||'?')[0].toUpperCase())}</div><div class="meta"><b>${esc(p.pseudo||'Membre')}</b><small>Ouvrir la discussion</small></div>${unreadOf(p.id)?`<span class="badge">${unreadOf(p.id)}</span>`:''}</div>`).join(''):empty('Aucun ami disponible','Accepte une invitation pour pouvoir commencer une discussion.')}</div><div class="card chat" style="margin:0"><div class="chat-head">${isMobile&&selected?'<button type="button" class="icon-btn" id="chat-back" aria-label="Retour aux conversations">←</button>':''}<b>${selected?esc(people.get(selected)?.pseudo||'Membre'):'Choisis un ami'}</b></div><div class="chat-body" id="chat-body">${selected?(thread.map(m=>`<div class="bubble ${m.de===state.user.id?'out':'in'}">${esc(m.texte)}<small>${fmtDate(m.created_at)}</small></div>`).join('')||'<p style="color:var(--muted);text-align:center">Aucun message pour le moment. Envoie le premier !</p>'):'<p style="color:var(--muted);text-align:center">Sélectionne un ami dans la liste pour commencer.</p>'}</div>${selected?`<form class="chat-input" id="chat-form"><input id="chat-input" maxlength="2000" placeholder="Écrire un message…" autocomplete="off" required><button class="send" type="submit" aria-label="Envoyer le message">➤</button></form>`:''}</div></div>`;
   const body=$('#chat-body');if(body)body.scrollTop=body.scrollHeight;
+  if(selected&&thread.some(m=>m.de===selected&&!m.lu))state.client.from('messages').update({lu:true}).eq('de',selected).eq('a',state.user.id).eq('lu',false).then(()=>refreshUnread());
   $('#chat-back')?.addEventListener('click',()=>{state.activeChat=null;render.messages();});
   $('#chat-form')?.addEventListener('submit',async e=>{
     e.preventDefault();
@@ -632,16 +652,17 @@ render.messages=async()=>{
 };
 render.profil=async()=>{
   const viewing=state.viewedProfile||null;const p=viewing||state.profile||{};
-  $('#s-profil').innerHTML=`<div class="banner"></div><div class="profile-top">${avatar(p,'lg')}<div style="flex:1;min-width:200px"><h2>${esc(p.pseudo||'Mon profil')}</h2><div style="color:var(--muted)">@${esc(p.pseudo||'')}</div><p style="margin-top:6px">${esc(p.bio||'Ajoute une biographie à ton profil.')}</p><small style="color:var(--muted)">${esc(p.pays||'Pays non renseigné')}</small></div>${!viewing?'<button class="btn sm" id="edit-profile">✏️ Modifier</button>':''}</div><div id="profile-editor"></div><div class="card"><h3>Mes publications</h3><div id="my-posts">${empty('Chargement…')}</div></div>`;
+  $('#s-profil').innerHTML=`<div class="banner"></div><div class="profile-top">${avatar(p,'lg')}<div style="flex:1;min-width:200px"><h2>${esc(p.pseudo||'Mon profil')}</h2><div style="color:var(--muted)">@${esc(p.pseudo||'')}</div><p style="margin-top:6px">${esc(p.bio||'Ajoute une biographie à ton profil.')}</p><small style="color:var(--muted)">${esc(p.pays||'Pays non renseigné')}</small></div>${!viewing?'<button class="btn sm" id="edit-profile">✏️ Modifier</button><button class="btn sm ghost" data-go="connexions">🤝 Connexions</button><button class="btn sm ghost" data-go="parametres">⚙️ Paramètres</button>':`<button class="btn sm ghost" data-report-user="${p.id}">🚩 Signaler</button><button class="btn sm danger" data-block="${p.id}">Bloquer</button>`}</div><div id="profile-editor"></div><div class="card"><h3>Mes publications</h3><div id="my-posts">${empty('Chargement…')}</div></div>`;
   if($('#edit-profile'))$('#edit-profile').onclick=()=>{$('#profile-editor').innerHTML=`<div class="card"><h3>Modifier mon profil</h3><form id="profile-form"><label>Nom d'utilisateur<input name="username" maxlength="24" minlength="3" value="${esc(p.pseudo||'')}" required></label><label>Biographie<textarea name="bio" maxlength="240">${esc(p.bio||'')}</textarea></label><label>Pays<input name="country" maxlength="80" value="${esc(p.pays||'')}"></label><button class="btn block">Enregistrer</button></form></div>`;};
   $('#profile-form')?.addEventListener('submit',async e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.target));const {data,error}=await state.client.from('profiles').update({pseudo:d.username.trim(),bio:d.bio.trim(),pays:d.country.trim()}).eq('id',state.user.id).select().single();if(error)toast(error.message);else{state.profile=data;toast('Profil mis à jour.');render.profil();}});
   if(state.client){const {data,error}=await state.client.from('posts').select('id,texte,created_at').eq('auteur',viewing?.id||state.user.id).order('created_at',{ascending:false});$('#my-posts').innerHTML=error?empty('Impossible de charger les publications'):data?.length?data.map(x=>`<div class="comment">${esc(x.texte)}<small style="display:block;color:var(--muted)">${fmtDate(x.created_at)}</small>${!viewing?`<button class="btn sm danger" data-delete-post="${x.id}">Supprimer</button>`:''}</div>`).join(''):empty('Aucune publication pour le moment');}
 };
 render.parametres=()=>{
-  $('#s-parametres').innerHTML=`${topbar('Paramètres','Préférences de ton compte.')}<div class="two-col"><div><div class="card"><h3>👤 Compte</h3><div class="row"><div class="t">Adresse e-mail<small>${esc(state.user?.email||'')}</small></div></div><div class="row"><div class="t">Thème sombre</div><button class="btn sm ghost" id="theme-toggle">${state.settings.dark?'Activé':'Désactivé'}</button></div><div class="row"><div class="t">Notifications e-mail<small>Préférence locale pour cette interface</small></div><button class="btn sm ghost" id="notif-toggle">${state.settings.notifications?'Activées':'Désactivées'}</button></div></div><div class="card"><h3>🔒 Confidentialité</h3><p style="color:var(--muted);font-size:13px">Les règles d’accès aux données sont appliquées côté Supabase (RLS). Les options de visibilité avancées seront ajoutées avec leurs règles serveur.</p></div></div><div><div class="card"><h3>⚠️ Zone de sécurité</h3><button class="btn ghost block" id="reset-password">Réinitialiser mon mot de passe</button><button class="btn danger block" id="logout" style="margin-top:12px">Se déconnecter</button></div><div class="card"><h3>À propos</h3><p style="color:var(--muted)">OtakuLink — communauté anime et manga.</p></div></div></div>`;
+  $('#s-parametres').innerHTML=`${topbar('Paramètres','Préférences de ton compte.')}<div class="two-col"><div><div class="card"><h3>👤 Compte</h3><div class="row"><div class="t">Adresse e-mail<small>${esc(state.user?.email||'')}</small></div></div><div class="row"><div class="t">Thème sombre</div><button class="btn sm ghost" id="theme-toggle">${state.settings.dark?'Activé':'Désactivé'}</button></div><div class="row"><div class="t">Notifications e-mail<small>Préférence locale pour cette interface</small></div><button class="btn sm ghost" id="notif-toggle">${state.settings.notifications?'Activées':'Désactivées'}</button></div></div><div class="card"><h3>🔒 Confidentialité</h3><p style="color:var(--muted);font-size:13px">Les règles d’accès aux données sont appliquées côté Supabase (RLS). Les options de visibilité avancées seront ajoutées avec leurs règles serveur.</p></div></div><div><div class="card"><h3>⚠️ Zone de sécurité</h3><button class="btn ghost block" id="reset-password">Réinitialiser mon mot de passe</button><button class="btn danger block" id="logout" style="margin-top:12px">Se déconnecter</button><button class="btn ghost block" id="delete-account" style="margin-top:12px;color:#ff6070">Supprimer mon compte</button></div><div class="card"><h3>À propos</h3><p style="color:var(--muted)">OtakuLink — communauté anime et manga.</p></div></div></div>`;
   $('#theme-toggle').onclick=()=>{state.settings.dark=!state.settings.dark;localStorage.setItem('otakulink_settings',JSON.stringify(state.settings));applyTheme();render.parametres();};
   $('#notif-toggle').onclick=()=>{state.settings.notifications=!state.settings.notifications;localStorage.setItem('otakulink_settings',JSON.stringify(state.settings));render.parametres();};
-  $('#logout').onclick=async()=>{await state.client.auth.signOut();state.user=null;state.profile=null;showAuth('welcome');};
+  $('#delete-account').onclick=async()=>{if(prompt('Action définitive. Tape SUPPRIMER pour confirmer :')!=='SUPPRIMER')return;const {error}=await state.client.rpc('supprimer_mon_compte');if(error)return toast(error.message);state.client.removeAllChannels();state.rt=false;await state.client.auth.signOut();state.user=null;state.profile=null;showAuth('welcome');toast('Compte supprimé.');};
+  $('#logout').onclick=async()=>{state.client.removeAllChannels();state.rt=false;await state.client.auth.signOut();state.user=null;state.profile=null;showAuth('welcome');};
   $('#reset-password').onclick=async()=>{const {error}=await state.client.auth.resetPasswordForEmail(state.user.email,{redirectTo:location.href});toast(error?error.message:'Si ton adresse est valide, un lien sera envoyé.');};
 };
 function applyTheme(){document.body.style.filter='';document.documentElement.dataset.theme=state.settings.dark?'dark':'light';}
@@ -654,11 +675,16 @@ function openComposer(){
   $('#m-pub').onclick=async()=>{const content=t.value.trim();if(!content)return toast('Écris quelque chose avant de publier.');const {error}=await state.client.from('posts').insert({auteur:state.user.id,texte:content,categorie:'general'});if(error)toast(error.message);else{$('#modal-root').innerHTML='';go('communaute');toast('Publication publiée.');}};
 }
 document.addEventListener('click',async e=>{
+  if(e.target.closest('#pro-soon')){toast('OtakuLink Pro arrive bientôt ✨');return;}
+  const rp=e.target.closest('[data-report-post],[data-report-user]');
+  if(rp){const motif=prompt('Motif du signalement (spam, harcèlement, contenu inapproprié…) :');if(!motif?.trim())return;const {error}=await state.client.from('signalements').insert({auteur:state.user.id,cible_user:rp.dataset.reportUser||null,cible_post:rp.dataset.reportPost||null,motif:motif.trim().slice(0,500)});toast(error?error.message:'Merci, signalement envoyé.');return;}
+  const bl=e.target.closest('[data-block]');
+  if(bl){if(!confirm('Bloquer ce membre ? Vous ne verrez plus rien l’un de l’autre.'))return;const {error}=await state.client.from('blocages').insert({de:state.user.id,a:bl.dataset.block});if(error)return toast(error.message);state.blocked.add(bl.dataset.block);state.viewedProfile=null;toast('Membre bloqué.');go('decouvrir');return;}
   const datingLike=e.target.closest('[data-dating-like]');
   const datingPass=e.target.closest('[data-dating-pass]');
   if(datingLike||datingPass){
     const personId=(datingLike||datingPass).dataset[datingLike?'datingLike':'datingPass'];
-    const action=datingLike?'like':'pass';const control=datingLike||datingPass;control.disabled=true;const {error}=await state.client.from('rencontres_actions').insert({de:state.user.id,a:personId,action});if(error){control.disabled=false;toast('Impossible d’enregistrer ton choix : '+(error.code==='23505'?'Tu as déjà répondu à ce profil.':error.message));return;}if(datingLike){const {data:back,error:backError}=await state.client.from('rencontres_actions').select('de').eq('de',personId).eq('a',state.user.id).eq('action','like').maybeSingle();toast(backError?'Intérêt envoyé.':back?'C’est réciproque ! Vous pouvez faire connaissance 💜':'Intérêt envoyé.');}else toast('Profil passé.');
+    const action=datingLike?'like':'pass';const control=datingLike||datingPass;control.disabled=true;const {error}=await state.client.from('rencontres_actions').insert({de:state.user.id,a:personId,action});if(error){control.disabled=false;toast('Impossible d’enregistrer ton choix : '+(error.code==='23505'?'Tu as déjà répondu à ce profil.':error.message));return;}if(datingLike){const {data:back,error:backError}=await state.client.from('rencontres_actions').select('de').eq('de',personId).eq('a',state.user.id).eq('action','like').maybeSingle();toast(backError?'Intérêt envoyé.':back?'C’est réciproque ! Discute avec cette personne 💜':'Intérêt envoyé.');if(back){state.activeChat=personId;setTimeout(()=>go('messages'),900);}}else toast('Profil passé.');
     render.rencontres();return;
   }
   const connect=e.target.closest('[data-connect]');
