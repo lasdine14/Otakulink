@@ -108,6 +108,17 @@ body.auth #tabs,body.auth #top{display:none}
 .chips.tags{flex-wrap:wrap;overflow:visible}
 .tags span{padding:8px 14px;border-radius:999px;border:1px solid var(--line);background:var(--card);font-size:14px}
 
+.composer{flex-wrap:wrap}.composer input{flex:1 1 140px;min-width:0;background:none;border:0;outline:0}
+.composer select{background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:6px}
+.composer .btn{opacity:1}
+.post{margin-bottom:12px}.post .who{display:flex;gap:10px;align-items:center}.post .who .avatar{width:38px;height:38px;font-size:18px}.post .who>div:nth-child(2){flex:1}
+.post p{margin:10px 0;white-space:pre-wrap;word-break:break-word}
+.like{padding:6px 12px;border-radius:999px;border:1px solid var(--line);background:var(--card2)}.like.on{border-color:var(--red)}
+.pers{display:flex;align-items:center;gap:12px;margin-bottom:10px;padding:12px}.grow{flex:1;min-width:0}.grow .sub{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}a.pers{color:var(--text)}
+.mini{width:40px;height:40px;border-radius:12px;border:1px solid var(--line);background:var(--card2);margin-left:6px}
+.big .actions{display:flex;justify-content:center;gap:24px;margin-top:16px}.round{width:60px;height:60px;border-radius:50%;border:2px solid var(--line);background:var(--card2);font-size:24px}.round.yes{border-color:var(--blue);box-shadow:var(--glow)}
+.msg{max-width:78%;padding:10px 14px;border-radius:18px;background:var(--card2);margin:6px 0;word-break:break-word}.msg.me{margin-left:auto;background:var(--blue)}
+.msgbar{position:sticky;bottom:0;display:flex;gap:8px;padding-top:8px;background:var(--bg)}.msgbar input{flex:1;height:46px;border-radius:999px;border:1px solid var(--line);background:var(--card);padding:0 16px;outline:0}.msgbar button{width:46px;border-radius:50%;background:var(--blue)}
 </style>
 </head>
 <body>
@@ -142,7 +153,8 @@ const PAYS = ["France","Congo","Gabon","Cameroun","Côte d’Ivoire","Sénégal"
 const SB_URL = "https://jnepjuszrppaasdopnlo.supabase.co";
 const SB_KEY = "sb_publishable_aST32y-TGzIttH9RAnm64w_dv3d_Wdc";
 const sb = window.supabase ? window.supabase.createClient(SB_URL, SB_KEY) : null;
-let me = null, session = null;
+let me = null, session = null, tok = 0, cur = null, chan = null;
+const passes = [];
 const esc = (t) => String(t ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 function erreur(e, ins) {
   const m = (e.message || "").toLowerCase();
@@ -195,16 +207,15 @@ const ROUTES = {
       <p class="foot">Pas encore de compte ? <a href="#inscription">Inscription</a></p>
     </form>` },
 
-  accueil: { title: "Accueil", render: () => `
-    <div class="card composer"><div class="avatar">👤</div><span class="fake">Quoi de neuf, Otaku ?</span><button class="btn" disabled>Publier</button></div>
-    ${empty("⛩", "Le fil est vide", "Les publications des otakus que tu suis apparaîtront ici.")}` },
-  decouvrir: { title: "Découvrir", tab: "decouvrir", render: () => empty("🧭", "Personne à découvrir pour l’instant", "Les profils de fans d’anime s’afficheront ici, avec leurs centres d’intérêt.") },
-  communaute: { title: "Communauté", tab: "communaute", render: () => chips(["Tous", "Animes", "Mangas", "Débats", "Clubs"]) + empty("👥", "Aucune publication", "Les discussions de la communauté arriveront ici.") },
-  messages: { title: "Messages", tab: "messages", render: () => chips(["Toutes", "Privées", "Groupes"]) + empty("💬", "Aucune conversation", "Tes messages privés et tes groupes apparaîtront ici.") },
-  connexions: { title: "Connexions", tab: "connexions", render: () => chips(["Amis", "Invitations", "Suggestions"]) + empty("🤝", "Aucune connexion", "Tes amis, tes invitations et les suggestions seront listés ici.") },
-  profil: { title: "Profil", tab: "profil", action: "parametres", render: () => `
+  accueil: { title: "Accueil", load: loadAccueil, render: () => composer(false) + '<div id="zone"></div>' },
+  decouvrir: { title: "Découvrir", tab: "decouvrir", load: loadDecouvrir, render: () => '<p class="sub" style="text-align:center">Chargement…</p>' },
+  communaute: { title: "Communauté", tab: "communaute", load: loadCommunaute, render: () => chips(["Tous", "Animes", "Mangas", "Débats", "Clubs"]) + composer(true) + '<div id="zone"></div>' },
+  messages: { title: "Messages", tab: "messages", load: loadMessages, render: () => '<div id="zone"></div>' },
+  connexions: { title: "Connexions", tab: "connexions", load: loadConnexions, render: () => chips(["Amis", "Invitations", "Suggestions"]) + '<div id="zone"></div>' },
+  chat: { title: "Discussion", tab: "messages", back: "messages", load: loadChat, render: () => '<div id="zone"></div><form id="form-msg" class="msgbar"><input name="texte" maxlength="1000" placeholder="Ton message…" autocomplete="off"><button type="submit" aria-label="Envoyer">➤</button></form>' },
+  profil: { title: "Profil", tab: "profil", action: "parametres", load: loadProfil, render: () => `
     <section class="card profile"><div class="avatar">${me?.avatar_url ? `<img src="${esc(me.avatar_url)}" alt="">` : "👤"}</div><h2>${esc(me?.pseudo || "…")}</h2><p class="sub">${esc(me?.bio || "Rêveur · Passionné · Otaku")}${me?.pays ? " · " + esc(me.pays) : ""}</p>
-      <div class="stats"><div><b>0</b><span>Amis</span></div><div><b>0</b><span>Abonnés</span></div><div><b>0</b><span>Abonnements</span></div></div></section>
+      <div class="stats" id="stats"><div><b>…</b><span>Amis</span></div><div><b>…</b><span>Publications</span></div></div></section>
     <div class="h2"><span>Mes animes préférés</span></div>${me?.animes?.length ? `<div class="chips tags">${me.animes.map((a) => `<span>${esc(a)}</span>`).join("")}</div>` : empty("⭐", "Aucun anime pour l’instant", "Ajoute tes animes préférés dans Paramètres, puis Modifier mon profil.")}` },
   editprofil: { title: "Mon profil", tab: "profil", back: "parametres", render: () => `
     <form id="form-profil" class="auth-wrap" style="justify-content:flex-start;text-align:left">
@@ -215,28 +226,29 @@ const ROUTES = {
       <button class="btn" type="submit">Enregistrer</button><p class="note" role="status"></p>
     </form>` },
   parametres: { title: "Paramètres", tab: "profil", back: "profil", render: () => `
-    <p class="group">Mon compte</p><div class="menu">
-      <a href="#editprofil"><i>👤</i>Modifier mon profil</a><a href="#parametres"><i>🔒</i>Confidentialité et sécurité</a>
-      <a href="#parametres"><i>🔔</i>Notifications</a><a href="#parametres"><i>🎨</i>Apparence</a></div>
-    <p class="group">Préférences Otaku</p><div class="menu">
-      <a href="#parametres"><i>⭐</i>Mes favoris</a><a href="#parametres"><i>🌐</i>Langues</a><a href="#parametres"><i>ℹ</i>À propos d’OtakuLink</a></div>
+    <div class="menu"><a href="#editprofil"><i>👤</i>Modifier mon profil</a></div>
     <button class="btn" data-logout>Se déconnecter</button>
-    <p class="foot" style="text-align:center;margin-top:14px">OtakuLink · version 3.1 (photos)</p>` }
+    <p class="foot" style="text-align:center;margin-top:14px">OtakuLink · version 4 (toutes les fonctions)</p>` }
 };
 
 const $ = (id) => document.getElementById(id);
 const screen = $("screen");
 
 function show() {
-  let key = location.hash.slice(1);
+  const full = location.hash.slice(1);
+  let [key, param] = full.split("/");
   if (!ROUTES[key]) key = session ? "accueil" : "bienvenue";
   if (!session && !ROUTES[key].auth) key = "bienvenue";
   if (session && ROUTES[key].auth) key = "accueil";
-  if (location.hash.slice(1) !== key) { location.replace("#" + key); return; }
+  if (key !== full.split("/")[0]) { location.replace("#" + key); return; }
+  if (chan) { sb.removeChannel(chan); chan = null; }
   const r = ROUTES[key];
   document.body.classList.toggle("auth", !!r.auth);
-  screen.innerHTML = r.render();
+  delete screen.dataset.f;
+  screen.innerHTML = r.render(param);
   screen.scrollTop = 0;
+  cur = { r, param };
+  run();
   $("title").textContent = r.title || "";
   $("back").hidden = !r.back;
   $("logo-mini").hidden = !!r.back;
@@ -250,11 +262,24 @@ function show() {
   });
 }
 
-screen.addEventListener("click", (e) => {
+screen.addEventListener("click", async (e) => {
   const chip = e.target.closest(".chips button");
-  if (chip) { chip.parentNode.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b === chip)); return; }
+  if (chip) { chip.parentNode.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b === chip)); screen.dataset.f = chip.textContent; run(); return; }
   const eye = e.target.closest(".eye");
   if (eye) { const i = eye.previousElementSibling; i.type = i.type === "password" ? "text" : "password"; return; }
+  const d = e.target.closest("[data-like],[data-del],[data-add],[data-ok],[data-no],[data-skip],[data-chat]");
+  if (d) {
+    const moi = session.user.id, k = Object.keys(d.dataset)[0], v = d.dataset[k];
+    if (k === "chat") { location.hash = "#chat/" + v; return; }
+    if (k === "skip") passes.push(v);
+    if (k === "like") await (d.classList.contains("on") ? sb.from("likes").delete().match({ post_id: v, user_id: moi }) : sb.from("likes").insert({ post_id: v, user_id: moi }));
+    if (k === "del" && confirm("Supprimer cette publication ?")) await sb.from("posts").delete().eq("id", v);
+    if (k === "add") await sb.from("amis").insert({ de: moi, a: v });
+    if (k === "ok") await sb.from("amis").update({ statut: "ami" }).match({ de: v, a: moi });
+    if (k === "no") await sb.from("amis").delete().match({ de: v, a: moi });
+    run();
+    return;
+  }
   if (e.target.closest("[data-logout]")) { sb.auth.signOut(); return; }
   const forgot = e.target.closest("[data-forgot]");
   if (forgot) {
@@ -270,6 +295,15 @@ screen.addEventListener("submit", async (e) => {
   e.preventDefault();
   const f = e.target, n = f.querySelector(".note"), btn = f.querySelector("button[type=submit]");
   if (f.id === "form-profil") return saveProfil(f, n, btn);
+  if (f.id === "form-msg") return envoyer(f);
+  if (f.id === "form-post") {
+    const t = f.texte.value.trim();
+    if (!t) return;
+    await sb.from("posts").insert({ auteur: session.user.id, texte: t, categorie: f.categorie ? f.categorie.value : "general" });
+    f.texte.value = "";
+    run();
+    return;
+  }
   if (!sb) { n.textContent = "Connexion au serveur impossible (pas d’internet ?)."; return; }
   const v = Object.fromEntries(new FormData(f));
   const ins = location.hash === "#inscription";
@@ -281,6 +315,106 @@ screen.addEventListener("submit", async (e) => {
   if (error) { n.textContent = erreur(error, ins); return; }
   if (ins && !data.session) n.textContent = "Compte créé ! Vérifie ta boîte mail pour confirmer ton adresse, puis connecte-toi.";
 });
+
+function run() {
+  if (!cur || !cur.r.load) return;
+  const my = ++tok;
+  cur.r.load(screen, cur.param, () => my === tok);
+}
+const AV = (u) => `<div class="avatar">${u && u.avatar_url ? `<img src="${esc(u.avatar_url)}" alt="">` : "👤"}</div>`;
+const ago = (d) => { const m = Math.round((Date.now() - new Date(d)) / 60000); return m < 1 ? "à l’instant" : m < 60 ? m + " min" : m < 1440 ? Math.round(m / 60) + " h" : Math.round(m / 1440) + " j"; };
+const composer = (c) => `<form id="form-post" class="card composer">${AV(me)}<input name="texte" maxlength="500" placeholder="Quoi de neuf, Otaku ?" required>${c ? `<select name="categorie">${["Animes", "Mangas", "Débats", "Clubs"].map((x) => `<option>${x}</option>`).join("")}</select>` : ""}<button class="btn" type="submit">Publier</button></form>`;
+const ligne = (u, actions) => `<div class="card pers">${AV(u)}<div class="grow"><b>${esc(u.pseudo)}</b><div class="sub">${esc(u.bio || "")}</div></div>${actions}</div>`;
+const post = (p) => {
+  const moi = p.likes.some((l) => l.user_id === session.user.id);
+  return `<article class="card post"><div class="who">${AV(p.profiles)}<div><b>${esc(p.profiles && p.profiles.pseudo)}</b> <span class="sub">· ${ago(p.created_at)}${p.categorie !== "general" ? " · " + esc(p.categorie) : ""}</span></div>${p.auteur === session.user.id ? `<button class="x" data-del="${p.id}" aria-label="Supprimer">🗑</button>` : ""}</div><p>${esc(p.texte)}</p><button class="like${moi ? " on" : ""}" data-like="${p.id}">${moi ? "❤️" : "🤍"} ${p.likes.length}</button></article>`;
+};
+const bulle = (m) => {
+  const z = screen.querySelector("#zone");
+  if (!z) return;
+  z.insertAdjacentHTML("beforeend", `<div class="msg${m.de === session.user.id ? " me" : ""}">${esc(m.texte)}</div>`);
+  screen.scrollTop = screen.scrollHeight;
+};
+
+async function feed(el, f, ok) {
+  let req = sb.from("posts").select("id,texte,created_at,categorie,auteur,profiles(pseudo,avatar_url),likes(user_id)").order("created_at", { ascending: false }).limit(30);
+  if (f === "Tous") req = req.neq("categorie", "general"); else if (f) req = req.eq("categorie", f);
+  const { data, error } = await req;
+  if (!ok()) return;
+  el.querySelector("#zone").innerHTML = error ? empty("⚠", "Chargement impossible", "Réessaie dans un instant.") : data.length ? data.map(post).join("") : empty("⛩", "Aucune publication", "Sois le premier à publier !");
+}
+const loadAccueil = (el, _p, ok) => feed(el, null, ok);
+const loadCommunaute = (el, _p, ok) => feed(el, el.dataset.f || "Tous", ok);
+
+async function relations() {
+  const [p, a] = await Promise.all([sb.from("profiles").select("id,pseudo,pays,bio,avatar_url,animes").limit(200), sb.from("amis").select("de,a,statut")]);
+  const profils = {}, rel = {};
+  (p.data || []).forEach((u) => (profils[u.id] = u));
+  (a.data || []).forEach((r) => { const o = r.de === session.user.id ? r.a : r.de; rel[o] = { statut: r.statut, recue: r.a === session.user.id }; });
+  return { profils, rel };
+}
+
+async function loadConnexions(el, _p, ok) {
+  const { profils, rel } = await relations();
+  if (!ok()) return;
+  const f = el.dataset.f || "Amis", ids = Object.keys(rel).filter((i) => profils[i]);
+  let rows;
+  if (f === "Amis") rows = ids.filter((i) => rel[i].statut === "ami").map((i) => ligne(profils[i], `<button class="mini" data-chat="${i}" aria-label="Discuter">💬</button>`));
+  else if (f === "Invitations") rows = ids.filter((i) => rel[i].statut === "attente" && rel[i].recue).map((i) => ligne(profils[i], `<button class="mini" data-ok="${i}" aria-label="Accepter">✔</button><button class="mini" data-no="${i}" aria-label="Refuser">✖</button>`));
+  else rows = Object.values(profils).filter((u) => u.id !== session.user.id && !rel[u.id]).map((u) => ligne(u, `<button class="mini" data-add="${u.id}" aria-label="Ajouter">➕</button>`));
+  el.querySelector("#zone").innerHTML = rows.length ? rows.join("") : empty("🤝", "Rien ici pour l’instant", f === "Amis" ? "Ajoute des otakus depuis Suggestions ou Découvrir." : f === "Invitations" ? "Tes invitations reçues apparaîtront ici." : "Tu as déjà vu tout le monde !");
+}
+
+async function loadDecouvrir(el, _p, ok) {
+  const { profils, rel } = await relations();
+  if (!ok()) return;
+  const u = Object.values(profils).find((x) => x.id !== session.user.id && !rel[x.id] && !passes.includes(x.id));
+  el.innerHTML = u ? `<section class="card profile big">${AV(u)}<h2>${esc(u.pseudo)}</h2><p class="sub">${esc(u.pays || "")}</p><p>${esc(u.bio || "")}</p><div class="chips tags">${(u.animes || []).map((a) => `<span>${esc(a)}</span>`).join("")}</div><div class="actions"><button class="round" data-skip="${u.id}" aria-label="Passer">✕</button><button class="round yes" data-add="${u.id}" aria-label="Ajouter en ami">💙</button></div></section>` : empty("🧭", "Plus personne à découvrir", "Reviens plus tard : de nouveaux otakus s’inscrivent.");
+}
+
+async function loadMessages(el, _p, ok) {
+  const [{ profils }, m] = await Promise.all([relations(), sb.from("messages").select("de,a,texte,created_at").order("created_at", { ascending: false }).limit(200)]);
+  if (!ok()) return;
+  const vus = {}, rows = [];
+  (m.data || []).forEach((x) => {
+    const o = x.de === session.user.id ? x.a : x.de;
+    if (vus[o] || !profils[o]) return;
+    vus[o] = 1;
+    rows.push(`<a class="card pers" href="#chat/${o}">${AV(profils[o])}<div class="grow"><b>${esc(profils[o].pseudo)}</b><div class="sub">${esc(x.texte.slice(0, 50))}</div></div><span class="sub">${ago(x.created_at)}</span></a>`);
+  });
+  el.querySelector("#zone").innerHTML = rows.length ? rows.join("") : empty("💬", "Aucune conversation", "Ajoute des amis dans Connexions, puis touche 💬 pour discuter.");
+}
+
+async function loadChat(el, o, ok) {
+  if (!/^[0-9a-f-]{36}$/i.test(o || "")) { location.hash = "#messages"; return; }
+  const { profils } = await relations();
+  if (!ok()) return;
+  $("title").textContent = profils[o] ? profils[o].pseudo : "Discussion";
+  const moi = session.user.id;
+  const m = await sb.from("messages").select("id,de,a,texte,created_at").or(`and(de.eq.${moi},a.eq.${o}),and(de.eq.${o},a.eq.${moi})`).order("created_at").limit(200);
+  if (!ok()) return;
+  el.querySelector("#zone").innerHTML = "";
+  (m.data || []).forEach(bulle);
+  chan = sb.channel("chat-" + o).on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, (pl) => { if (pl.new.de === o && pl.new.a === moi) bulle(pl.new); }).subscribe();
+}
+
+async function envoyer(f) {
+  const t = f.texte.value.trim();
+  if (!t) return;
+  const { data, error } = await sb.from("messages").insert({ de: session.user.id, a: cur.param, texte: t }).select().single();
+  if (error) { alert("Message non envoyé. Il faut être amis pour discuter."); return; }
+  f.texte.value = "";
+  bulle(data);
+}
+
+async function loadProfil(el, _p, ok) {
+  const [a, p] = await Promise.all([
+    sb.from("amis").select("de", { count: "exact", head: true }).eq("statut", "ami"),
+    sb.from("posts").select("id", { count: "exact", head: true }).eq("auteur", session.user.id)
+  ]);
+  const z = el.querySelector("#stats");
+  if (ok() && z) z.innerHTML = `<div><b>${a.count ?? 0}</b><span>Amis</span></div><div><b>${p.count ?? 0}</b><span>Publications</span></div>`;
+}
 
 async function reduire(file) {
   const img = await createImageBitmap(file);
