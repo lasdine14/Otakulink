@@ -371,6 +371,41 @@ html[data-theme="light"] .field,html[data-theme="light"] .searchbar input,html[d
 html[data-theme="light"] .bubble.in{background:#e6ecfb}
 html[data-theme="light"] .comment{background:#f1f4fb}
 html[data-theme="light"] .toast,html[data-theme="light"] .bubble.out,html[data-theme="light"] .round{color:#fff}
+
+
+/* ===== Améliorations visuelles et raccourcis globaux (ajouts non destructifs) ===== */
+#global-toolbar{
+  position:sticky;top:0;z-index:25;display:flex;align-items:center;gap:10px;
+  padding:10px 12px;margin:0 0 8px;
+  background:linear-gradient(100deg,rgba(3,12,32,.97),rgba(5,25,58,.94));
+  border:1px solid rgba(0,190,255,.38);border-radius:0 0 18px 18px;
+  box-shadow:0 5px 22px rgba(0,130,255,.18);backdrop-filter:blur(16px)
+}
+#global-toolbar .gt-brand{font-weight:900;font-size:18px;letter-spacing:-.4px}
+#global-toolbar .gt-brand span{color:var(--cyan)}
+#global-toolbar .gt-sp{flex:1}
+#global-toolbar .gt-action{
+  width:39px;height:39px;border-radius:50%;display:grid;place-items:center;
+  border:1px solid rgba(0,190,255,.42);background:rgba(7,28,65,.9);
+  font-size:18px;position:relative
+}
+#global-toolbar .gt-action:active{transform:scale(.94)}
+#global-toolbar .gt-dot{position:absolute;right:-2px;top:-3px;min-width:17px;height:17px;
+  border-radius:20px;background:#f32950;color:#fff;font-size:10px;display:grid;place-items:center;padding:0 4px}
+#screens{scroll-padding-top:10px}
+#quick-search-modal .sheet,#quick-notif-modal .sheet{max-height:84vh}
+.quick-result{display:flex;align-items:center;gap:10px;padding:10px;border-bottom:1px solid rgba(70,150,255,.15)}
+.quick-result:last-child{border:0}
+.quick-result .meta{flex:1;min-width:0}
+.quick-result small{display:block;color:var(--muted);font-size:12px}
+.global-story-card{margin-bottom:12px}
+.global-story-card .stories{min-height:88px}
+@media(min-width:900px){
+ #global-toolbar{margin:0 0 12px;border-radius:16px}
+}
+html[data-theme="light"] #global-toolbar{background:rgba(255,255,255,.96)}
+html[data-theme="light"] #global-toolbar .gt-action{background:#f1f6ff}
+
 </style>
 </head>
 <body>
@@ -918,6 +953,94 @@ async function createOtakuPoll(){const question=prompt('Question du sondage :');
 document.addEventListener('click',async e=>{const join=e.target.closest('[data-og-join]');if(join){const {error}=await state.client.from('otaku_group_members').insert({group_id:join.dataset.ogJoin,membre:state.user.id});if(error)return toast(error.message);toast('Tu as rejoint le groupe.');loadOtakuGroups();return;}const open=e.target.closest('[data-og-open]');if(open){openOtakuGroup(open.dataset.ogOpen,open.dataset.ogName);return;}const vote=e.target.closest('[data-poll-vote]');if(vote){const {error}=await state.client.from('otaku_poll_votes').insert({poll_id:vote.dataset.pollId,option_id:vote.dataset.pollVote,votant:state.user.id});if(error)return toast(error.code==='23505'?'Tu as déjà voté.':error.message);toast('Vote enregistré !');loadOtakuPolls();}});
 const _renderSettingsBase=render.parametres;
 render.parametres=async()=>{await _renderSettingsBase();const col=$('#s-parametres .two-col > div:first-child');if(!col||$('#extra-social-sql'))return;const card=document.createElement('div');card.className='card';card.innerHTML=`<h3>✨ Nouvelles fonctions OtakuLink</h3><p style="color:var(--muted);font-size:13px">Le SQL ci-dessous active les groupes de discussion et les sondages. Les autres fonctions (blocage, signalement, recherche avancée et accusés de lecture) sont intégrées à l’interface.</p><details style="margin-top:10px"><summary style="color:var(--cyan);cursor:pointer">Afficher le SQL des groupes et sondages</summary><textarea id="extra-social-sql" readonly style="width:100%;min-height:260px;margin-top:8px;padding:10px;border-radius:10px;background:#071127;border:1px solid var(--line);font-size:11px"></textarea><button class="btn sm ghost" id="copy-extra-social" style="margin-top:8px">Copier le SQL</button></details>`;col.appendChild(card);$('#extra-social-sql').value=OTaku_EXTRA_SQL;$('#copy-extra-social').onclick=async()=>{try{await navigator.clipboard.writeText(OTaku_EXTRA_SQL);toast('SQL des groupes et sondages copié.');}catch(_){$('#extra-social-sql').select();toast('Sélectionne le SQL puis copie-le.');}};};
+
+
+/* ===== OtakuLink : barre globale, recherche rapide et notifications =====
+   Cette couche s'ajoute aux écrans existants sans remplacer leurs fonctions. */
+const _buildChromeOriginal = buildChrome;
+buildChrome = function(){
+  _buildChromeOriginal();
+  if(!$('#global-toolbar')){
+    const bar=document.createElement('header');
+    bar.id='global-toolbar';
+    bar.innerHTML=`<div class="gt-brand">⛩️ Otaku<span>Link</span></div>
+      <div class="gt-sp"></div>
+      <button class="gt-action" id="global-search" aria-label="Rechercher">⌕</button>
+      <button class="gt-action" id="global-notifications" aria-label="Notifications">♧<span class="gt-dot" id="global-notif-count" hidden></span></button>
+      <button class="gt-action" id="global-account" aria-label="Mon profil">👤</button>`;
+    $('#main').insertBefore(bar,$('#screens'));
+    $('#global-search').addEventListener('click',openGlobalSearch);
+    $('#global-notifications').addEventListener('click',openGlobalNotifications);
+    $('#global-account').addEventListener('click',()=>{state.viewedProfile=null;go('profil');});
+  }
+};
+
+function openGlobalSearch(){
+  $('#modal-root').innerHTML=`<div class="modal" id="quick-search-modal"><div class="sheet">
+    <div class="row"><h3>🔎 Recherche OtakuLink</h3><span class="sp"></span><button class="icon-btn" id="quick-search-close">✕</button></div>
+    <p style="color:var(--muted);font-size:13px;margin:4px 0 12px">Trouve des membres par pseudo, anime ou centre d'intérêt.</p>
+    <form id="quick-search-form" class="searchbar"><input id="quick-search-input" maxlength="80" placeholder="Ex. Naruto, One Piece, pseudo…" value="${esc(state.query||'')}" required><button class="btn sm">Chercher</button></form>
+    <div class="chips"><button class="chip" data-search-preset="Naruto">Naruto</button><button class="chip" data-search-preset="One Piece">One Piece</button><button class="chip" data-search-preset="Demon Slayer">Demon Slayer</button><button class="chip" data-search-preset="Manga">Manga</button></div>
+  </div></div>`;
+  $('#quick-search-close').onclick=()=>$('#modal-root').innerHTML='';
+  $('#quick-search-form').onsubmit=e=>{e.preventDefault();state.query=$('#quick-search-input').value.trim();$('#modal-root').innerHTML='';go('decouvrir');};
+  $('#quick-search-input').focus();
+}
+async function openGlobalNotifications(){
+  if(!state.client||!state.user)return toast('Connecte-toi pour voir tes notifications.');
+  $('#modal-root').innerHTML=`<div class="modal" id="quick-notif-modal"><div class="sheet">
+    <div class="row"><h3>🔔 Notifications</h3><span class="sp"></span><button class="icon-btn" id="quick-notif-close">✕</button></div>
+    <div id="quick-notif-list" style="margin-top:10px">Chargement…</div>
+  </div></div>`;
+  $('#quick-notif-close').onclick=()=>$('#modal-root').innerHTML='';
+  const host=$('#quick-notif-list');
+  const {data,error}=await state.client.from('notifications').select('id,acteur,type,post_id,lu,created_at').order('created_at',{ascending:false}).limit(40);
+  if(error){host.textContent='Notifications indisponibles. Vérifie la table notifications et ses règles SQL.';return;}
+  const rows=data||[];
+  await fetchProfiles(rows.map(x=>x.acteur));
+  const unread=rows.filter(x=>!x.lu).length;
+  const badge=$('#global-notif-count');if(badge){badge.hidden=!unread;badge.textContent=unread>9?'9+':String(unread);}
+  host.innerHTML=rows.length?rows.map(n=>{
+    const u=state.users.find(x=>x.id===n.acteur);
+    const icon=n.type==='like'?'❤️':n.type==='comment'?'💬':n.type==='follow'?'➕':'🔔';
+    const label=n.type==='like'?'a aimé ta publication':n.type==='comment'?'a commenté ta publication':n.type==='follow'?'a commencé à te suivre':'a interagi avec toi';
+    return `<button class="quick-result" data-global-notif-read="${n.id}" style="width:100%;text-align:left;background:${n.lu?'transparent':'rgba(0,210,255,.09)'}">
+      <span style="font-size:22px">${icon}</span><span class="meta"><b>${esc(u?.pseudo||'Un membre')}</b><small>${label} · ${fmtDate(n.created_at)}</small></span>${n.lu?'':'<span class="badge">Nouveau</span>'}
+    </button>`;
+  }).join(''):'<div class="card" style="text-align:center">Tu n’as pas encore de notification.</div>';
+}
+document.addEventListener('click',async e=>{
+  const preset=e.target.closest('[data-search-preset]');
+  if(preset){state.query=preset.dataset.searchPreset;$('#modal-root').innerHTML='';go('decouvrir');return;}
+  const n=e.target.closest('[data-global-notif-read]');
+  if(n&&state.client){const {error}=await state.client.from('notifications').update({lu:true}).eq('id',n.dataset.globalNotifRead);if(error)toast('Impossible de marquer cette notification.');else{n.style.opacity='.55';n.querySelector('.badge')?.remove();}}
+});
+const _renderDiscoverOriginal=render.decouvrir;
+render.decouvrir=async()=>{
+  await _renderDiscoverOriginal();
+  const screen=$('#s-decouvrir');
+  if(!screen||!state.client||$('#discover-stories'))return;
+  const card=document.createElement('div');card.className='card global-story-card';card.id='discover-stories';
+  card.innerHTML=`<div class="row"><h3>✨ Stories</h3><span class="sp"></span><button class="btn sm ghost" id="discover-add-story">＋ Ajouter</button></div><div id="discover-stories-tray" class="stories"></div>`;
+  const anchor=screen.querySelector('.searchbar');
+  if(anchor)anchor.insertAdjacentElement('afterend',card);else screen.prepend(card);
+  // Réutilise le chargement de stories existant sans toucher à celui de Communauté.
+  const {data,error}=await state.client.from('stories').select('id,auteur,created_at').gt('created_at',new Date(Date.now()-86400000).toISOString()).order('created_at',{ascending:false}).limit(80);
+  const tray=$('#discover-stories-tray');
+  if(error){tray.innerHTML='<small style="color:var(--muted)">Stories indisponibles pour le moment.</small>';return;}
+  const rows=data||[];await fetchProfiles(rows.map(x=>x.auteur));
+  const authors=[...new Set([state.user.id,...rows.map(x=>x.auteur)])];
+  tray.innerHTML=`<button class="story add" data-story-new="1"><span class="av">＋</span><span>Ma story</span></button>`+authors.filter(id=>id!==state.user.id).map(id=>{
+    const u=state.users.find(x=>x.id===id);return u?`<button class="story" data-story-view="${id}">${avatar(u)}<span>${esc(u.pseudo||'Membre')}</span></button>`:'';
+  }).join('');
+  $('#discover-add-story').onclick=openStoryComposer;
+};
+const _initOriginal=init;
+init=async function(){
+  await _initOriginal();
+  // La barre est montée après l'initialisation du chrome par l'application.
+  if($('#app')&&!$('#app').classList.contains('hidden')&&!$('#global-toolbar'))buildChrome();
+};
 
 try{const saved=JSON.parse(localStorage.getItem('otakulink_settings')||'{}');state.settings={...state.settings,...saved};applyTheme();}catch(_){}
 init();
