@@ -772,10 +772,15 @@ render.messages=async()=>{
     if(input)input.value='';const mediaInput=$('#chat-media');if(mediaInput)mediaInput.value='';const note=$('#chat-file-name');if(note){note.hidden=true;note.textContent='';}
     state.replyTo=null;const preview=$('#reply-preview');if(preview){preview.hidden=true;preview.innerHTML='';}
     try{
-      const {data:inserted,error:sendError}=await state.client.from('messages').insert({de:state.user.id,a:selected,texte:content}).select('id,de,a,texte,created_at,lu').single();
+      // Ne demande pas de ligne en retour : l'envoi ne dépend donc pas d'une
+      // colonne facultative (ex. lu) ni d'une autorisation SELECT après INSERT.
+      const {error:sendError}=await state.client.from('messages').insert({de:state.user.id,a:selected,texte:content});
       if(sendError)throw sendError;
-      bubble.dataset.messageBubble=inserted.id;stamp.textContent=fmtDate(inserted.created_at)+(inserted.lu?' · ✓✓ Lu':'');
-      const msgTools=document.createElement('div');msgTools.className='message-tools';msgTools.innerHTML=`<button type="button" data-message-reply="${inserted.id}">↩ Répondre</button><button type="button" data-message-copy="${inserted.id}">Copier</button><button type="button" class="message-delete" data-message-delete="${inserted.id}">Supprimer</button>`;tools.replaceWith(msgTools);
+      stamp.textContent='Envoyé · à l’instant';
+      const msgTools=document.createElement('div');msgTools.className='message-tools';
+      const copyBtn=document.createElement('button');copyBtn.type='button';copyBtn.textContent='Copier';
+      copyBtn.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(parsed.text||'');toast('Message copié.');}catch(_){toast('Copie non disponible sur ce navigateur.');}});
+      msgTools.appendChild(copyBtn);tools.replaceWith(msgTools);
       if(body)body.scrollTop=body.scrollHeight;
       refreshUnread();
     }catch(err){bubble.remove();if(input)input.value=parsed.text;toast('Envoi impossible : '+(err.message||err));}
