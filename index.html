@@ -407,7 +407,12 @@ html[data-theme="light"] #global-toolbar{background:rgba(255,255,255,.96)}
 html[data-theme="light"] #global-toolbar .gt-action{background:#f1f6ff}
 
 
-/* Réactions compactes et interactions instantanées */
+
+/* Retours tactiles discrets : les actions restent dans le fil sans rechargement. */
+.post-actions button{transition:transform .12s ease,opacity .12s ease}
+.post-actions button:active{transform:scale(.94)}
+.post-actions button:disabled{opacity:.65;cursor:wait}
+\n/* Réactions compactes et interactions instantanées */
 .message-reactions{display:flex;gap:7px;align-items:center;margin-top:7px;flex-wrap:wrap}
 .message-reaction{font-size:16px;line-height:1;padding:3px 5px;border-radius:12px;opacity:.72;transition:background .12s,opacity .12s}
 .message-reaction:active,.message-reaction.active{opacity:1;background:rgba(0,220,255,.18);box-shadow:0 0 0 1px rgba(0,220,255,.35)}
@@ -551,6 +556,17 @@ async function onSignedIn(user) {
   }
   await loadBlocks(); if(!state.rt){state.rt=true;startRealtime();state.client.channel('notifications-'+state.user.id).on('postgres_changes',{event:'INSERT',schema:'public',table:'notifications',filter:`destinataire=eq.${state.user.id}`},async p=>{const actor=p.new.acteur;const {data}=actor?await state.client.from('profiles').select('pseudo').eq('id',actor).maybeSingle():{data:null};const who=data?.pseudo||'Un membre';toast('🔔 '+who+' a interagi avec toi.');notifyUser('OtakuLink',who+' a interagi avec toi.');}).subscribe();}
   showApp();
+  const sharedProfileId=new URLSearchParams(location.search).get('profil');
+  if(sharedProfileId){
+    if(sharedProfileId===state.user.id){state.viewedProfile=null;state.routeCache.profil=0;go('profil');}
+    else{
+      const {data:sharedProfile,error:sharedError}=await state.client.from('profiles')
+        .select('id,pseudo,bio,pays,avatar_url,cover_url,centres_interet,animes_favoris,created_at')
+        .eq('id',sharedProfileId).maybeSingle();
+      if(!sharedError&&sharedProfile){state.viewedProfile=sharedProfile;state.routeCache.profil=0;go('profil');}
+      else toast('Ce profil est introuvable ou non accessible.');
+    }
+  }
 }
 document.addEventListener('click',async e=>{
   const a=e.target.closest('[data-auth]');
@@ -898,19 +914,30 @@ document.addEventListener('click',async e=>{
   if(like){
     const id=like.dataset.like;
     if(like.dataset.busy==='1')return;
-    like.dataset.busy='1';like.disabled=true;
-    const {data:existing,error:checkError}=await state.client.from('likes').select('post_id').eq('post_id',id).eq('user_id',state.user.id).maybeSingle();
-    if(checkError){like.dataset.busy='0';like.disabled=false;toast(checkError.message);return;}
-    const result=existing
-      ?await state.client.from('likes').delete().eq('post_id',id).eq('user_id',state.user.id)
-      :await state.client.from('likes').insert({post_id:id,user_id:state.user.id});
-    like.dataset.busy='0';like.disabled=false;
-    if(result.error){toast(result.error.message);return;}
+    // Mise à jour visuelle immédiate : aucun chargement ni reconstruction du fil.
+    like.dataset.busy='1';
+    const wasLiked=like.classList.contains('liked');
     const match=(like.textContent||'').match(/(\d+)/),current=match?Number(match[1]):0;
-    const next=Math.max(0,current+(existing?-1:1));
-    like.textContent=`${existing?'🤍':'❤️'} ${next}`;
-    like.classList.toggle('liked',!existing);
-    if(!existing){const post=state.posts.find(p=>p.id===id);if(post)await createOtakuNotification(post.auteur,'like',post.id);}
+    const next=Math.max(0,current+(wasLiked?-1:1));
+    like.classList.toggle('liked',!wasLiked);
+    like.textContent=`${wasLiked?'🤍':'❤️'} ${next}`;
+    try{
+      const {data:existing,error:checkError}=await state.client.from('likes')
+        .select('post_id').eq('post_id',id).eq('user_id',state.user.id).maybeSingle();
+      if(checkError)throw checkError;
+      // On synchronise selon l'état réel de la base, tout en conservant l'affichage instantané.
+      let result;
+      if(wasLiked&&!existing)result={error:null};
+      else if(!wasLiked&&existing)result={error:null};
+      else if(wasLiked)result=await state.client.from('likes').delete().eq('post_id',id).eq('user_id',state.user.id);
+      else result=await state.client.from('likes').insert({post_id:id,user_id:state.user.id});
+      if(result.error)throw result.error;
+      if(!wasLiked&&!existing){const post=state.posts.find(p=>p.id===id);if(post)await createOtakuNotification(post.auteur,'like',post.id);}
+    }catch(err){
+      like.classList.toggle('liked',wasLiked);
+      like.textContent=`${wasLiked?'❤️':'🤍'} ${current}`;
+      toast('Like non enregistré : '+(err.message||err));
+    }finally{like.dataset.busy='0';}
     return;
   }
   const del=e.target.closest('[data-delete-post]');
@@ -926,7 +953,7 @@ document.addEventListener('click',async e=>{
     if(profileId===state.user?.id){state.viewedProfile=null;go('profil');return;}
     let u=state.users.find(x=>x.id===profileId);
     if(!u){
-      const {data,error}=await state.client.from('profiles').select('id,pseudo,bio,pays,avatar_url,cover_url,centres_interet,animes_favoris').eq('id',profileId).maybeSingle();
+      const {data,error}=await state.client.from('profiles').select('id,pseudo,bio,pays,avatar_url,cover_url,centres_interet,animes_favoris,created_at').eq('id',profileId).maybeSingle();
       if(error){console.error('Chargement du profil membre:',error);toast('Impossible de charger ce profil : '+error.message);return;}
       if(!data){toast('Profil introuvable ou accès refusé. Vérifie les autorisations Supabase.');return;}
       u=data;state.users=[...state.users.filter(x=>x.id!==u.id),u];
@@ -1213,6 +1240,15 @@ document.addEventListener('change',e=>{const input=e.target.closest('#profile-fo
     .ol-badge-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(135px,1fr));gap:9px}
     .ol-badge{padding:12px;border:1px solid var(--line);border-radius:14px;background:rgba(4,20,49,.65)}.ol-badge span{font-size:25px;display:block;margin-bottom:5px}.ol-badge small{color:var(--muted);display:block;margin-top:4px}
     .ol-trend{display:flex;align-items:center;gap:9px;padding:10px 0;border-bottom:1px solid rgba(80,140,255,.15)}.ol-trend:last-child{border:0}.ol-trend .rank{color:var(--cyan);font-weight:800;width:22px}.ol-trend .meta{flex:1;min-width:0}.ol-trend small{display:block;color:var(--muted);font-size:11px}.ol-trend b{overflow-wrap:anywhere}
+    .ol-id-card{position:relative;isolation:isolate;overflow:hidden;margin:12px 0 16px;padding:18px;border:1px solid rgba(0,220,255,.48);border-radius:23px;background:radial-gradient(circle at 95% 5%,rgba(139,92,246,.55),transparent 34%),linear-gradient(135deg,#07183c,#172b68 55%,#08132f);box-shadow:0 12px 35px rgba(0,0,0,.24),0 0 22px rgba(0,180,255,.18)}
+    .ol-id-glow{position:absolute;z-index:-1;width:190px;height:190px;right:-75px;top:-95px;border-radius:50%;background:rgba(0,225,255,.16);filter:blur(3px)}
+    .ol-id-brand{font-size:17px;font-weight:900;letter-spacing:.2px}.ol-id-brand span{color:#38eaff}.ol-id-brand small{display:block;font-size:9px;letter-spacing:2px;color:#a8c9ef;margin-top:2px}
+    .ol-id-main{display:flex;align-items:center;gap:13px;margin:22px 0 18px}.ol-id-avatar{width:76px;height:76px;flex:0 0 76px}.ol-id-name{min-width:0}.ol-id-name h2{font-size:23px;overflow-wrap:anywhere}.ol-id-name small{display:block;color:#b8c9e9;font-size:11px;margin-top:5px}.ol-id-rank{display:inline-block;margin-top:6px;padding:4px 9px;border-radius:30px;background:rgba(0,220,255,.15);border:1px solid rgba(0,220,255,.35);font-size:12px;font-weight:800;color:#9af4ff}
+    .ol-id-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px}.ol-id-stats>div{text-align:center;padding:10px 3px;border-radius:13px;background:rgba(2,9,28,.48);border:1px solid rgba(150,205,255,.16)}.ol-id-stats b{display:block;font-size:19px}.ol-id-stats small{display:block;font-size:10px;color:#b8c9e9}
+    .ol-id-details{display:grid;gap:7px;margin:14px 0 8px;color:#d8eaff;font-size:12px}.ol-id-badges{min-height:23px;margin:7px 0 13px;font-size:20px}
+    .ol-id-actions{display:grid;gap:9px}.ol-id-actions .btn{min-height:45px}.ol-id-foot{display:block;text-align:center;margin-top:12px;color:#9db5dc;font-size:10px;letter-spacing:1px}
+    @media(max-width:380px){.ol-id-card{padding:14px}.ol-id-stats{gap:4px}.ol-id-stats b{font-size:16px}.ol-id-stats small{font-size:9px}.ol-id-name h2{font-size:20px}}
+    html[data-theme="light"] .ol-id-card{color:#fff}
   `;
   document.head.appendChild(style);
 
@@ -1257,6 +1293,57 @@ document.addEventListener('change',e=>{const input=e.target.closest('#profile-fo
         <div class="ol-tab-panel" id="ol-profile-panel">${profileTabMarkup(p,'overview')}</div>
       </div>`;
     top.insertAdjacentElement('afterend',extra);
+
+    // Carte Otaku : statistiques calculées à partir des tables déjà utilisées par l'application.
+    let authoredPosts=[];
+    try{
+      const {data}=await state.client.from('posts').select('id,texte').eq('auteur',p.id);
+      authoredPosts=data||[];
+    }catch(_){}
+    const postIds=authoredPosts.map(x=>x.id).filter(Boolean);
+    let likesCount=0,commentsCount=0;
+    if(postIds.length){
+      const [likesRes,commentsRes]=await Promise.all([
+        state.client.from('likes').select('post_id',{count:'exact',head:true}).in('post_id',postIds),
+        state.client.from('commentaires').select('id',{count:'exact',head:true}).in('post_id',postIds)
+      ]);
+      likesCount=likesRes.error?0:(likesRes.count||0);
+      commentsCount=commentsRes.error?0:(commentsRes.count||0);
+    }
+    const mediaCounts=authoredPosts.reduce((acc,row)=>{
+      const media=postTextAndImage(row.texte);
+      if(media.url){if(media.kind==='video')acc.videos++;else acc.photos++;}
+      return acc;
+    },{photos:0,videos:0});
+    const xp=pc*20+fc*10+fl*5+likesCount*2+commentsCount*3;
+    const xpLevel=1+Math.floor(xp/100);
+    const animeNames=String(p.animes_favoris||'').split(/[\\n,;|]+/).map(x=>x.trim()).filter(Boolean);
+    const joinedDate=p.created_at?new Date(p.created_at).toLocaleDateString('fr-FR',{month:'long',year:'numeric'}):'Membre OtakuLink';
+    const card=document.createElement('section');
+    card.id='ol-identity-card';
+    card.className='ol-id-card';
+    card.innerHTML=`
+      <div class="ol-id-glow"></div>
+      <div class="ol-id-brand">⛩️ Otaku<span>Link</span><small>CARTE DE MEMBRE</small></div>
+      <div class="ol-id-main">
+        ${avatar(p,'ol-id-avatar')}
+        <div class="ol-id-name"><h2>${esc(p.pseudo||'Membre Otaku')}</h2><span class="ol-id-rank">⭐ Niveau ${xpLevel} · ${xp} XP</span><small>${esc(joinedDate)}</small></div>
+      </div>
+      <div class="ol-id-stats">
+        <div><b>${pc}</b><small>Posts</small></div><div><b>${fc}</b><small>Abonnés</small></div>
+        <div><b>${likesCount}</b><small>Likes reçus</small></div><div><b>${commentsCount}</b><small>Commentaires</small></div>
+      </div>
+      <div class="ol-id-details">
+        <span>🎌 ${esc(animeNames[0]||'Anime préféré non renseigné')}</span>
+        <span>📸 ${mediaCounts.photos} photo(s) · 🎬 ${mediaCounts.videos} vidéo(s)</span>
+      </div>
+      <div class="ol-id-badges">${pc>=1?'✍️': ''}${fc>=1?' 🤝':''}${fc>=10?' 🌟':''}${pc>=10?' 🔥':''}${pc>=50?' 🏆':''}${!pc&&!fc?'🌱 Nouveau membre':''}</div>
+      <div class="ol-id-actions">
+        ${viewing?'': '<button type="button" class="btn block" data-share-otaku="'+esc(p.id)+'">🚀 Partager ma carte Otaku</button>'}
+        <button type="button" class="btn ghost block" data-copy-otaku="${esc(p.id)}">🔗 Copier le lien du profil</button>
+      </div>
+      <small class="ol-id-foot">Share your universe · OtakuLink</small>`;
+    extra.insertAdjacentElement('afterend',card);
     const panel=$('#ol-profile-panel');
     const showTab=async tab=>{
       extra.querySelectorAll('[data-profile-tab]').forEach(b=>b.classList.toggle('active',b.dataset.profileTab===tab));
@@ -1278,6 +1365,22 @@ document.addEventListener('change',e=>{const input=e.target.closest('#profile-fo
     };
     extra.addEventListener('click',e=>{const b=e.target.closest('[data-profile-tab]');if(b)showTab(b.dataset.profileTab);});
   };
+
+  const profileShareUrl=id=>{const u=new URL(location.href);u.search='';u.hash='';u.searchParams.set('profil',id);return u.href;};
+  document.addEventListener('click',async e=>{
+    const copy=e.target.closest('[data-copy-otaku]');
+    const share=e.target.closest('[data-share-otaku]');
+    const action=copy||share;if(!action)return;
+    const id=action.dataset.copyOtaku||action.dataset.shareOtaku;
+    const url=profileShareUrl(id);
+    const p=state.viewedProfile||state.profile||{};
+    const text=`Découvre ma carte Otaku sur OtakuLink : ${p.pseudo||'un membre OtakuLink'}\n${url}`;
+    try{
+      if(share&&navigator.share){await navigator.share({title:'Ma carte Otaku — OtakuLink',text,url});}
+      else if(navigator.clipboard?.writeText){await navigator.clipboard.writeText(url);toast('Lien du profil copié !');}
+      else {const field=document.createElement('textarea');field.value=url;document.body.appendChild(field);field.select();document.execCommand('copy');field.remove();toast('Lien du profil copié !');}
+    }catch(err){if(err?.name!=='AbortError')toast('Partage impossible. Essaie de copier le lien.');}
+  });
 
   async function loadRealTrends(host){
     if(!host||!state.client)return;
