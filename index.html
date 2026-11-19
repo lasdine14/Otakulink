@@ -513,7 +513,7 @@ function showAuth(view='welcome') {
   box.innerHTML=screens[view]||screens.welcome;
   $('#auth').classList.remove('hidden'); $('#app').classList.add('hidden');
 }
-function showApp() { $('#auth').classList.add('hidden'); $('#app').classList.remove('hidden'); buildChrome(); go(state.route); refreshUnread(); }
+function showApp() { $('#auth').classList.add('hidden'); $('#app').classList.remove('hidden'); buildChrome(); go(state.route); refreshUnread(); if(typeof refreshGlobalNotificationCount==='function') refreshGlobalNotificationCount(); }
 function authError(msg) { const el=$('#auth-error'); if(el) el.textContent=msg; else toast(msg); }
 function requireClient() { if(!state.client){toast('Configure Supabase pour activer cette fonctionnalité.');return false;} return true; }
 
@@ -986,13 +986,21 @@ function openGlobalSearch(){
   $('#quick-search-form').onsubmit=e=>{e.preventDefault();state.query=$('#quick-search-input').value.trim();$('#modal-root').innerHTML='';go('decouvrir');};
   $('#quick-search-input').focus();
 }
+async function refreshGlobalNotificationCount(){
+  if(!state.client||!state.user)return;
+  const {count,error}=await state.client.from('notifications').select('id',{count:'exact',head:true}).eq('lu',false);
+  if(error)return;
+  const badge=$('#global-notif-count');
+  if(badge){const n=count||0;badge.hidden=!n;badge.textContent=n>9?'9+':String(n);}
+}
 async function openGlobalNotifications(){
   if(!state.client||!state.user)return toast('Connecte-toi pour voir tes notifications.');
   $('#modal-root').innerHTML=`<div class="modal" id="quick-notif-modal"><div class="sheet">
     <div class="row"><h3>🔔 Notifications</h3><span class="sp"></span><button class="icon-btn" id="quick-notif-close">✕</button></div>
-    <div id="quick-notif-list" style="margin-top:10px">Chargement…</div>
+    <div class="row" style="margin-top:10px"><span class="sp"></span><button class="btn sm ghost" id="quick-notif-all-read">Tout marquer comme lu</button></div><div id="quick-notif-list" style="margin-top:10px">Chargement…</div>
   </div></div>`;
   $('#quick-notif-close').onclick=()=>$('#modal-root').innerHTML='';
+  $('#quick-notif-all-read').onclick=async()=>{const {error}=await state.client.from('notifications').update({lu:true}).eq('lu',false);if(error){toast('Impossible de mettre à jour les notifications.');return;}toast('Toutes les notifications sont marquées comme lues.');await refreshGlobalNotificationCount();await openGlobalNotifications();};
   const host=$('#quick-notif-list');
   const {data,error}=await state.client.from('notifications').select('id,acteur,type,post_id,lu,created_at').order('created_at',{ascending:false}).limit(40);
   if(error){host.textContent='Notifications indisponibles. Vérifie la table notifications et ses règles SQL.';return;}
@@ -1013,7 +1021,7 @@ document.addEventListener('click',async e=>{
   const preset=e.target.closest('[data-search-preset]');
   if(preset){state.query=preset.dataset.searchPreset;$('#modal-root').innerHTML='';go('decouvrir');return;}
   const n=e.target.closest('[data-global-notif-read]');
-  if(n&&state.client){const {error}=await state.client.from('notifications').update({lu:true}).eq('id',n.dataset.globalNotifRead);if(error)toast('Impossible de marquer cette notification.');else{n.style.opacity='.55';n.querySelector('.badge')?.remove();}}
+  if(n&&state.client){const {error}=await state.client.from('notifications').update({lu:true}).eq('id',n.dataset.globalNotifRead);if(error)toast('Impossible de marquer cette notification.');else{n.style.opacity='.55';n.querySelector('.badge')?.remove();await refreshGlobalNotificationCount();}}
 });
 const _renderDiscoverOriginal=render.decouvrir;
 render.decouvrir=async()=>{
@@ -1041,6 +1049,117 @@ init=async function(){
   // La barre est montée après l'initialisation du chrome par l'application.
   if($('#app')&&!$('#app').classList.contains('hidden')&&!$('#global-toolbar'))buildChrome();
 };
+
+/* === Recadrage de l'avatar : déplacement + zoom avant téléversement === */
+let otakuCropState=null;
+function closeOtakuCrop(){const modal=document.getElementById('otaku-crop-modal');if(modal)modal.remove();if(otakuCropState?.url)URL.revokeObjectURL(otakuCropState.url);otakuCropState=null;}
+function drawOtakuCrop(){const st=otakuCropState;if(!st)return;const c=st.canvas,ctx=c.getContext('2d'),size=c.width;ctx.clearRect(0,0,size,size);ctx.fillStyle='#071127';ctx.fillRect(0,0,size,size);const scale=Math.max(size/st.img.naturalWidth,size/st.img.naturalHeight)*st.zoom;const w=st.img.naturalWidth*scale,h=st.img.naturalHeight*scale;st.x=Math.min(0,Math.max(size-w,st.x));st.y=Math.min(0,Math.max(size-h,st.y));ctx.drawImage(st.img,st.x,st.y,w,h);}
+function openOtakuCrop(file,input){const url=URL.createObjectURL(file),img=new Image();img.onload=()=>{const modal=document.createElement('div');modal.id='otaku-crop-modal';modal.style.cssText='position:fixed;inset:0;z-index:99999;background:rgba(2,6,23,.96);display:flex;align-items:center;justify-content:center;padding:18px;overflow:auto';modal.innerHTML='<div style="width:min(100%,390px);background:#0c1735;border:1px solid #245078;border-radius:20px;padding:18px;color:#fff;text-align:center"><h3 style="margin:0 0 8px">Ajuster ta photo</h3><p style="font-size:13px;color:#a9b8d4;margin:0 0 14px">Fais glisser la photo et règle le zoom.</p><canvas id="otaku-crop-canvas" width="280" height="280" style="width:min(100%,280px);aspect-ratio:1;border-radius:50%;border:3px solid #00dfff;touch-action:none;cursor:grab;background:#071127"></canvas><label style="display:block;text-align:left;margin:16px 0 6px;font-size:13px">Zoom <input id="otaku-crop-zoom" type="range" min="1" max="3" step="0.01" value="1" style="width:100%"></label><div style="display:flex;gap:10px;margin-top:14px"><button type="button" id="otaku-crop-cancel" class="btn ghost" style="flex:1">Annuler</button><button type="button" id="otaku-crop-apply" class="btn" style="flex:1">Utiliser cette photo</button></div></div>';document.body.appendChild(modal);const canvas=modal.querySelector('canvas'),size=canvas.width,base=Math.max(size/img.naturalWidth,size/img.naturalHeight);otakuCropState={img,url,input,canvas,zoom:1,x:(size-img.naturalWidth*base)/2,y:(size-img.naturalHeight*base)/2,base};drawOtakuCrop();modal.querySelector('#otaku-crop-zoom').oninput=e=>{const st=otakuCropState,old=st.zoom;const center=size/2;st.x=center-(center-st.x)*(Number(e.target.value)/old);st.y=center-(center-st.y)*(Number(e.target.value)/old);st.zoom=Number(e.target.value);drawOtakuCrop();};let drag=null;canvas.onpointerdown=e=>{drag={x:e.clientX,y:e.clientY,ox:otakuCropState.x,oy:otakuCropState.y};canvas.setPointerCapture(e.pointerId);};canvas.onpointermove=e=>{if(!drag)return;const r=canvas.getBoundingClientRect(),k=size/r.width;otakuCropState.x=drag.ox+(e.clientX-drag.x)*k;otakuCropState.y=drag.oy+(e.clientY-drag.y)*k;drawOtakuCrop();};canvas.onpointerup=canvas.onpointercancel=()=>drag=null;modal.querySelector('#otaku-crop-cancel').onclick=()=>{input.value='';closeOtakuCrop();};modal.querySelector('#otaku-crop-apply').onclick=()=>{const st=otakuCropState,out=document.createElement('canvas');out.width=out.height=512;const ctx=out.getContext('2d'),factor=512/size,scale=st.base*st.zoom;ctx.drawImage(st.img,st.x*factor,st.y*factor,st.img.naturalWidth*scale*factor,st.img.naturalHeight*scale*factor);out.toBlob(blob=>{if(!blob){toast('Impossible de préparer cette photo.');return;}const cropped=new File([blob],(file.name.replace(/\.[^.]+$/,'')||'avatar')+'-recadree.jpg',{type:'image/jpeg'});const transfer=new DataTransfer();transfer.items.add(cropped);input.files=transfer.files;const label=input.closest('label');if(label){let note=label.querySelector('.crop-ready');if(!note){note=document.createElement('small');note.className='crop-ready';note.style.cssText='display:block;color:#00dfff;margin-top:6px';label.appendChild(note);}note.textContent='✓ Photo recadrée et prête à enregistrer';}closeOtakuCrop();},'image/jpeg',.9);};};img.onerror=()=>{URL.revokeObjectURL(url);toast('Impossible de lire cette image.');};img.src=url;}
+document.addEventListener('change',e=>{const input=e.target.closest('#profile-form input[name="avatar_file"]');if(!input)return;const file=input.files?.[0];if(!file)return;if(!file.type.startsWith('image/')){input.value='';toast('Choisis un fichier image.');return;}if(file.size>15*1024*1024){input.value='';toast('La photo doit faire moins de 15 Mo.');return;}openOtakuCrop(file,input);});
+/* ===== OtakuLink V2 : profils enrichis, badges réels et tendances calculées ===== */
+(function addOtakuLinkEnhancements(){
+  const style=document.createElement('style');
+  style.textContent=`
+    .ol-profile-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:14px 0}
+    .ol-profile-stat{padding:12px 6px;text-align:center;border:1px solid var(--line);border-radius:14px;background:rgba(4,20,49,.72)}
+    .ol-profile-stat b{display:block;font-size:20px;color:var(--cyan)}.ol-profile-stat small{font-size:11px;color:var(--muted)}
+    .ol-tabs{display:flex;gap:7px;overflow-x:auto;padding:4px 0 12px;scrollbar-width:none}.ol-tabs::-webkit-scrollbar{display:none}
+    .ol-tab{flex:none;padding:9px 13px;border:1px solid var(--line);border-radius:999px;background:rgba(4,20,49,.8);font-size:13px;font-weight:700}
+    .ol-tab.active{background:linear-gradient(100deg,#087cff,#00cfff);color:#00152c;border-color:transparent}
+    .ol-tab-panel{min-height:90px}.ol-anime-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(105px,1fr));gap:9px}
+    .ol-anime-item{padding:12px 8px;text-align:center;border:1px solid var(--line);border-radius:14px;background:rgba(4,20,49,.65);font-size:13px;overflow-wrap:anywhere}
+    .ol-anime-item span{display:block;font-size:26px;margin-bottom:5px}
+    .ol-badge-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(135px,1fr));gap:9px}
+    .ol-badge{padding:12px;border:1px solid var(--line);border-radius:14px;background:rgba(4,20,49,.65)}.ol-badge span{font-size:25px;display:block;margin-bottom:5px}.ol-badge small{color:var(--muted);display:block;margin-top:4px}
+    .ol-trend{display:flex;align-items:center;gap:9px;padding:10px 0;border-bottom:1px solid rgba(80,140,255,.15)}.ol-trend:last-child{border:0}.ol-trend .rank{color:var(--cyan);font-weight:800;width:22px}.ol-trend .meta{flex:1;min-width:0}.ol-trend small{display:block;color:var(--muted);font-size:11px}.ol-trend b{overflow-wrap:anywhere}
+  `;
+  document.head.appendChild(style);
+
+  const splitAnimeNames=value=>[...new Set(String(value||'').split(/[\n,;|]+/).map(x=>x.trim()).filter(Boolean))].slice(0,30);
+  const safeCount=async(table,column,id)=>{
+    try{const {count,error}=await state.client.from(table).select(column,{count:'exact',head:true}).eq(column,id);return error?null:(count||0);}catch(_){return null;}
+  };
+  const profileTabMarkup=(p,tab)=>{
+    const names=splitAnimeNames(p.animes_favoris);
+    if(tab==='animes')return names.length?`<div class="ol-anime-list">${names.map((name,i)=>`<div class="ol-anime-item"><span>${['🎌','⚔️','🌸','🔥','✨'][i%5]}</span><b>${esc(name)}</b></div>`).join('')}</div>`:`<p style="color:var(--muted)">${p.id===state.user.id?'Ajoute tes animes préférés dans « Modifier mon profil » pour les afficher ici.':'Ce membre n’a pas encore ajouté ses animes préférés.'}</p>`;
+    if(tab==='about')return `<p style="line-height:1.6">${esc(p.bio||'Aucune biographie renseignée.')}</p><p style="margin-top:10px;color:var(--muted)">📍 ${esc(p.pays||'Pays non renseigné')}</p><p style="margin-top:8px;color:var(--muted)">✨ ${esc(p.centres_interet||'Centres d’intérêt non renseignés')}</p>`;
+    if(tab==='badges')return `<div id="ol-badges-content"><p style="color:var(--muted)">Calcul des badges…</p></div>`;
+    if(tab==='activity')return `<div id="ol-activity-content"><p style="color:var(--muted)">Chargement de l’activité…</p></div>`;
+    return `<p style="color:var(--muted)">Retrouve ici les passions et les informations de ce profil.</p><p style="margin-top:8px">🎌 <b>${names.length}</b> anime(s) favori(s) renseigné(s)</p>`;
+  };
+
+  const oldProfile=render.profil;
+  render.profil=async function(){
+    await oldProfile();
+    const p=state.viewedProfile||state.profile;if(!p||!state.user||!state.client)return;
+    const top=$('#s-profil .profile-top');if(!top||$('#ol-profile-extra'))return;
+    const viewing=!!state.viewedProfile&&p.id!==state.user.id;
+    const [postsCount,followersCount,followingCount]=await Promise.all([
+      safeCount('posts','auteur',p.id),safeCount('abonnements','a',p.id),safeCount('abonnements','de',p.id)
+    ]);
+    const pc=postsCount??0,fc=followersCount??0,fl=followingCount??0;
+    const level=1+Math.floor((pc+fc+fl)/5);
+    const extra=document.createElement('section');extra.id='ol-profile-extra';extra.innerHTML=`
+      <div class="ol-profile-stats">
+        <div class="ol-profile-stat"><b>${pc}</b><small>Publications</small></div>
+        <div class="ol-profile-stat"><b>${fc}</b><small>Abonnés</small></div>
+        <div class="ol-profile-stat"><b>${fl}</b><small>Abonnements</small></div>
+      </div>
+      <div class="card"><div class="row" style="padding-top:0"><b>⭐ Niveau ${level}</b><span class="sp"></span><small style="color:var(--muted)">Basé sur l’activité réelle</small></div>
+        <div class="ol-tabs" role="tablist">
+          <button class="ol-tab active" data-profile-tab="overview">Aperçu</button>
+          <button class="ol-tab" data-profile-tab="about">À propos</button>
+          <button class="ol-tab" data-profile-tab="animes">🎌 Animes favoris</button>
+          <button class="ol-tab" data-profile-tab="badges">🏅 Badges</button>
+          <button class="ol-tab" data-profile-tab="activity">⚡ Activité</button>
+        </div>
+        <div class="ol-tab-panel" id="ol-profile-panel">${profileTabMarkup(p,'overview')}</div>
+      </div>`;
+    top.insertAdjacentElement('afterend',extra);
+    const panel=$('#ol-profile-panel');
+    const showTab=async tab=>{
+      extra.querySelectorAll('[data-profile-tab]').forEach(b=>b.classList.toggle('active',b.dataset.profileTab===tab));
+      panel.innerHTML=profileTabMarkup(p,tab);
+      if(tab==='badges'){
+        const badges=[];
+        if(pc>=1)badges.push(['✍️','Premier post','Tu as publié au moins une fois.']);
+        if(pc>=10)badges.push(['🔥','Créateur actif','10 publications ou plus.']);
+        if(fc>=1)badges.push(['🤝','Premier abonné','Un membre te suit.']);
+        if(fc>=10)badges.push(['🌟','Populaire','10 abonnés ou plus.']);
+        if(fl>=5)badges.push(['🧭','Explorateur','Tu suis au moins 5 membres.']);
+        if(pc>=50)badges.push(['🏆','Légende Otaku','50 publications ou plus.']);
+        $('#ol-badges-content').innerHTML=badges.length?`<div class="ol-badge-grid">${badges.map(x=>`<div class="ol-badge"><span>${x[0]}</span><b>${x[1]}</b><small>${x[2]}</small></div>`).join('')}</div>`:`<p style="color:var(--muted)">Tes badges apparaîtront au fil de tes publications et de tes abonnés. Aucun badge débloqué pour le moment.</p>`;
+      }
+      if(tab==='activity'){
+        const {data,error}=await state.client.from('posts').select('id,texte,created_at').eq('auteur',p.id).order('created_at',{ascending:false}).limit(8);
+        $('#ol-activity-content').innerHTML=error?'<p style="color:var(--muted)">Activité indisponible pour le moment.</p>':data?.length?data.map(x=>`<div class="comment"><p>${esc(x.texte||'Publication')}</p><small>${fmtDate(x.created_at)}</small></div>`).join(''):'<p style="color:var(--muted)">Aucune activité récente.</p>';
+      }
+    };
+    extra.addEventListener('click',e=>{const b=e.target.closest('[data-profile-tab]');if(b)showTab(b.dataset.profileTab);});
+  };
+
+  async function loadRealTrends(host){
+    if(!host||!state.client)return;
+    const since=new Date(Date.now()-30*86400000).toISOString();
+    const {data,error}=await state.client.from('posts').select('texte,created_at').gte('created_at',since).order('created_at',{ascending:false}).limit(300);
+    if(error){host.innerHTML='<small style="color:var(--muted)">Les tendances ne sont pas disponibles pour le moment.</small>';return;}
+    const posts=data||[],tags=new Map(),animeNames=['Naruto','One Piece','Demon Slayer','Attack on Titan','Jujutsu Kaisen','Dragon Ball','Bleach','My Hero Academia','Spy x Family','Frieren','Chainsaw Man','Hunter x Hunter','Black Clover','Solo Leveling','Tokyo Revengers','Haikyuu'];
+    posts.forEach(post=>{
+      const text=String(post.texte||'');
+      for(const match of text.matchAll(/#([\p{L}\p{N}_-]{2,30})/gu)){const key=match[1].toLowerCase();tags.set('#'+key,(tags.get('#'+key)||0)+1);}
+      animeNames.forEach(name=>{if(text.toLowerCase().includes(name.toLowerCase()))tags.set(name,(tags.get(name)||0)+1);});
+    });
+    const ranked=[...tags.entries()].filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]).slice(0,8);
+    host.innerHTML=ranked.length?ranked.map(([name,count],i)=>`<button class="ol-trend" data-search-preset="${esc(name.replace(/^#/,''))}" style="width:100%;text-align:left"><span class="rank">${i+1}</span><span class="meta"><b>${esc(name)}</b><small>${count} mention(s) dans les publications récentes</small></span><span>↗</span></button>`).join(''):`<p style="color:var(--muted)">${posts.length?'Aucun hashtag ou anime assez mentionné pour établir une tendance.':'Les tendances apparaîtront quand la communauté publiera.'}</p>`;
+  }
+  const oldDiscover=render.decouvrir;
+  render.decouvrir=async function(){
+    await oldDiscover();const screen=$('#s-decouvrir');if(!screen||!state.client||$('#ol-trends'))return;
+    const card=document.createElement('div');card.className='card';card.id='ol-trends';card.innerHTML='<div class="row"><h3>🔥 Tendances Otaku</h3><span class="sp"></span><small style="color:var(--muted)">30 derniers jours</small></div><div id="ol-trend-list"><small style="color:var(--muted)">Analyse des publications…</small></div>';
+    const anchor=$('#discover-stories')||screen.querySelector('.searchbar');if(anchor)anchor.insertAdjacentElement('afterend',card);else screen.appendChild(card);
+    await loadRealTrends($('#ol-trend-list'));
+  };
+})();
 
 try{const saved=JSON.parse(localStorage.getItem('otakulink_settings')||'{}');state.settings={...state.settings,...saved};applyTheme();}catch(_){}
 init();
