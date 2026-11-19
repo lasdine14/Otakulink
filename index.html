@@ -345,7 +345,7 @@ body{background:radial-gradient(ellipse at 50% -15%,rgba(0,112,255,.27),transpar
 .btn.danger{background:linear-gradient(100deg,#ff174d,#e90054);color:white}
 .chip{background:rgba(4,20,50,.92);border-color:rgba(38,145,255,.4);font-size:13px;padding:8px 14px}
 .chip.active{background:linear-gradient(100deg,#087cff,#00cfff);color:#00152c}
-#bottomnav{left:6px;right:6px;bottom:max(6px,env(safe-area-inset-bottom));height:66px;padding:4px;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:2px;align-items:center;border-radius:18px;background:rgba(2,10,29,.97);border:1px solid rgba(0,180,255,.55);box-shadow:0 0 22px rgba(0,149,255,.42);backdrop-filter:blur(16px)}
+#bottomnav{left:6px;right:6px;bottom:max(6px,env(safe-area-inset-bottom));height:66px;padding:4px;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:2px;align-items:center;border-radius:18px;background:rgba(2,10,29,.97);border:1px solid rgba(0,180,255,.55);box-shadow:0 0 22px rgba(0,149,255,.42);backdrop-filter:blur(16px)}
 #bottomnav .bn{width:100%;min-width:0;max-width:none;padding:5px 1px;gap:2px;font-size:clamp(8px,2.25vw,10px);line-height:1.05;white-space:nowrap;overflow:hidden;text-overflow:clip;border-radius:12px}
 #bottomnav .bn .ic{font-size:19px;line-height:1.1}#bottomnav .bn.active{color:#00e5ff;text-shadow:0 0 12px #00dfff}
 #fab{width:40px;height:40px;justify-self:center;margin:0;background:linear-gradient(145deg,#087cff,#00dfff);color:#00152a;border:2px solid #8df5ff;font-weight:900;font-size:28px}
@@ -447,6 +447,7 @@ html[data-theme="light"] #global-toolbar .gt-action{background:#f1f6ff}
       <section class="screen" id="s-connexions"></section>
       <section class="screen" id="s-profil"></section>
       <section class="screen" id="s-parametres"></section>
+      <section class="screen" id="s-otakuplus"></section>
     </div>
     <nav id="bottomnav"></nav>
   </div>
@@ -480,8 +481,8 @@ function safeImageUrl(value){try{const u=new URL(String(value||'').trim());retur
 function postTextAndImage(text){const value=String(text||'');const m=value.match(/(?:^|\n)\[\[(?:media:(image|video)|image):(https?:\/\/[^\]]+)\]\]\s*$/i);return {text:m?value.slice(0,m.index).trim():value,kind:m?(m[1]||'image').toLowerCase():'',url:m?safeImageUrl(m[2]):''};}
 const TORII = `<svg class="torii" viewBox="0 0 64 52" fill="none" stroke="#22d3ee" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10c14 4 42 4 56 0"/><path d="M10 20h44"/><path d="M16 10v38M48 10v38"/><path d="M32 12v8"/></svg>`;
 const LOGO = big => `<div class="logo ${big?'big':''}">${TORII}<b>Otaku<span>Link</span></b></div>`;
-const NAV = [['decouvrir','🔎','Amis'],['rencontres','💘','Rencontres'],['communaute','👥','Communauté'],['messages','💬','Messages'],['connexions','🤝','Connexions'],['profil','👤','Profil'],['parametres','⚙️','Paramètres']];
-const BOTTOM = ['decouvrir','rencontres','communaute','FAB','messages','profil'];
+const NAV = [['decouvrir','🔎','Amis'],['rencontres','💘','Rencontres'],['communaute','👥','Communauté'],['messages','💬','Messages'],['connexions','🤝','Connexions'],['profil','👤','Profil'],['otakuplus','✨','Otaku+'],['parametres','⚙️','Paramètres']];
+const BOTTOM = ['decouvrir','rencontres','communaute','otakuplus','FAB','messages','profil'];
 const state = { client:null, user:null, profile:null, route:'decouvrir', query:'', filter:'Tous', posts:[], users:[], requests:[], friends:[], conversations:[], activeChat:null, replyTo:null, settings:{dark:true,private:false,notifications:true}, busy:false, blocked:new Set(), blockedByMe:new Set(), unread:0, routeCache:{} };
 
 function ageOf(d){if(!d)return -1;const [y,m,day]=String(d).split('-').map(Number);if(!y||!m||!day)return -1;const now=new Date();let a=now.getFullYear()-y;if(now.getMonth()+1<m||(now.getMonth()+1===m&&now.getDate()<day))a--;return a;}
@@ -556,17 +557,6 @@ async function onSignedIn(user) {
   }
   await loadBlocks(); if(!state.rt){state.rt=true;startRealtime();state.client.channel('notifications-'+state.user.id).on('postgres_changes',{event:'INSERT',schema:'public',table:'notifications',filter:`destinataire=eq.${state.user.id}`},async p=>{const actor=p.new.acteur;const {data}=actor?await state.client.from('profiles').select('pseudo').eq('id',actor).maybeSingle():{data:null};const who=data?.pseudo||'Un membre';toast('🔔 '+who+' a interagi avec toi.');notifyUser('OtakuLink',who+' a interagi avec toi.');}).subscribe();}
   showApp();
-  const sharedProfileId=new URLSearchParams(location.search).get('profil');
-  if(sharedProfileId){
-    if(sharedProfileId===state.user.id){state.viewedProfile=null;state.routeCache.profil=0;go('profil');}
-    else{
-      const {data:sharedProfile,error:sharedError}=await state.client.from('profiles')
-        .select('id,pseudo,bio,pays,avatar_url,cover_url,centres_interet,animes_favoris,created_at')
-        .eq('id',sharedProfileId).maybeSingle();
-      if(!sharedError&&sharedProfile){state.viewedProfile=sharedProfile;state.routeCache.profil=0;go('profil');}
-      else toast('Ce profil est introuvable ou non accessible.');
-    }
-  }
 }
 document.addEventListener('click',async e=>{
   const a=e.target.closest('[data-auth]');
@@ -953,7 +943,7 @@ document.addEventListener('click',async e=>{
     if(profileId===state.user?.id){state.viewedProfile=null;go('profil');return;}
     let u=state.users.find(x=>x.id===profileId);
     if(!u){
-      const {data,error}=await state.client.from('profiles').select('id,pseudo,bio,pays,avatar_url,cover_url,centres_interet,animes_favoris,created_at').eq('id',profileId).maybeSingle();
+      const {data,error}=await state.client.from('profiles').select('id,pseudo,bio,pays,avatar_url,cover_url,centres_interet,animes_favoris').eq('id',profileId).maybeSingle();
       if(error){console.error('Chargement du profil membre:',error);toast('Impossible de charger ce profil : '+error.message);return;}
       if(!data){toast('Profil introuvable ou accès refusé. Vérifie les autorisations Supabase.');return;}
       u=data;state.users=[...state.users.filter(x=>x.id!==u.id),u];
@@ -1240,15 +1230,6 @@ document.addEventListener('change',e=>{const input=e.target.closest('#profile-fo
     .ol-badge-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(135px,1fr));gap:9px}
     .ol-badge{padding:12px;border:1px solid var(--line);border-radius:14px;background:rgba(4,20,49,.65)}.ol-badge span{font-size:25px;display:block;margin-bottom:5px}.ol-badge small{color:var(--muted);display:block;margin-top:4px}
     .ol-trend{display:flex;align-items:center;gap:9px;padding:10px 0;border-bottom:1px solid rgba(80,140,255,.15)}.ol-trend:last-child{border:0}.ol-trend .rank{color:var(--cyan);font-weight:800;width:22px}.ol-trend .meta{flex:1;min-width:0}.ol-trend small{display:block;color:var(--muted);font-size:11px}.ol-trend b{overflow-wrap:anywhere}
-    .ol-id-card{position:relative;isolation:isolate;overflow:hidden;margin:12px 0 16px;padding:18px;border:1px solid rgba(0,220,255,.48);border-radius:23px;background:radial-gradient(circle at 95% 5%,rgba(139,92,246,.55),transparent 34%),linear-gradient(135deg,#07183c,#172b68 55%,#08132f);box-shadow:0 12px 35px rgba(0,0,0,.24),0 0 22px rgba(0,180,255,.18)}
-    .ol-id-glow{position:absolute;z-index:-1;width:190px;height:190px;right:-75px;top:-95px;border-radius:50%;background:rgba(0,225,255,.16);filter:blur(3px)}
-    .ol-id-brand{font-size:17px;font-weight:900;letter-spacing:.2px}.ol-id-brand span{color:#38eaff}.ol-id-brand small{display:block;font-size:9px;letter-spacing:2px;color:#a8c9ef;margin-top:2px}
-    .ol-id-main{display:flex;align-items:center;gap:13px;margin:22px 0 18px}.ol-id-avatar{width:76px;height:76px;flex:0 0 76px}.ol-id-name{min-width:0}.ol-id-name h2{font-size:23px;overflow-wrap:anywhere}.ol-id-name small{display:block;color:#b8c9e9;font-size:11px;margin-top:5px}.ol-id-rank{display:inline-block;margin-top:6px;padding:4px 9px;border-radius:30px;background:rgba(0,220,255,.15);border:1px solid rgba(0,220,255,.35);font-size:12px;font-weight:800;color:#9af4ff}
-    .ol-id-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px}.ol-id-stats>div{text-align:center;padding:10px 3px;border-radius:13px;background:rgba(2,9,28,.48);border:1px solid rgba(150,205,255,.16)}.ol-id-stats b{display:block;font-size:19px}.ol-id-stats small{display:block;font-size:10px;color:#b8c9e9}
-    .ol-id-details{display:grid;gap:7px;margin:14px 0 8px;color:#d8eaff;font-size:12px}.ol-id-badges{min-height:23px;margin:7px 0 13px;font-size:20px}
-    .ol-id-actions{display:grid;gap:9px}.ol-id-actions .btn{min-height:45px}.ol-id-foot{display:block;text-align:center;margin-top:12px;color:#9db5dc;font-size:10px;letter-spacing:1px}
-    @media(max-width:380px){.ol-id-card{padding:14px}.ol-id-stats{gap:4px}.ol-id-stats b{font-size:16px}.ol-id-stats small{font-size:9px}.ol-id-name h2{font-size:20px}}
-    html[data-theme="light"] .ol-id-card{color:#fff}
   `;
   document.head.appendChild(style);
 
@@ -1293,57 +1274,6 @@ document.addEventListener('change',e=>{const input=e.target.closest('#profile-fo
         <div class="ol-tab-panel" id="ol-profile-panel">${profileTabMarkup(p,'overview')}</div>
       </div>`;
     top.insertAdjacentElement('afterend',extra);
-
-    // Carte Otaku : statistiques calculées à partir des tables déjà utilisées par l'application.
-    let authoredPosts=[];
-    try{
-      const {data}=await state.client.from('posts').select('id,texte').eq('auteur',p.id);
-      authoredPosts=data||[];
-    }catch(_){}
-    const postIds=authoredPosts.map(x=>x.id).filter(Boolean);
-    let likesCount=0,commentsCount=0;
-    if(postIds.length){
-      const [likesRes,commentsRes]=await Promise.all([
-        state.client.from('likes').select('post_id',{count:'exact',head:true}).in('post_id',postIds),
-        state.client.from('commentaires').select('id',{count:'exact',head:true}).in('post_id',postIds)
-      ]);
-      likesCount=likesRes.error?0:(likesRes.count||0);
-      commentsCount=commentsRes.error?0:(commentsRes.count||0);
-    }
-    const mediaCounts=authoredPosts.reduce((acc,row)=>{
-      const media=postTextAndImage(row.texte);
-      if(media.url){if(media.kind==='video')acc.videos++;else acc.photos++;}
-      return acc;
-    },{photos:0,videos:0});
-    const xp=pc*20+fc*10+fl*5+likesCount*2+commentsCount*3;
-    const xpLevel=1+Math.floor(xp/100);
-    const animeNames=String(p.animes_favoris||'').split(/[\\n,;|]+/).map(x=>x.trim()).filter(Boolean);
-    const joinedDate=p.created_at?new Date(p.created_at).toLocaleDateString('fr-FR',{month:'long',year:'numeric'}):'Membre OtakuLink';
-    const card=document.createElement('section');
-    card.id='ol-identity-card';
-    card.className='ol-id-card';
-    card.innerHTML=`
-      <div class="ol-id-glow"></div>
-      <div class="ol-id-brand">⛩️ Otaku<span>Link</span><small>CARTE DE MEMBRE</small></div>
-      <div class="ol-id-main">
-        ${avatar(p,'ol-id-avatar')}
-        <div class="ol-id-name"><h2>${esc(p.pseudo||'Membre Otaku')}</h2><span class="ol-id-rank">⭐ Niveau ${xpLevel} · ${xp} XP</span><small>${esc(joinedDate)}</small></div>
-      </div>
-      <div class="ol-id-stats">
-        <div><b>${pc}</b><small>Posts</small></div><div><b>${fc}</b><small>Abonnés</small></div>
-        <div><b>${likesCount}</b><small>Likes reçus</small></div><div><b>${commentsCount}</b><small>Commentaires</small></div>
-      </div>
-      <div class="ol-id-details">
-        <span>🎌 ${esc(animeNames[0]||'Anime préféré non renseigné')}</span>
-        <span>📸 ${mediaCounts.photos} photo(s) · 🎬 ${mediaCounts.videos} vidéo(s)</span>
-      </div>
-      <div class="ol-id-badges">${pc>=1?'✍️': ''}${fc>=1?' 🤝':''}${fc>=10?' 🌟':''}${pc>=10?' 🔥':''}${pc>=50?' 🏆':''}${!pc&&!fc?'🌱 Nouveau membre':''}</div>
-      <div class="ol-id-actions">
-        ${viewing?'': '<button type="button" class="btn block" data-share-otaku="'+esc(p.id)+'">🚀 Partager ma carte Otaku</button>'}
-        <button type="button" class="btn ghost block" data-copy-otaku="${esc(p.id)}">🔗 Copier le lien du profil</button>
-      </div>
-      <small class="ol-id-foot">Share your universe · OtakuLink</small>`;
-    extra.insertAdjacentElement('afterend',card);
     const panel=$('#ol-profile-panel');
     const showTab=async tab=>{
       extra.querySelectorAll('[data-profile-tab]').forEach(b=>b.classList.toggle('active',b.dataset.profileTab===tab));
@@ -1365,22 +1295,6 @@ document.addEventListener('change',e=>{const input=e.target.closest('#profile-fo
     };
     extra.addEventListener('click',e=>{const b=e.target.closest('[data-profile-tab]');if(b)showTab(b.dataset.profileTab);});
   };
-
-  const profileShareUrl=id=>{const u=new URL(location.href);u.search='';u.hash='';u.searchParams.set('profil',id);return u.href;};
-  document.addEventListener('click',async e=>{
-    const copy=e.target.closest('[data-copy-otaku]');
-    const share=e.target.closest('[data-share-otaku]');
-    const action=copy||share;if(!action)return;
-    const id=action.dataset.copyOtaku||action.dataset.shareOtaku;
-    const url=profileShareUrl(id);
-    const p=state.viewedProfile||state.profile||{};
-    const text=`Découvre ma carte Otaku sur OtakuLink : ${p.pseudo||'un membre OtakuLink'}\n${url}`;
-    try{
-      if(share&&navigator.share){await navigator.share({title:'Ma carte Otaku — OtakuLink',text,url});}
-      else if(navigator.clipboard?.writeText){await navigator.clipboard.writeText(url);toast('Lien du profil copié !');}
-      else {const field=document.createElement('textarea');field.value=url;document.body.appendChild(field);field.select();document.execCommand('copy');field.remove();toast('Lien du profil copié !');}
-    }catch(err){if(err?.name!=='AbortError')toast('Partage impossible. Essaie de copier le lien.');}
-  });
 
   async function loadRealTrends(host){
     if(!host||!state.client)return;
@@ -1455,6 +1369,50 @@ otakuLayoutFix.textContent=`
 }
 `;
 document.head.appendChild(otakuLayoutFix);
+
+/* ===== OtakuLink PLUS : catalogue, progression, quiz, événements et cartes =====
+   Les données XP, événements et personnalisation sont conservées sur cet appareil.
+   Aucun changement Supabase/SQL n'est requis. Le catalogue utilise l'API publique Jikan. */
+const OT_PLUS_KEY='otakulink_plus_v1';
+const otPlusLoad=()=>{try{return JSON.parse(localStorage.getItem(OT_PLUS_KEY)||'{}')}catch(_){return {}}};
+const otPlusSave=v=>{try{localStorage.setItem(OT_PLUS_KEY,JSON.stringify(v));return true}catch(_){toast('Stockage local indisponible.');return false}};
+const otPlusUser=()=>state.user?.id||'guest';
+const otPlusData=()=>{const all=otPlusLoad();return all[otPlusUser()]||{xp:0,claimed:[],quizDays:[],events:[],theme:'blue',frame:'cyan',favorites:[]}};
+const otPlusSet=d=>{const all=otPlusLoad();all[otPlusUser()]=d;otPlusSave(all)};
+const otPlusLevel=xp=>{const thresholds=[0,100,250,500,850,1300,1900,2700,3700,5000];let level=1;for(let i=0;i<thresholds.length;i++)if(xp>=thresholds[i])level=i+1;return {level,next:thresholds[level]??6500,current:thresholds[level-1]??5000,title:['Novice','Apprenti','Explorateur','Passionné','Otaku confirmé','Élite','Maître','Légende','Mythique','Légende ultime'][level-1]||'Légende ultime'}};
+const otPlusToday=()=>new Date().toISOString().slice(0,10);
+const otPlusAward=(n,why)=>{const d=otPlusData();d.xp=Math.max(0,(Number(d.xp)||0)+n);d.lastReason=why;otPlusSet(d);toast(`+${n} XP · ${why}`);renderOtakuPlus();};
+const otPlusThemes={blue:{name:'Cyber Blue',a:'#087cff',b:'#00dfff',bg:'#07152f'},violet:{name:'Violet Galaxy',a:'#7c3aed',b:'#e879f9',bg:'#170d32'},red:{name:'Crimson Flame',a:'#dc2626',b:'#fb923c',bg:'#260d18'},gold:{name:'Golden Legend',a:'#d97706',b:'#facc15',bg:'#241807'}};
+const otPlusQuestions=[
+ {q:'Quel est le rêve de Naruto au début de son parcours ?',o:['Devenir Hokage','Devenir Kazekage','Devenir médecin'],a:0,why:'Naruto veut devenir Hokage pour être reconnu.'},
+ {q:'Dans One Piece, comment s’appelle le bateau de l’équipage après le Vogue Merry ?',o:['Thousand Sunny','Red Force','Polar Tang'],a:0,why:'Le Thousand Sunny succède au Vogue Merry.'},
+ {q:'Quel est le pouvoir principal de Tanjiro ?',o:['Respiration de l’Eau','Alchimie','Géass'],a:0,why:'Tanjiro utilise notamment la respiration de l’eau.'},
+ {q:'Dans Death Note, quel objet déclenche l’histoire ?',o:['Un carnet','Une montre','Une bague'],a:0,why:'Le Death Note est un carnet surnaturel.'},
+ {q:'Quel est le nom du frère de Sasuke ?',o:['Itachi','Shisui','Madara'],a:0,why:'Itachi est le frère aîné de Sasuke.'},
+ {q:'Dans Jujutsu Kaisen, qui partage son corps avec Yuji ?',o:['Sukuna','Gojo','Geto'],a:0,why:'Yuji devient le réceptacle de Ryomen Sukuna.'}
+];
+function otPlusShell(){return `<div class="topbar"><div><h1>⛩️ Otaku+</h1><p>Découvre, progresse et participe à la communauté.</p></div><span class="sp"></span><span class="op-xp-pill">⚡ ${otPlusData().xp} XP</span></div><div class="op-tabs"><button class="op-tab active" data-op-tab="catalogue">🎌 Anime/Manga</button><button class="op-tab" data-op-tab="progression">🏆 Progression</button><button class="op-tab" data-op-tab="quiz">🧠 Quiz</button><button class="op-tab" data-op-tab="events">📅 Événements</button><button class="op-tab" data-op-tab="card">🪪 Ma carte</button></div><div id="op-panel"></div>`}
+function renderOtakuPlus(){const host=$('#s-otakuplus');if(!host||!state.user)return;const tab=host.dataset.opTab||'catalogue';host.innerHTML=otPlusShell();host.dataset.opTab=tab;host.querySelectorAll('[data-op-tab]').forEach(b=>b.classList.toggle('active',b.dataset.opTab===tab));const panel=$('#op-panel');if(tab==='catalogue')opRenderCatalog(panel);if(tab==='progression')opRenderProgress(panel);if(tab==='quiz')opRenderQuiz(panel);if(tab==='events')opRenderEvents(panel);if(tab==='card')opRenderCard(panel);}
+async function opRenderCatalog(panel){panel.innerHTML=`<div class="card"><h3>🔎 Explorer les œuvres</h3><div class="op-search"><select id="op-kind"><option value="anime">Anime</option><option value="manga">Manga</option></select><input id="op-search" maxlength="80" placeholder="Ex. Frieren, One Piece…"><button class="btn sm" id="op-search-go">Rechercher</button></div><p class="op-note">Catalogue alimenté par Jikan/MyAnimeList. Les résultats et images proviennent du service externe.</p></div><div id="op-catalog-results">${opCatalogCards(otPlusData().favorites||[])}</div>`;$('#op-search-go').onclick=()=>opSearchCatalog();$('#op-search').addEventListener('keydown',e=>{if(e.key==='Enter')opSearchCatalog()});}
+function opCatalogCards(items){return items.length?`<h3 class="op-section-title">⭐ Ma liste locale</h3><div class="op-grid">${items.map(x=>opMediaCard(x,true)).join('')}</div>`:`<div class="card op-empty">Aucune œuvre enregistrée. Recherche un anime ou un manga et ajoute-le à ta liste.</div>`}
+function opMediaCard(x,saved=false){return `<article class="op-media-card"><img src="${esc(x.image||'')}" alt="" loading="lazy" onerror="this.style.display='none'"><div class="op-media-info"><b>${esc(x.title||'Sans titre')}</b><small>${esc(x.kind||'Anime')} · ${esc(x.year||'Année inconnue')} · ⭐ ${esc(x.score||'—')}</small><p>${esc((x.synopsis||'Résumé non disponible.').slice(0,150))}${(x.synopsis||'').length>150?'…':''}</p><button class="btn sm ${saved?'ghost':''}" data-op-fav="${esc(x.id)}" data-op-title="${esc(x.title)}" data-op-image="${esc(x.image)}" data-op-kind="${esc(x.kind)}" data-op-year="${esc(x.year)}" data-op-score="${esc(x.score)}" data-op-synopsis="${esc((x.synopsis||'').slice(0,500))}">${saved?'✓ Dans ma liste':'＋ Ajouter à ma liste'}</button>${x.url?`<a class="op-external" href="${esc(x.url)}" target="_blank" rel="noopener">Voir la fiche ↗</a>`:''}</div></article>`}
+async function opSearchCatalog(){const q=$('#op-search')?.value.trim(),kind=$('#op-kind')?.value||'anime',host=$('#op-catalog-results');if(!q)return toast('Saisis le nom d’une œuvre.');host.innerHTML='<div class="card">Recherche en cours…</div>';try{const url=`https://api.jikan.moe/v4/${kind}?q=${encodeURIComponent(q)}&limit=12&sfw=true`;const res=await fetch(url);if(!res.ok)throw new Error('Le catalogue est momentanément indisponible.');const json=await res.json();const rows=(json.data||[]).map(x=>({id:String(x.mal_id),title:x.title||x.title_english||'Sans titre',image:x.images?.jpg?.image_url||'',kind:kind==='anime'?'Anime':'Manga',year:x.year||x.published?.from?.slice(0,4)||'',score:x.score||'—',synopsis:x.synopsis||'',url:x.url||''}));if(!rows.length){host.innerHTML='<div class="card">Aucun résultat. Essaie un autre titre.</div>';return;}host.innerHTML=`<h3 class="op-section-title">Résultats (${rows.length})</h3><div class="op-grid">${rows.map(x=>opMediaCard(x,(otPlusData().favorites||[]).some(f=>f.id===x.id&&f.kind===x.kind))).join('')}</div>`;}catch(err){host.innerHTML=`<div class="card">${esc(err.message||'Erreur réseau. Réessaie plus tard.')}</div>`;}}
+function opRenderProgress(panel){const d=otPlusData(),xp=Number(d.xp)||0,l=otPlusLevel(xp),pct=Math.max(0,Math.min(100,Math.round((xp-l.current)/(l.next-l.current)*100)));const today=otPlusToday(),claimed=d.claimed||[];const missions=[['daily','Connexion du jour','Ouvrir Otaku+ aujourd’hui',10],['profile','Profil complété','Renseigner ta bio et tes animes favoris',30],['catalog','Collectionneur','Ajouter une œuvre à ta liste',15],['quiz','Esprit Otaku','Réussir au moins 4 questions d’un quiz',25]];const badges=[['🌱','Premiers pas',xp>=10],['⚡','En progression',xp>=100],['🏅','Otaku confirmé',xp>=500],['👑','Légende',xp>=1300],['🧠','Cerveau Otaku',(d.quizBest||0)>=4],['📚','Collectionneur',(d.favorites||[]).length>=5]];panel.innerHTML=`<div class="op-level-card"><div class="row"><div><small>NIVEAU ${l.level}</small><h2>${l.title}</h2></div><span class="sp"></span><b class="op-big-xp">${xp} XP</b></div><div class="op-progress"><i style="width:${pct}%"></i></div><small>${xp-l.current} / ${l.next-l.current} XP · ${l.next-xp} XP avant le prochain niveau</small></div><div class="card"><h3>🎯 Missions</h3>${missions.map(([id,title,desc,reward])=>{const key=id+':'+today,done=claimed.includes(key)||id==='profile'&&!!(state.profile?.bio&&state.profile?.animes_favoris)||id==='catalog'&&(d.favorites||[]).length>0||id==='quiz'&&(d.quizDays||[]).includes(today);return `<div class="op-mission"><div><b>${title}</b><small>${desc}</small></div><span>+${reward} XP</span><button class="btn sm ${done?'ghost':''}" data-op-mission="${id}" ${done?'disabled':''}>${done?'✓ Fait':'Valider'}</button></div>`}).join('')}</div><div class="card"><h3>🏅 Badges obtenus</h3><div class="op-badges">${badges.map(([ic,name,ok])=>`<div class="op-badge ${ok?'earned':'locked'}"><span>${ic}</span><b>${name}</b><small>${ok?'Débloqué':'À débloquer'}</small></div>`).join('')}</div></div><div class="card"><h3>📈 Ton activité</h3><p class="op-note">Les XP et badges de cette version sont enregistrés sur cet appareil. Ils ne sont pas encore synchronisés entre plusieurs appareils ni visibles dans un classement global.</p><button class="btn sm ghost" id="op-xp-info">Pourquoi cette limite ?</button></div>`;$('#op-xp-info').onclick=()=>alert('Pour synchroniser les XP entre appareils et créer un classement fiable, il faudra une table dédiée et des règles serveur Supabase. Cette version évite toute modification de ta base.');}
+function opRenderQuiz(panel){panel.innerHTML=`<div class="card"><h3>🧠 Quiz Otaku</h3><p class="op-note">Teste tes connaissances. Une bonne réponse vaut 5 XP, avec un bonus si tu réussis au moins 4 questions.</p><div class="op-quiz-intro"><div class="op-quiz-icon">🎌</div><h2>Défi des connaisseurs</h2><p>6 questions · Naruto, One Piece, Demon Slayer et plus</p><button class="btn" id="op-quiz-start">Commencer le quiz</button></div></div><div id="op-quiz-area"></div><div class="card"><h3>⚔️ Défis entre amis</h3><p class="op-note">Partage le défi pour inviter tes amis à faire le même quiz. Le score n’est pas encore comparé automatiquement entre comptes.</p><button class="btn sm ghost" id="op-quiz-share">Partager le défi</button></div>`;$('#op-quiz-start').onclick=()=>opStartQuiz();$('#op-quiz-share').onclick=()=>opShare('Défi OtakuLink : teste tes connaissances anime dans la section Otaku+ !');}
+let opQuizState=null;function opStartQuiz(){opQuizState={index:0,score:0,answers:[]};opShowQuestion();}function opShowQuestion(){const q=otPlusQuestions[opQuizState.index],host=$('#op-quiz-area');host.innerHTML=`<div class="card"><div class="row"><b>Question ${opQuizState.index+1}/ ${otPlusQuestions.length}</b><span class="sp"></span><small>${opQuizState.score} bonne(s) réponse(s)</small></div><div class="op-progress"><i style="width:${(opQuizState.index/otPlusQuestions.length)*100}%"></i></div><h3 class="op-question">${esc(q.q)}</h3><div class="op-answers">${q.o.map((v,i)=>`<button class="op-answer" data-op-answer="${i}">${esc(v)}</button>`).join('')}</div><p id="op-answer-feedback" class="op-note"></p><button class="btn sm" id="op-next" hidden>${opQuizState.index===otPlusQuestions.length-1?'Voir mon résultat':'Question suivante'}</button></div>`;host.querySelectorAll('[data-op-answer]').forEach(b=>b.onclick=()=>{if(opQuizState.answers[opQuizState.index]!==undefined)return;const chosen=Number(b.dataset.opAnswer),ok=chosen===q.a;opQuizState.answers[opQuizState.index]=chosen;if(ok)opQuizState.score++;host.querySelectorAll('[data-op-answer]').forEach(x=>{x.disabled=true;if(Number(x.dataset.opAnswer)===q.a)x.classList.add('correct');else if(x===b)x.classList.add('wrong')});$('#op-answer-feedback').textContent=(ok?'Bonne réponse ! ':'Pas tout à fait. ')+q.why;$('#op-next').hidden=false;});$('#op-next').onclick=()=>{if(opQuizState.index<otPlusQuestions.length-1){opQuizState.index++;opShowQuestion()}else opFinishQuiz()};}
+function opFinishQuiz(){const d=otPlusData(),today=otPlusToday(),score=opQuizState.score;d.quizBest=Math.max(d.quizBest||0,score);if(!(d.quizDays||[]).includes(today)){d.quizDays=[...(d.quizDays||[]),today];d.xp=(d.xp||0)+score*5+(score>=4?25:0);d.lastQuiz={date:today,score};otPlusSet(d);}const host=$('#op-quiz-area');host.innerHTML=`<div class="card op-quiz-result"><div class="op-quiz-icon">${score>=5?'🏆':score>=3?'🎉':'📘'}</div><h2>${score}/${otPlusQuestions.length}</h2><p>${score>=5?'Excellent, tu maîtrises tes classiques !':score>=3?'Bien joué ! Continue à progresser.':'Continue à réviser tes univers préférés.'}</p><p class="op-note">${d.lastQuiz?.date===today?'Récompense du premier quiz du jour : XP ajoutés.':'Tu as déjà reçu la récompense quotidienne du quiz.'}</p><button class="btn" id="op-quiz-again">Recommencer</button></div>`;$('#op-quiz-again').onclick=()=>opStartQuiz();const pill=$('#s-otakuplus .op-xp-pill');if(pill)pill.textContent='⚡ '+(d.xp||0)+' XP';}
+function opRenderEvents(panel){const d=otPlusData(),events=(d.events||[]).sort((a,b)=>a.date.localeCompare(b.date));panel.innerHTML=`<div class="card"><div class="row"><h3>📅 Événements Otaku</h3><span class="sp"></span><button class="btn sm" id="op-event-create">＋ Créer</button></div><p class="op-note">Organise un visionnage, un débat ou une rencontre communautaire. Les événements créés ici sont enregistrés uniquement sur cet appareil.</p></div><div id="op-events-list">${events.length?events.map(x=>`<article class="op-event"><div class="op-event-date"><b>${new Date(x.date+'T12:00:00').toLocaleDateString('fr-FR',{day:'2-digit'})}</b><small>${new Date(x.date+'T12:00:00').toLocaleDateString('fr-FR',{month:'short'})}</small></div><div class="op-event-info"><b>${esc(x.title)}</b><small>${esc(x.type)} · ${esc(x.date)} ${esc(x.time||'')}</small><p>${esc(x.desc||'')}</p><small>📍 ${esc(x.place||'En ligne')}</small></div><button class="btn sm ghost" data-op-event-share="${esc(x.id)}">Partager</button></article>`).join(''):'<div class="card op-empty">Aucun événement créé sur cet appareil. Tu peux organiser le premier !</div>'}</div>`;$('#op-event-create').onclick=opCreateEvent;panel.querySelectorAll('[data-op-event-share]').forEach(b=>b.onclick=()=>{const x=events.find(e=>e.id===b.dataset.opEventShare);if(x)opShare(`📅 ${x.title}\n${x.type} · ${x.date} ${x.time||''}\n${x.desc||''}\nLieu : ${x.place||'En ligne'}\n— OtakuLink`)});}
+function opCreateEvent(){const title=prompt('Nom de l’événement (ex. Débat One Piece) :');if(!title?.trim())return;const date=prompt('Date (AAAA-MM-JJ) :',otPlusToday());if(!date||!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(date)||date<otPlusToday())return toast('Date invalide.');const type=prompt('Type (Débat, Quiz, Visionnage, Rencontre…) :','Débat')||'Communauté';const time=prompt('Heure (facultatif, ex. 18:00) :','18:00')||'';const place=prompt('Lieu ou lien (facultatif) :','En ligne')||'En ligne';const desc=prompt('Description (facultatif) :','')||'';const d=otPlusData();d.events=[...(d.events||[]),{id:String(Date.now()),title:title.trim(),date,type,time,place,desc:desc.slice(0,400)}];otPlusSet(d);renderOtakuPlus();toast('Événement enregistré sur cet appareil.');}
+function opRenderCard(panel){const d=otPlusData(),l=otPlusLevel(d.xp||0),t=otPlusThemes[d.theme]||otPlusThemes.blue;panel.innerHTML=`<div class="card"><h3>🪪 Personnalise ta carte Otaku</h3><p class="op-note">Choisis un thème et un cadre. L’aperçu est local à ton appareil.</p><div class="op-card-preview" style="--op-a:${t.a};--op-b:${t.b};--op-bg:${t.bg}"><div class="op-card-brand">⛩️ OTAKULINK</div><div class="op-card-user"><div class="op-card-avatar" style="border-color:${d.frame==='gold'?'#facc15':d.frame==='violet'?'#a78bfa':'#22d3ee'}">${esc((state.profile?.pseudo||state.user?.email||'O').slice(0,1).toUpperCase())}</div><div><h2>${esc(state.profile?.pseudo||'Membre Otaku')}</h2><small>${esc(l.title)} · Niveau ${l.level}</small></div></div><div class="op-card-bottom"><span>⚡ ${d.xp||0} XP</span><span>🎌 ${(d.favorites||[]).length} œuvres</span><span>🏅 ${l.level>=5?'Élite':'En progression'}</span></div></div><label class="op-label">Thème de la carte<select id="op-card-theme">${Object.entries(otPlusThemes).map(([k,v])=>`<option value="${k}" ${d.theme===k?'selected':''}>${v.name}</option>`).join('')}</select></label><label class="op-label">Cadre de l’avatar<select id="op-card-frame"><option value="cyan" ${d.frame==='cyan'?'selected':''}>Cyan</option><option value="gold" ${d.frame==='gold'?'selected':''}>Or</option><option value="violet" ${d.frame==='violet'?'selected':''}>Violet</option></select></label><div class="row"><button class="btn" id="op-card-save">Enregistrer</button><span class="sp"></span><button class="btn ghost" id="op-card-share">Partager</button></div></div>`;$('#op-card-theme').onchange=e=>{d.theme=e.target.value;otPlusSet(d);opRenderCard(panel)};$('#op-card-frame').onchange=e=>{d.frame=e.target.value;otPlusSet(d);opRenderCard(panel)};$('#op-card-save').onclick=()=>{otPlusSet(d);toast('Personnalisation enregistrée sur cet appareil.');};$('#op-card-share').onclick=()=>opShare(`⛩️ ${state.profile?.pseudo||'Membre Otaku'} · ${l.title} niveau ${l.level} · ${d.xp||0} XP sur OtakuLink !`);}
+async function opShare(text){try{if(navigator.share)await navigator.share({title:'OtakuLink',text,url:location.href});else if(navigator.clipboard){await navigator.clipboard.writeText(text+'\n'+location.href);toast('Texte et lien copiés.');}else prompt('Copie ce texte :',text+' '+location.href);}catch(e){if(e.name!=='AbortError')toast('Partage indisponible.');}}
+render.otakuplus=async()=>{if(!state.user)return;const host=$('#s-otakuplus');if(!host)return;if(!host.dataset.opTab)host.dataset.opTab='catalogue';renderOtakuPlus()};
+document.addEventListener('click',e=>{const tab=e.target.closest('[data-op-tab]');if(tab){const host=$('#s-otakuplus');host.dataset.opTab=tab.dataset.opTab;renderOtakuPlus();return;}const fav=e.target.closest('[data-op-fav]');if(fav){const d=otPlusData(),id=fav.dataset.opFav,idx=(d.favorites||[]).findIndex(x=>x.id===id&&x.kind===fav.dataset.opKind);if(idx>=0){d.favorites.splice(idx,1);toast('Retiré de ta liste.');}else{d.favorites=[...(d.favorites||[]),{id,title:fav.dataset.opTitle,image:fav.dataset.opImage,kind:fav.dataset.opKind,year:fav.dataset.opYear,score:fav.dataset.opScore,synopsis:fav.dataset.opSynopsis}].slice(-50);d.favoriteXpIds=d.favoriteXpIds||[];if(!d.favoriteXpIds.includes(fav.dataset.opKind+':'+id)){d.favoriteXpIds.push(fav.dataset.opKind+':'+id);d.xp=(d.xp||0)+15;toast('Ajouté à ta liste · +15 XP');}else toast('Ajouté à ta liste.');}otPlusSet(d);const p=$('#op-panel');if(p)opRenderCatalog(p);return;}const mission=e.target.closest('[data-op-mission]');if(mission){const id=mission.dataset.opMission,d=otPlusData(),key=id==='profile'?'profile:once':id+':'+otPlusToday();d.claimed=d.claimed||[];if(d.claimed.includes(key))return;let amount={daily:10,profile:30,catalog:15,quiz:25}[id]||0;if(id==='profile'&&!(state.profile?.bio&&state.profile?.animes_favoris))return toast('Complète ta bio et renseigne tes animes favoris dans ton profil.');if(id==='catalog'&&!(d.favorites||[]).length)return toast('Ajoute d’abord une œuvre à ta liste.');if(id==='quiz'&&!(d.quizDays||[]).includes(otPlusToday()))return toast('Termine d’abord le quiz du jour.');d.claimed.push(key);d.xp=(d.xp||0)+amount;otPlusSet(d);toast(`Mission accomplie : +${amount} XP`);renderOtakuPlus();return;}});
+const opStyle=document.createElement('style');opStyle.textContent=`
+#s-otakuplus .op-tabs{display:flex;gap:7px;overflow:auto;padding:4px 0 13px;scrollbar-width:none}#s-otakuplus .op-tab{flex:none;padding:9px 13px;border:1px solid var(--line);border-radius:999px;background:var(--card);font-weight:700;font-size:12px}#s-otakuplus .op-tab.active{background:linear-gradient(100deg,#087cff,#00dfff);color:#00152c;border-color:transparent}#s-otakuplus .op-search{display:flex;gap:7px;flex-wrap:wrap}#s-otakuplus .op-search input{flex:1;min-width:130px}#s-otakuplus .op-search select{width:100px}#s-otakuplus .op-note{color:var(--muted);font-size:12px;line-height:1.5;margin-top:9px}#s-otakuplus .op-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,260px),1fr));gap:12px;margin-bottom:14px}#s-otakuplus .op-media-card{display:flex;gap:10px;min-width:0;padding:10px;border:1px solid var(--line);border-radius:16px;background:var(--card)}#s-otakuplus .op-media-card>img{width:86px;height:125px;object-fit:cover;border-radius:10px;background:var(--bg2);flex:none}#s-otakuplus .op-media-info{min-width:0;display:flex;flex-direction:column;gap:5px}#s-otakuplus .op-media-info b{font-size:13px}#s-otakuplus .op-media-info small,#s-otakuplus .op-media-info p{font-size:11px;color:var(--muted);line-height:1.4}#s-otakuplus .op-media-info p{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}#s-otakuplus .op-external{font-size:11px}#s-otakuplus .op-section-title{margin:12px 0;font-size:15px}#s-otakuplus .op-empty{text-align:center;padding:24px;color:var(--muted)}#s-otakuplus .op-level-card{padding:20px;border-radius:20px;margin-bottom:14px;background:linear-gradient(120deg,#092a59,#13235a 60%,#312064);border:1px solid #1b8dff;box-shadow:0 0 22px #087cff33}#s-otakuplus .op-level-card h2{font-size:25px}#s-otakuplus .op-big-xp{font-size:23px;color:#67e8f9}#s-otakuplus .op-progress{height:9px;background:#ffffff20;border-radius:20px;overflow:hidden;margin:14px 0 7px}#s-otakuplus .op-progress i{display:block;height:100%;background:linear-gradient(90deg,#087cff,#00e5ff);border-radius:20px}#s-otakuplus .op-level-card small{color:#d2e8ff}#s-otakuplus .op-mission{display:flex;align-items:center;gap:9px;padding:12px 0;border-bottom:1px solid var(--line)}#s-otakuplus .op-mission:last-child{border:0}#s-otakuplus .op-mission>div{flex:1;min-width:0}#s-otakuplus .op-mission small{display:block;color:var(--muted);font-size:11px}#s-otakuplus .op-mission>span{font-size:11px;color:var(--cyan);font-weight:800;white-space:nowrap}#s-otakuplus .op-mission .btn{padding:6px 9px;font-size:11px}#s-otakuplus .op-badges{display:grid;grid-template-columns:repeat(auto-fill,minmax(105px,1fr));gap:8px}#s-otakuplus .op-badge{padding:12px 8px;text-align:center;border:1px solid var(--line);border-radius:13px}#s-otakuplus .op-badge span{font-size:25px;display:block}#s-otakuplus .op-badge b,#s-otakuplus .op-badge small{display:block;font-size:11px}#s-otakuplus .op-badge small{color:var(--muted);margin-top:4px}#s-otakuplus .op-badge.locked{opacity:.42;filter:grayscale(1)}#s-otakuplus .op-quiz-intro,#s-otakuplus .op-quiz-result{text-align:center;padding:20px}#s-otakuplus .op-quiz-icon{font-size:48px;margin-bottom:8px}#s-otakuplus .op-answers{display:grid;gap:8px;margin:14px 0}#s-otakuplus .op-answer{padding:13px;text-align:left;border:1px solid var(--line);border-radius:12px;background:var(--bg2)}#s-otakuplus .op-answer.correct{border-color:#22c55e;background:#14532d66}#s-otakuplus .op-answer.wrong{border-color:#ef4444;background:#7f1d1d66}#s-otakuplus .op-question{margin:18px 0 10px}#s-otakuplus .op-event{display:flex;gap:12px;align-items:center;padding:13px;margin-bottom:10px;border:1px solid var(--line);border-radius:15px;background:var(--card)}#s-otakuplus .op-event-date{width:52px;height:58px;flex:none;border-radius:12px;background:linear-gradient(140deg,#087cff,#00dfff);color:#00152c;display:flex;flex-direction:column;align-items:center;justify-content:center}#s-otakuplus .op-event-date b{font-size:22px}#s-otakuplus .op-event-date small{font-size:11px}#s-otakuplus .op-event-info{flex:1;min-width:0}#s-otakuplus .op-event-info small{display:block;color:var(--muted);font-size:11px}#s-otakuplus .op-event-info p{font-size:12px;margin:4px 0}#s-otakuplus .op-card-preview{padding:20px;border-radius:20px;color:#fff;background:radial-gradient(circle at 90% 10%,var(--op-b),transparent 35%),linear-gradient(130deg,var(--op-bg),var(--op-a));border:2px solid var(--op-b);box-shadow:0 0 20px color-mix(in srgb,var(--op-b),transparent 60%);margin:12px 0 18px}#s-otakuplus .op-card-brand{font-size:11px;letter-spacing:2px;font-weight:900}#s-otakuplus .op-card-user{display:flex;align-items:center;gap:14px;margin:28px 0}#s-otakuplus .op-card-avatar{width:65px;height:65px;border-radius:50%;display:grid;place-items:center;font-size:27px;font-weight:900;background:#ffffff25;border:3px solid ${'var(--op-b)'}}#s-otakuplus .op-card-user h2{font-size:22px}#s-otakuplus .op-card-user small{color:#e0f2fe}#s-otakuplus .op-card-bottom{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:11px;font-weight:800}#s-otakuplus .op-label{display:block;margin:12px 0;font-size:12px;color:var(--muted)}#s-otakuplus .op-label select{display:block;width:100%;margin-top:5px}#s-otakuplus .op-xp-pill{padding:8px 12px;border:1px solid var(--line);border-radius:30px;color:var(--cyan);font-weight:800;font-size:12px}
+@media(max-width:420px){#s-otakuplus .op-mission{flex-wrap:wrap}#s-otakuplus .op-mission>div{flex-basis:55%}#s-otakuplus .op-event{align-items:flex-start}#s-otakuplus .op-event .btn{padding:6px 8px;font-size:10px}}
+`;
+document.head.appendChild(opStyle);
+
 
 try{const saved=JSON.parse(localStorage.getItem('otakulink_settings')||'{}');state.settings={...state.settings,...saved};applyTheme();}catch(_){}
 init();
