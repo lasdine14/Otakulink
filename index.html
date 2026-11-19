@@ -412,6 +412,12 @@ html[data-theme="light"] #global-toolbar .gt-action{background:#f1f6ff}
 .post-actions button{transition:transform .12s ease,opacity .12s ease}
 .post-actions button:active{transform:scale(.94)}
 .post-actions button:disabled{opacity:.65;cursor:wait}
+
+/* Correctifs messagerie : réponses lisibles et bulles de groupe différenciées */
+.reply-context{font-size:12px;font-weight:700;color:#9edfff;background:rgba(0,210,255,.09);border-left:3px solid var(--cyan);padding:5px 8px;border-radius:7px;margin-bottom:7px}
+.group-message.group-message-me{align-self:flex-end;background:linear-gradient(135deg,#126ce8,#168eea);border-color:rgba(75,190,255,.45);border-radius:16px 16px 4px 16px}
+.group-message.group-message-me b,.group-message.group-message-me small{color:#e4f5ff}
+.group-message.group-message-other{align-self:flex-start;border-radius:16px 16px 16px 4px}
 </style>
 </head>
 <body>
@@ -687,6 +693,15 @@ render.connexions=async()=>{
   const person=x=>x.de===state.user.id?state.users.find(u=>u.id===x.a):state.users.find(u=>u.id===x.de);
   $('#connection-content').innerHTML=`<div class="two-col"><div class="card"><h3>Mes amis (${friends.length})</h3>${friends.length?friends.map(x=>`<div class="friend">${avatar(person(x))}<div class="meta"><b>${esc(person(x)?.pseudo||'Membre')}</b><small>Connexion acceptée</small></div><button class="btn sm ghost" data-message="${person(x)?.id}">Message</button><button class="btn sm danger" data-remove-de="${x.de}" data-remove-a="${x.a}" title="Retirer cet ami">Retirer</button></div>`).join(''):empty('Aucun ami pour le moment')}</div><div><div class="card"><h3>Demandes reçues (${incoming.length})</h3>${incoming.length?incoming.map(x=>`<div class="friend">${avatar(state.users.find(u=>u.id===x.de))}<div class="meta"><b>${esc(state.users.find(u=>u.id===x.de)?.pseudo||'Membre')}</b><small>Souhaite se connecter</small></div><button class="round ok" data-accept="${x.de}">✓</button><button class="round no" data-decline="${x.de}">✕</button></div>`).join(''):empty('Aucune demande reçue')}</div><div class="card"><h3>Demandes envoyées (${outgoing.length})</h3>${outgoing.length?outgoing.map(x=>`<div class="friend">${avatar(state.users.find(u=>u.id===x.a))}<div class="meta"><b>${esc(state.users.find(u=>u.id===x.a)?.pseudo||'Membre')}</b><small>En attente</small></div></div>`).join(''):empty('Aucune demande envoyée')}</div></div></div>`;
 };
+function splitReplyMessage(value){
+  const text=String(value||'');
+  if(!text.startsWith('↪ Réponse à '))return {author:'',body:text};
+  const cut=text.indexOf('\\n\\n');
+  if(cut<0)return {author:'',body:text};
+  const header=text.slice(0,cut);
+  const match=header.match(/^↪ Réponse à (.+?)\\s*:/);
+  return {author:match?.[1]||'',body:text.slice(cut+2)};
+}
 render.messages=async()=>{
   $('#s-messages').innerHTML=`${topbar('Messages','Échange avec tes connexions.')}<div id="messages-content">${SUPABASE_READY?empty('Chargement…'):configNotice()}</div>`;
   if(!state.client)return;
@@ -717,7 +732,7 @@ render.messages=async()=>{
   const thread=selected?msgs.filter(m=>(m.de===state.user.id&&m.a===selected)||(m.de===selected&&m.a===state.user.id)):[];
   const isMobile=window.matchMedia('(max-width:899px)').matches;
   $('#messages-content').innerHTML=`<div class="msg-wrap ${selected?'chat-open':''}"><div class="card conv-col" style="padding:10px">${people.size?[...people.values()].map(p=>`<div class="conv ${p.id===selected?'active':''}" data-chat-open="${p.id}">${avatar(p,'sm')}<div class="meta"><b>${esc(p.pseudo||'Membre')}</b><small>Ouvrir la discussion</small></div>${unreadOf(p.id)?`<span class="badge">${unreadOf(p.id)}</span>`:''}</div>`).join(''):empty('Aucun ami disponible','Accepte une invitation pour pouvoir commencer une discussion.')}</div><div class="card chat" style="margin:0"><div class="chat-head">${isMobile&&selected?'<button type="button" class="icon-btn" id="chat-back" aria-label="Retour aux conversations">←</button>':''}<b>${selected?esc(people.get(selected)?.pseudo||'Membre'):'Choisis un ami'}</b></div><div class="chat-body" id="chat-body">${selected?(thread.map(m=>`<div class="bubble ${m.de===state.user.id?'out':'in'}" data-message-bubble="${m.id}">
-      ${(()=>{const media=postTextAndImage(m.texte);return `${esc(media.text).replace(/\n/g,'<br>')}${media.url?(media.kind==='video'?`<div class="chat-media-box"><video src="${esc(media.url)}" controls playsinline preload="metadata"></video><div class="chat-media-actions"><button type="button" title="Voir en grand" aria-label="Voir la vidéo" data-chat-view="${esc(media.url)}" data-kind="video" data-name="otakulink-video.mp4">⛶</button><button type="button" title="Télécharger" aria-label="Télécharger la vidéo" data-chat-download="${esc(media.url)}" data-kind="video" data-name="otakulink-video.mp4">⬇</button></div></div>`:`<div class="chat-media-box"><img src="${esc(media.url)}" alt="Image envoyée" loading="lazy"><div class="chat-media-actions"><button type="button" title="Voir en grand" aria-label="Voir l’image" data-chat-view="${esc(media.url)}" data-kind="image" data-name="otakulink-image.jpg">⛶</button><button type="button" title="Télécharger" aria-label="Télécharger l’image" data-chat-download="${esc(media.url)}" data-kind="image" data-name="otakulink-image.jpg">⬇</button></div></div>`):''}`})()}
+      ${(()=>{const media=postTextAndImage(m.texte);const parts=splitReplyMessage(media.text);return `${parts.author?`<div class="reply-context">↪ Réponse à ${esc(parts.author)}</div>`:''}${esc(parts.body).replace(/\n/g,'<br>')}${media.url?(media.kind==='video'?`<div class="chat-media-box"><video src="${esc(media.url)}" controls playsinline preload="metadata"></video><div class="chat-media-actions"><button type="button" title="Voir en grand" aria-label="Voir la vidéo" data-chat-view="${esc(media.url)}" data-kind="video" data-name="otakulink-video.mp4">⛶</button><button type="button" title="Télécharger" aria-label="Télécharger la vidéo" data-chat-download="${esc(media.url)}" data-kind="video" data-name="otakulink-video.mp4">⬇</button></div></div>`:`<div class="chat-media-box"><img src="${esc(media.url)}" alt="Image envoyée" loading="lazy"><div class="chat-media-actions"><button type="button" title="Voir en grand" aria-label="Voir l’image" data-chat-view="${esc(media.url)}" data-kind="image" data-name="otakulink-image.jpg">⛶</button><button type="button" title="Télécharger" aria-label="Télécharger l’image" data-chat-download="${esc(media.url)}" data-kind="image" data-name="otakulink-image.jpg">⬇</button></div></div>`):''}`})()}
       <small>${fmtDate(m.created_at)}${m.de===state.user.id&&m.lu?' · ✓✓ Lu':''}</small>
       <div class="message-tools">
         <button type="button" data-message-reply="${m.id}">↩ Répondre</button>
@@ -745,7 +760,7 @@ render.messages=async()=>{
   $('#messages-content')?.querySelectorAll('[data-message-reply]').forEach(btn=>btn.addEventListener('click',()=>{
     const msg=thread.find(x=>x.id===btn.dataset.messageReply);if(!msg)return;
     const sender=msg.de===state.user.id?(state.profile?.pseudo||'Moi'):(people.get(msg.de)?.pseudo||'Membre');
-    state.replyTo={id:msg.id,pseudo:sender,text:postTextAndImage(msg.texte).text||'Média'};
+    state.replyTo={id:msg.id,pseudo:sender,text:splitReplyMessage(postTextAndImage(msg.texte).text).body||'Média'};
     updateReplyPreview();
     $('#chat-input')?.focus();
   }));
@@ -758,9 +773,24 @@ render.messages=async()=>{
     const msg=thread.find(x=>x.id===btn.dataset.messageDelete);if(!msg||msg.de!==state.user.id)return;
     if(!confirm('Supprimer ce message pour tout le monde ?'))return;
     btn.disabled=true;
-    const {error}=await state.client.from('messages').delete().eq('id',msg.id).eq('de',state.user.id);
-    if(error){toast('Suppression impossible : '+error.message);btn.disabled=false;return;}
-    toast('Message supprimé.');await render.messages();
+    const bubble=btn.closest('[data-message-bubble]');
+    const parent=bubble?.parentNode;
+    const next=bubble?.nextSibling;
+    bubble?.remove();
+    // La suppression se fait en arrière-plan : la discussion reste affichée.
+    state.client.from('messages').delete().eq('id',msg.id).eq('de',state.user.id).then(({error})=>{
+      if(error){
+        if(parent&&bubble)parent.insertBefore(bubble,next&&next.parentNode===parent?next:null);
+        btn.disabled=false;
+        toast('Suppression impossible : '+error.message);
+      }else{
+        toast('Message supprimé.');
+      }
+    }).catch(err=>{
+      if(parent&&bubble)parent.insertBefore(bubble,next&&next.parentNode===parent?next:null);
+      btn.disabled=false;
+      toast('Suppression impossible : '+(err.message||err));
+    });
   }));
   $('#chat-back')?.addEventListener('click',()=>{state.activeChat=null;render.messages();});
   $('#chat-attach-btn')?.addEventListener('click',()=>$('#chat-media')?.click());
@@ -973,6 +1003,23 @@ drop policy if exists "stories delete own" on public.stories;
 create policy "stories read authenticated" on public.stories for select to authenticated using (created_at > now() - interval '24 hours');
 create policy "stories insert own" on public.stories for insert to authenticated with check (auth.uid() = auteur);
 create policy "stories delete own" on public.stories for delete to authenticated using (auth.uid() = auteur);
+create table if not exists public.story_reactions (
+ id uuid primary key default gen_random_uuid(),
+ story_id uuid not null references public.stories(id) on delete cascade,
+ auteur uuid not null references auth.users(id) on delete cascade,
+ reaction text not null check(reaction in ('❤️','😂','😍','🔥','👍')),
+ created_at timestamptz not null default now(),
+ unique(story_id,auteur)
+);
+alter table public.story_reactions enable row level security;
+drop policy if exists "story reactions read authenticated" on public.story_reactions;
+drop policy if exists "story reactions insert own" on public.story_reactions;
+drop policy if exists "story reactions update own" on public.story_reactions;
+drop policy if exists "story reactions delete own" on public.story_reactions;
+create policy "story reactions read authenticated" on public.story_reactions for select to authenticated using (true);
+create policy "story reactions insert own" on public.story_reactions for insert to authenticated with check (auth.uid() = auteur);
+create policy "story reactions update own" on public.story_reactions for update to authenticated using (auth.uid() = auteur) with check (auth.uid() = auteur);
+create policy "story reactions delete own" on public.story_reactions for delete to authenticated using (auth.uid() = auteur);
 create table if not exists public.abonnements (
  de uuid not null references auth.users(id) on delete cascade,
  a uuid not null references auth.users(id) on delete cascade,
@@ -1036,7 +1083,36 @@ async function openStoryComposer(){
 async function viewStories(uid){
  const {data,error}=await state.client.from('stories').select('id,media_url,media_type,created_at').eq('auteur',uid).gt('created_at',new Date(Date.now()-86400000).toISOString()).order('created_at',{ascending:true});
  if(error||!data?.length)return toast('Aucune story disponible.');
- let i=0;const draw=()=>{const x=data[i];$('#modal-root').innerHTML=`<div class="modal" id="story-modal"><div class="sheet" style="max-width:520px"><div class="row"><b>Story ${i+1}/${data.length}</b><span class="sp"></span><button class="icon-btn" id="story-close">✕</button></div>${x.media_type==='video'?`<video src="${esc(x.media_url)}" controls autoplay playsinline style="width:100%;max-height:70vh;object-fit:contain;border-radius:14px"></video>`:`<img src="${esc(x.media_url)}" alt="Story" style="width:100%;max-height:70vh;object-fit:contain;border-radius:14px">`}<div class="row" style="margin-top:12px"><button class="btn ghost" id="story-prev" ${i===0?'disabled':''}>Précédente</button><span class="sp"></span><button class="btn" id="story-next">${i===data.length-1?'Terminer':'Suivante'}</button></div></div></div>`;$('#story-close').onclick=()=>$('#modal-root').innerHTML='';$('#story-prev').onclick=()=>{if(i>0){i--;draw();}};$('#story-next').onclick=()=>{if(i<data.length-1){i++;draw();}else $('#modal-root').innerHTML='';};};draw();
+ const ids=data.map(x=>x.id);
+ const {data:reactionRows,error:reactionError}=await state.client.from('story_reactions').select('story_id,auteur,reaction').in('story_id',ids);
+ if(reactionError){console.warn('Réactions stories indisponibles :',reactionError.message);}
+ const reactions=reactionRows||[];
+ let i=0;
+ const draw=()=>{
+  const x=data[i],mine=reactions.find(r=>r.story_id===x.id&&r.auteur===state.user.id);
+  const choices=['❤️','😂','😍','🔥','👍'];
+  const counts=choices.map(emoji=>({emoji,count:reactions.filter(r=>r.story_id===x.id&&r.reaction===emoji).length}));
+  $('#modal-root').innerHTML=`<div class="modal" id="story-modal"><div class="sheet" style="max-width:520px"><div class="row"><b>Story ${i+1}/${data.length}</b><span class="sp"></span><button class="icon-btn" id="story-close">✕</button></div>${x.media_type==='video'?`<video src="${esc(x.media_url)}" controls autoplay playsinline style="width:100%;max-height:65vh;object-fit:contain;border-radius:14px"></video>`:`<img src="${esc(x.media_url)}" alt="Story" style="width:100%;max-height:65vh;object-fit:contain;border-radius:14px">`}<div class="story-reaction-bar" style="display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin:12px 0">${counts.map(c=>`<button type="button" class="btn sm ${mine?.reaction===c.emoji?'':'ghost'}" data-story-react="${c.emoji}" aria-label="Réagir ${c.emoji}">${c.emoji} ${c.count||''}</button>`).join('')}</div><div class="row"><button class="btn ghost" id="story-prev" ${i===0?'disabled':''}>Précédente</button><span class="sp"></span><button class="btn" id="story-next">${i===data.length-1?'Terminer':'Suivante'}</button></div></div></div>`;
+  $('#story-close').onclick=()=>$('#modal-root').innerHTML='';
+  $('#story-prev').onclick=()=>{if(i>0){i--;draw();}};
+  $('#story-next').onclick=()=>{if(i<data.length-1){i++;draw();}else $('#modal-root').innerHTML='';};
+  $('#story-modal').querySelectorAll('[data-story-react]').forEach(button=>button.addEventListener('click',async()=>{
+   const emoji=button.dataset.storyReact,previous=reactions.find(r=>r.story_id===x.id&&r.auteur===state.user.id);
+   button.disabled=true;
+   if(previous?.reaction===emoji){
+    const {error:delError}=await state.client.from('story_reactions').delete().eq('story_id',x.id).eq('auteur',state.user.id);
+    if(delError){button.disabled=false;return toast('Réaction non retirée : '+delError.message);}
+    reactions.splice(reactions.indexOf(previous),1);
+   }else{
+    const {error:upsertError}=await state.client.from('story_reactions').upsert({story_id:x.id,auteur:state.user.id,reaction:emoji},{onConflict:'story_id,auteur'});
+    if(upsertError){button.disabled=false;return toast('Réaction impossible : '+upsertError.message);}
+    if(previous)reactions.splice(reactions.indexOf(previous),1);
+    reactions.push({story_id:x.id,auteur:state.user.id,reaction:emoji});
+   }
+   draw();
+  }));
+ };
+ draw();
 }
 async function renderNotifications(){
  const host=$('#notifications-panel');if(!host)return;
@@ -1090,7 +1166,7 @@ const _communityBase=render.communaute;
 render.communaute=async()=>{await _communityBase();const feed=$('#feed');if(!feed||!state.client||$('#otaku-community-tools'))return;const panel=document.createElement('div');panel.id='otaku-community-tools';panel.innerHTML=`<section class="card community-section"><div class="row"><h3>👥 Groupes Otaku</h3><span class="sp"></span><button class="btn sm" id="og-create">＋ Créer un groupe</button></div><p class="section-hint">Rejoins des groupes pour discuter autour de tes animes préférés.</p><div id="og-list" style="margin-top:10px">Chargement des groupes…</div></section><section class="card community-section"><div class="row"><h3>📊 Sondages</h3><span class="sp"></span><button class="btn sm" id="poll-create">＋ Créer un sondage</button></div><p class="section-hint">Donne ton avis et découvre celui des autres membres.</p><div id="poll-list" style="margin-top:10px">Chargement des sondages…</div></section>`;feed.insertAdjacentElement('beforebegin',panel);await loadOtakuGroups();await loadOtakuPolls();$('#og-create').onclick=createOtakuGroup;$('#poll-create').onclick=createOtakuPoll;};
 async function loadOtakuGroups(){const host=$('#og-list');if(!host)return;const {data,error}=await state.client.from('otaku_groups').select('id,nom,description,createur').order('created_at',{ascending:false}).limit(30);if(error){host.textContent='Groupes indisponibles. Exécute le SQL des nouvelles fonctions dans Paramètres.';return;}if(!data?.length){host.textContent='Aucun groupe pour le moment. Crée le premier !';return;}const {data:members}=await state.client.from('otaku_group_members').select('group_id,membre');host.innerHTML=data.map(g=>{const joined=(members||[]).some(m=>m.group_id===g.id&&m.membre===state.user.id);const count=(members||[]).filter(m=>m.group_id===g.id).length;return `<div class="friend"><div class="meta"><b>${esc(g.nom)}</b><small>${esc(g.description||'Communauté Otaku')} · ${count} membre(s)</small></div>${joined?`<button class="btn sm ghost" data-og-open="${g.id}" data-og-name="${esc(g.nom)}">Ouvrir</button>`:`<button class="btn sm" data-og-join="${g.id}">Rejoindre</button>`}</div>`;}).join('');}
 async function createOtakuGroup(){const nom=prompt('Nom du groupe (3 à 60 caractères) :');if(!nom?.trim())return;const description=prompt('Description du groupe (facultatif) :')||'';const {data,error}=await state.client.from('otaku_groups').insert({nom:nom.trim(),description:description.trim(),createur:state.user.id}).select('id').single();if(error)return toast('Création impossible : '+error.message);const {error:joinErr}=await state.client.from('otaku_group_members').insert({group_id:data.id,membre:state.user.id,role:'admin'});if(joinErr)return toast('Groupe créé, mais adhésion impossible : '+joinErr.message);toast('Groupe créé !');loadOtakuGroups();}
-async function openOtakuGroup(id,name){const {data,error}=await state.client.from('otaku_group_messages').select('id,auteur,texte,created_at').eq('group_id',id).order('created_at',{ascending:true}).limit(100);if(error)return toast('Messages du groupe indisponibles : '+error.message);const rows=data||[];await fetchProfiles(rows.map(x=>x.auteur));const root=$('#modal-root');root.innerHTML=`<div class="modal group-chat-modal"><section class="group-chat-sheet"><header class="group-chat-head"><button type="button" class="icon-btn" id="og-back">←</button><div><b>💬 ${esc(name)}</b><small>Discussion du groupe</small></div><span class="sp"></span><button type="button" class="icon-btn" id="og-close">✕</button></header><div class="group-chat-body" id="og-messages">${rows.map(m=>`<article class="group-message"><b>${esc(state.users.find(u=>u.id===m.auteur)?.pseudo||'Membre')}</b><p>${esc(m.texte)}</p><small>${fmtDate(m.created_at)}</small></article>`).join('')||'<p class="section-hint">Pas encore de message. Lance la discussion !</p>'}</div><form id="og-send" class="group-chat-composer"><input id="og-text" maxlength="2000" placeholder="Écrire au groupe…" required><button class="send" type="submit" aria-label="Envoyer">➤</button></form></section></div>`;const close=()=>root.innerHTML='';$('#og-back').onclick=close;$('#og-close').onclick=close;const body=$('#og-messages');body.scrollTop=body.scrollHeight;$('#og-send').onsubmit=async e=>{e.preventDefault();const texte=$('#og-text').value.trim();if(!texte)return;const btn=e.submitter;btn.disabled=true;const {error}=await state.client.from('otaku_group_messages').insert({group_id:id,auteur:state.user.id,texte});if(error){btn.disabled=false;return toast(error.message);}openOtakuGroup(id,name);};}
+async function openOtakuGroup(id,name){const {data,error}=await state.client.from('otaku_group_messages').select('id,auteur,texte,created_at').eq('group_id',id).order('created_at',{ascending:true}).limit(100);if(error)return toast('Messages du groupe indisponibles : '+error.message);const rows=data||[];await fetchProfiles(rows.map(x=>x.auteur));const root=$('#modal-root');root.innerHTML=`<div class="modal group-chat-modal"><section class="group-chat-sheet"><header class="group-chat-head"><button type="button" class="icon-btn" id="og-back">←</button><div><b>💬 ${esc(name)}</b><small>Discussion du groupe</small></div><span class="sp"></span><button type="button" class="icon-btn" id="og-close">✕</button></header><div class="group-chat-body" id="og-messages">${rows.map(m=>`<article class="group-message ${m.auteur===state.user.id?'group-message-me':'group-message-other'}"><b>${m.auteur===state.user.id?'Moi':esc(state.users.find(u=>u.id===m.auteur)?.pseudo||'Membre')}</b><p>${esc(m.texte)}</p><small>${fmtDate(m.created_at)}</small></article>`).join('')||'<p class="section-hint">Pas encore de message. Lance la discussion !</p>'}</div><form id="og-send" class="group-chat-composer"><input id="og-text" maxlength="2000" placeholder="Écrire au groupe…" required><button class="send" type="submit" aria-label="Envoyer">➤</button></form></section></div>`;const close=()=>root.innerHTML='';$('#og-back').onclick=close;$('#og-close').onclick=close;const body=$('#og-messages');body.scrollTop=body.scrollHeight;$('#og-send').onsubmit=async e=>{e.preventDefault();const input=$('#og-text'),texte=input.value.trim();if(!texte)return;const btn=e.submitter,body=$('#og-messages');if(btn)btn.disabled=true;const pending=document.createElement('article');pending.className='group-message group-message-me';const who=document.createElement('b');who.textContent='Moi';const content=document.createElement('p');content.textContent=texte;const stamp=document.createElement('small');stamp.textContent='Envoi…';pending.append(who,content,stamp);body.appendChild(pending);body.scrollTop=body.scrollHeight;input.value='';try{const {error}=await state.client.from('otaku_group_messages').insert({group_id:id,auteur:state.user.id,texte});if(error)throw error;stamp.textContent='Envoyé · à l’instant';}catch(err){pending.remove();input.value=texte;toast('Envoi impossible : '+(err.message||err));}finally{if(btn)btn.disabled=false;input.focus();}};}
 async function loadOtakuPolls(){const host=$('#poll-list');if(!host)return;const {data:polls,error}=await state.client.from('otaku_polls').select('id,auteur,question,created_at').order('created_at',{ascending:false}).limit(20);if(error){host.textContent='Sondages indisponibles. Vérifie le SQL des nouvelles fonctions.';return;}if(!polls?.length){host.textContent='Aucun sondage publié.';return;}const ids=polls.map(p=>p.id);const [{data:opts},{data:votes}]=await Promise.all([state.client.from('otaku_poll_options').select('id,poll_id,texte').in('poll_id',ids),state.client.from('otaku_poll_votes').select('poll_id,option_id,votant').in('poll_id',ids)]);host.innerHTML=polls.map(p=>{const oo=(opts||[]).filter(o=>o.poll_id===p.id),vv=(votes||[]).filter(v=>v.poll_id===p.id),mine=vv.find(v=>v.votant===state.user.id);return `<div class="card" style="margin-top:10px"><b>${esc(p.question)}</b>${oo.map(o=>{const n=vv.filter(v=>v.option_id===o.id).length;return `<button class="btn sm ${mine?.option_id===o.id?'':'ghost'}" data-poll-vote="${o.id}" data-poll-id="${p.id}" style="display:flex;width:100%;justify-content:space-between;margin-top:7px" ${mine?'disabled':''}><span>${esc(o.texte)}</span><span>${n} vote(s)</span></button>`;}).join('')}<small style="color:var(--muted)">${vv.length} vote(s) au total</small></div>`;}).join('');}
 async function createOtakuPoll(){const question=prompt('Question du sondage :');if(!question?.trim())return;const raw=prompt('Propositions séparées par des virgules (2 à 6) :');if(!raw)return;const options=[...new Set(raw.split(',').map(x=>x.trim()).filter(Boolean))].slice(0,6);if(options.length<2)return toast('Ajoute au moins deux propositions.');const {data,error}=await state.client.from('otaku_polls').insert({auteur:state.user.id,question:question.trim()}).select('id').single();if(error)return toast('Sondage impossible : '+error.message);const {error:oe}=await state.client.from('otaku_poll_options').insert(options.map(texte=>({poll_id:data.id,texte})));if(oe)return toast('Question créée, options non enregistrées : '+oe.message);toast('Sondage publié !');loadOtakuPolls();}
 document.addEventListener('click',async e=>{const join=e.target.closest('[data-og-join]');if(join){const {error}=await state.client.from('otaku_group_members').insert({group_id:join.dataset.ogJoin,membre:state.user.id});if(error)return toast(error.message);toast('Tu as rejoint le groupe.');loadOtakuGroups();return;}const open=e.target.closest('[data-og-open]');if(open){openOtakuGroup(open.dataset.ogOpen,open.dataset.ogName);return;}const vote=e.target.closest('[data-poll-vote]');if(vote){const {error}=await state.client.from('otaku_poll_votes').insert({poll_id:vote.dataset.pollId,option_id:vote.dataset.pollVote,votant:state.user.id});if(error)return toast(error.code==='23505'?'Tu as déjà voté.':error.message);toast('Vote enregistré !');loadOtakuPolls();}});
