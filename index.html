@@ -727,12 +727,27 @@ render.messages=async()=>{
     </div>`).join('')||'<p style="color:var(--muted);text-align:center">Aucun message pour le moment. Envoie le premier !</p>'):'<p style="color:var(--muted);text-align:center">Sélectionne un ami dans la liste pour commencer.</p>'}</div>${selected?`<form class="chat-composer" id="chat-form"><div id="reply-preview" class="reply-preview" ${state.replyTo?'':'hidden'}>${state.replyTo?`<span>↩ Réponse à <b>${esc(state.replyTo.pseudo)}</b><small>${esc(state.replyTo.text.slice(0,90))}</small></span><button type="button" id="cancel-reply" aria-label="Annuler la réponse">✕</button>`:''}</div><input id="chat-media" type="file" accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/quicktime" hidden><div class="chat-compose-row"><button class="chat-attach-icon" type="button" id="chat-attach-btn" aria-label="Joindre une photo ou une vidéo" title="Photo ou vidéo">＋</button><input id="chat-input" maxlength="2000" placeholder="Écrire un message…" autocomplete="off"><button class="send" type="submit" aria-label="Envoyer le message">➤</button></div><small id="chat-file-name" hidden></small></form>`:''}</div></div>`;
   const body=$('#chat-body');if(body)body.scrollTop=body.scrollHeight;
   if(selected&&thread.some(m=>m.de===selected&&m.lu===false))state.client.from('messages').update({lu:true}).eq('de',selected).eq('a',state.user.id).eq('lu',false).then(()=>refreshUnread());
-  $('#cancel-reply')?.addEventListener('click',()=>{state.replyTo=null;render.messages();});
+  // Répondre/annuler une réponse met à jour uniquement l'aperçu local :
+  // aucun nouvel appel à render.messages(), donc aucun rechargement Supabase.
+  const updateReplyPreview=()=>{
+    const preview=$('#reply-preview');if(!preview)return;
+    preview.replaceChildren();
+    if(!state.replyTo){preview.hidden=true;return;}
+    const label=document.createElement('span');
+    label.append('↩ Réponse à ');
+    const who=document.createElement('b');who.textContent=state.replyTo.pseudo;label.appendChild(who);
+    const excerpt=document.createElement('small');excerpt.textContent=String(state.replyTo.text||'').slice(0,90);label.appendChild(excerpt);
+    const cancel=document.createElement('button');cancel.type='button';cancel.id='cancel-reply';cancel.setAttribute('aria-label','Annuler la réponse');cancel.textContent='✕';
+    cancel.addEventListener('click',()=>{state.replyTo=null;updateReplyPreview();$('#chat-input')?.focus();});
+    preview.append(label,cancel);preview.hidden=false;
+  };
+  $('#cancel-reply')?.addEventListener('click',()=>{state.replyTo=null;updateReplyPreview();$('#chat-input')?.focus();});
   $('#messages-content')?.querySelectorAll('[data-message-reply]').forEach(btn=>btn.addEventListener('click',()=>{
     const msg=thread.find(x=>x.id===btn.dataset.messageReply);if(!msg)return;
     const sender=msg.de===state.user.id?(state.profile?.pseudo||'Moi'):(people.get(msg.de)?.pseudo||'Membre');
     state.replyTo={id:msg.id,pseudo:sender,text:postTextAndImage(msg.texte).text||'Média'};
-    render.messages();$('#chat-input')?.focus();
+    updateReplyPreview();
+    $('#chat-input')?.focus();
   }));
   $('#messages-content')?.querySelectorAll('[data-message-copy]').forEach(btn=>btn.addEventListener('click',async()=>{
     const msg=thread.find(x=>x.id===btn.dataset.messageCopy);if(!msg)return;
