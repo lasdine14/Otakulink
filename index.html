@@ -697,15 +697,16 @@ render.messages=async()=>{
   if(state.activeChat&&!selected)state.activeChat=null;
   const thread=selected?msgs.filter(m=>(m.de===state.user.id&&m.a===selected)||(m.de===selected&&m.a===state.user.id)):[];
   const isMobile=window.matchMedia('(max-width:899px)').matches;
-  $('#messages-content').innerHTML=`<div class="msg-wrap ${selected?'chat-open':''}"><div class="card conv-col" style="padding:10px">${people.size?[...people.values()].map(p=>`<div class="conv ${p.id===selected?'active':''}" data-chat-open="${p.id}">${avatar(p,'sm')}<div class="meta"><b>${esc(p.pseudo||'Membre')}</b><small>Ouvrir la discussion</small></div>${unreadOf(p.id)?`<span class="badge">${unreadOf(p.id)}</span>`:''}</div>`).join(''):empty('Aucun ami disponible','Accepte une invitation pour pouvoir commencer une discussion.')}</div><div class="card chat" style="margin:0"><div class="chat-head">${isMobile&&selected?'<button type="button" class="icon-btn" id="chat-back" aria-label="Retour aux conversations">←</button>':''}<b>${selected?esc(people.get(selected)?.pseudo||'Membre'):'Choisis un ami'}</b></div><div class="chat-body" id="chat-body">${selected?(thread.map(m=>`<div class="bubble ${m.de===state.user.id?'out':'in'}">${(()=>{const media=postTextAndImage(m.texte);return `${esc(media.text)}${media.url?(media.kind==='video'?`<video src="${esc(media.url)}" controls playsinline style="display:block;max-width:240px;max-height:220px;border-radius:10px;margin-top:6px"></video>`:`<img src="${esc(media.url)}" alt="Image envoyée" style="display:block;max-width:220px;max-height:220px;border-radius:10px;margin-top:6px">`):''}`})()}<small>${fmtDate(m.created_at)}${m.de===state.user.id&&m.lu?' · ✓✓ Lu':''}</small></div>`).join('')||'<p style="color:var(--muted);text-align:center">Aucun message pour le moment. Envoie le premier !</p>'):'<p style="color:var(--muted);text-align:center">Sélectionne un ami dans la liste pour commencer.</p>'}</div>${selected?`<form class="chat-composer" id="chat-form"><div class="chat-attach-row"><label class="chat-attach">📷 <span>Photo</span><input id="chat-photo" type="file" accept="image/jpeg,image/png,image/gif,image/webp" hidden></label><label class="chat-attach">🎥 <span>Vidéo</span><input id="chat-video" type="file" accept="video/mp4,video/webm,video/quicktime" hidden></label><small id="chat-file-name">Aucun fichier choisi</small></div><div class="chat-compose-row"><input id="chat-input" maxlength="2000" placeholder="Écrire un message…" autocomplete="off"><button class="send" type="submit" aria-label="Envoyer le message">➤</button></div></form>`:''}</div></div>`;
+  $('#messages-content').innerHTML=`<div class="msg-wrap ${selected?'chat-open':''}"><div class="card conv-col" style="padding:10px">${people.size?[...people.values()].map(p=>`<div class="conv ${p.id===selected?'active':''}" data-chat-open="${p.id}">${avatar(p,'sm')}<div class="meta"><b>${esc(p.pseudo||'Membre')}</b><small>Ouvrir la discussion</small></div>${unreadOf(p.id)?`<span class="badge">${unreadOf(p.id)}</span>`:''}</div>`).join(''):empty('Aucun ami disponible','Accepte une invitation pour pouvoir commencer une discussion.')}</div><div class="card chat" style="margin:0"><div class="chat-head">${isMobile&&selected?'<button type="button" class="icon-btn" id="chat-back" aria-label="Retour aux conversations">←</button>':''}<b>${selected?esc(people.get(selected)?.pseudo||'Membre'):'Choisis un ami'}</b></div><div class="chat-body" id="chat-body">${selected?(thread.map(m=>`<div class="bubble ${m.de===state.user.id?'out':'in'}">${(()=>{const media=postTextAndImage(m.texte);return `${esc(media.text)}${media.url?(media.kind==='video'?`<video src="${esc(media.url)}" controls playsinline style="display:block;max-width:240px;max-height:220px;border-radius:10px;margin-top:6px"></video>`:`<img src="${esc(media.url)}" alt="Image envoyée" style="display:block;max-width:220px;max-height:220px;border-radius:10px;margin-top:6px">`):''}`})()}<small>${fmtDate(m.created_at)}${m.de===state.user.id&&m.lu?' · ✓✓ Lu':''}</small></div>`).join('')||'<p style="color:var(--muted);text-align:center">Aucun message pour le moment. Envoie le premier !</p>'):'<p style="color:var(--muted);text-align:center">Sélectionne un ami dans la liste pour commencer.</p>'}</div>${selected?`<form class="chat-composer" id="chat-form"><input id="chat-media" type="file" accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/quicktime" hidden><div class="chat-compose-row"><button class="chat-attach-icon" type="button" id="chat-attach-btn" aria-label="Joindre une photo ou une vidéo" title="Photo ou vidéo">＋</button><input id="chat-input" maxlength="2000" placeholder="Écrire un message…" autocomplete="off"><button class="send" type="submit" aria-label="Envoyer le message">➤</button></div><small id="chat-file-name" hidden></small></form>`:''}</div></div>`;
   const body=$('#chat-body');if(body)body.scrollTop=body.scrollHeight;
   if(selected&&thread.some(m=>m.de===selected&&m.lu===false))state.client.from('messages').update({lu:true}).eq('de',selected).eq('a',state.user.id).eq('lu',false).then(()=>refreshUnread());
   $('#chat-back')?.addEventListener('click',()=>{state.activeChat=null;render.messages();});
-  ['#chat-photo','#chat-video'].forEach(sel=>$(sel)?.addEventListener('change',e=>{const other=sel==='#chat-photo'?'#chat-video':'#chat-photo';if(e.target.files?.length)$(other).value='';const f=e.target.files?.[0];$('#chat-file-name').textContent=f?f.name:'Aucun fichier choisi';}));
+  $('#chat-attach-btn')?.addEventListener('click',()=>$('#chat-media')?.click());
+  $('#chat-media')?.addEventListener('change',e=>{const f=e.target.files?.[0],note=$('#chat-file-name');if(note){note.textContent=f?`📎 ${f.name}`:'';note.hidden=!f;}});
 
   $('#chat-form')?.addEventListener('submit',async e=>{
     e.preventDefault();
-    const input=$('#chat-input'),file=$('#chat-photo')?.files?.[0]||$('#chat-video')?.files?.[0];let content=input?.value.trim()||'';if(!content&&!file)return;
+    const input=$('#chat-input'),file=$('#chat-media')?.files?.[0];let content=input?.value.trim()||'';if(!content&&!file)return;
     const send=e.submitter||e.target.querySelector('button[type="submit"]');if(send)send.disabled=true;
     try{if(file){const url=await uploadOtakuFile(file,'messages');content+=`${content?'\n\n':''}[[media:${file.type.startsWith('video/')?'video':'image'}:${url}]]`;}const {error:sendError}=await state.client.from('messages').insert({de:state.user.id,a:selected,texte:content});
     if(sendError){console.error('Envoi message:',sendError);toast('Envoi impossible : '+sendError.message);if(send)send.disabled=false;return;}
@@ -804,7 +805,19 @@ document.addEventListener('click',async e=>{
   const open=e.target.closest('[data-chat-open]');
   if(open){state.activeChat=open.dataset.chatOpen;render.messages();return;}
   const profile=e.target.closest('[data-profile]');
-  if(profile){const u=state.users.find(x=>x.id===profile.dataset.profile);if(u){state.viewedProfile=u;go('profil');}return;}
+  if(profile){
+    const profileId=profile.dataset.profile;
+    if(!profileId)return;
+    if(profileId===state.user?.id){state.viewedProfile=null;go('profil');return;}
+    let u=state.users.find(x=>x.id===profileId);
+    if(!u){
+      const {data,error}=await state.client.from('profiles').select('id,pseudo,bio,pays,avatar_url,cover_url,centres_interet,animes_favoris').eq('id',profileId).maybeSingle();
+      if(error){console.error('Chargement du profil membre:',error);toast('Impossible de charger ce profil : '+error.message);return;}
+      if(!data){toast('Profil introuvable ou accès refusé. Vérifie les autorisations Supabase.');return;}
+      u=data;state.users=[...state.users.filter(x=>x.id!==u.id),u];
+    }
+    state.viewedProfile=u;go('profil');return;
+  }
 });
 document.addEventListener('submit',async e=>{
   const profileForm=e.target.closest('#profile-form');
@@ -1197,7 +1210,13 @@ otakuLayoutFix.textContent=`
  #s-messages .msg-wrap.chat-open>.chat{display:flex!important;flex:1;min-height:0;height:100%;margin:0!important;padding:14px;border-radius:20px;overflow:hidden}
  #s-messages .msg-wrap.chat-open .chat-head{flex-shrink:0;min-height:48px}
  #s-messages .msg-wrap.chat-open .chat-body{min-height:0;flex:1;padding:14px 2px;overscroll-behavior:contain}
- #s-messages .chat-composer{margin-top:8px}
+ #s-messages .chat-composer{margin-top:8px;display:flex;flex-direction:column;gap:4px;padding:7px 8px;border:1px solid rgba(27,154,255,.35);border-radius:28px;background:rgba(5,16,39,.98);box-shadow:0 3px 14px rgba(0,0,0,.2);flex-shrink:0}
+ #s-messages .chat-compose-row{display:flex;align-items:center;gap:8px;min-height:48px}
+ #s-messages .chat-attach-icon{flex:0 0 38px;width:38px;height:38px;border:0;border-radius:50%;background:transparent;color:#9eb7df;font-size:30px;line-height:1;display:grid;place-items:center;padding:0}
+ #s-messages .chat-compose-row input{height:44px;min-height:44px;padding:0 12px;border:0!important;outline:none!important;box-shadow:none!important;border-radius:22px;background:rgba(16,31,65,.92);color:var(--text);font-size:15px;min-width:0;flex:1}
+ #s-messages .chat-compose-row .send{flex:0 0 44px;width:44px;height:44px;min-height:44px;border-radius:50%;font-size:20px;padding:0}
+ #s-messages #chat-file-name{display:block;padding:0 8px 4px;color:var(--cyan);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+ #s-messages #chat-file-name[hidden]{display:none}
  #s-messages .topbar{margin-bottom:12px}
 }
 @media(min-width:900px){
@@ -1213,3 +1232,13 @@ init();
 </script>
 </body>
 </html>
+
+<style id="otaku-whatsapp-composer-fix">
+.chat-composer{display:flex;flex-direction:column;gap:4px;padding:7px 8px;border:1px solid rgba(27,154,255,.35);border-radius:28px;background:rgba(5,16,39,.98);flex-shrink:0}
+.chat-compose-row{display:flex;align-items:center;gap:8px;min-height:48px}
+.chat-attach-icon{flex:0 0 38px;width:38px;height:38px;border:0;border-radius:50%;background:transparent;color:#9eb7df;font-size:30px;line-height:1;display:grid;place-items:center;padding:0;cursor:pointer}
+.chat-compose-row input{height:44px;min-height:44px;padding:0 12px;border:0!important;outline:none!important;box-shadow:none!important;border-radius:22px;background:rgba(16,31,65,.92);color:var(--text);font-size:15px;min-width:0;flex:1}
+.chat-compose-row .send{flex:0 0 44px;width:44px;height:44px;min-height:44px;border-radius:50%;font-size:20px;padding:0}
+#chat-file-name{display:block;padding:0 8px 4px;color:var(--cyan);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#chat-file-name[hidden]{display:none}
+</style>
