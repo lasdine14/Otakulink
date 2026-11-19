@@ -484,7 +484,7 @@ const TORII = `<svg class="torii" viewBox="0 0 64 52" fill="none" stroke="#22d3e
 const LOGO = big => `<div class="logo ${big?'big':''}">${TORII}<b>Otaku<span>Link</span></b></div>`;
 const NAV = [['decouvrir','🔎','Amis'],['rencontres','💘','Rencontres'],['communaute','👥','Communauté'],['messages','💬','Messages'],['connexions','🤝','Connexions'],['profil','👤','Profil'],['otakuplus','✨','Otaku+'],['parametres','⚙️','Paramètres']];
 const BOTTOM = ['decouvrir','rencontres','communaute','otakuplus','FAB','messages','profil'];
-const state = { client:null, user:null, profile:null, route:'decouvrir', query:'', filter:'Tous', posts:[], users:[], requests:[], friends:[], conversations:[], activeChat:null, replyTo:null, settings:{dark:true,private:false,notifications:true}, busy:false, blocked:new Set(), blockedByMe:new Set(), unread:0, routeCache:{} };
+const state = { client:null, user:null, profile:null, route:'decouvrir', query:'', filter:'Tous', posts:[], users:[], requests:[], friends:[], conversations:[], messagesCache:null, activeChat:null, replyTo:null, settings:{dark:true,private:false,notifications:true}, busy:false, blocked:new Set(), blockedByMe:new Set(), unread:0, routeCache:{} };
 
 function ageOf(d){if(!d)return -1;const [y,m,day]=String(d).split('-').map(Number);if(!y||!m||!day)return -1;const now=new Date();let a=now.getFullYear()-y;if(now.getMonth()+1<m||(now.getMonth()+1===m&&now.getDate()<day))a--;return a;}
 async function loadBlocks(){const {data}=await state.client.from('blocages').select('de,a');const rows=data||[];state.blockedByMe=new Set(rows.filter(x=>x.de===state.user.id).map(x=>x.a));state.blocked=new Set(rows.map(x=>x.de===state.user.id?x.a:x.de));}
@@ -696,23 +696,30 @@ render.connexions=async()=>{
 function splitReplyMessage(value){
   const text=String(value||'');
   if(!text.startsWith('↪ Réponse à '))return {author:'',body:text};
-  const cut=text.indexOf('\\n\\n');
+  const cut=text.indexOf('\n\n');
   if(cut<0)return {author:'',body:text};
   const header=text.slice(0,cut);
-  const match=header.match(/^↪ Réponse à (.+?)\\s*:/);
+  const match=header.match(/^↪ Réponse à (.+?)\s*:/);
   return {author:match?.[1]||'',body:text.slice(cut+2)};
 }
 render.messages=async()=>{
   $('#s-messages').innerHTML=`${topbar('Messages','Échange avec tes connexions.')}<div id="messages-content">${SUPABASE_READY?empty('Chargement…'):configNotice()}</div>`;
   if(!state.client)return;
   const mq=cols=>state.client.from('messages').select(cols).or(`de.eq.${state.user.id},a.eq.${state.user.id}`).order('created_at',{ascending:true}).limit(500);
-  let {data,error}=await mq('id,de,a,texte,created_at,lu');
-  if(error&&/\blu\b/.test(error.message||''))({data,error}=await mq('id,de,a,texte,created_at'));
-  if(error){console.error('Chargement messages:',error);$('#messages-content').innerHTML=empty('Messages indisponibles',error.message||'Vérifie le schéma SQL et les règles RLS.');return;}
-  
-  const {data:friendRows,error:friendsError}=await state.client.from('amis').select('de,a,statut').eq('statut','ami').or(`de.eq.${state.user.id},a.eq.${state.user.id}`);
-  if(friendsError)console.error('Chargement amis pour messages:',friendsError);
-  await fetchProfiles([...(friendRows||[]).flatMap(r=>[r.de,r.a]),...(data||[]).flatMap(m=>[m.de,m.a])].filter(i=>i!==state.user.id));
+  let data,error,friendRows;
+  const cached=state.messagesCache;
+  if(cached){
+    data=cached.data;friendRows=cached.friendRows;error=null;
+  }else{
+    ({data,error}=await mq('id,de,a,texte,created_at,lu'));
+    if(error&&/\\blu\\b/.test(error.message||''))({data,error}=await mq('id,de,a,texte,created_at'));
+    if(error){console.error('Chargement messages:',error);$('#messages-content').innerHTML=empty('Messages indisponibles',error.message||'Vérifie le schéma SQL et les règles RLS.');return;}
+    const friendsResult=await state.client.from('amis').select('de,a,statut').eq('statut','ami').or(`de.eq.${state.user.id},a.eq.${state.user.id}`);
+    friendRows=friendsResult.data||[];
+    if(friendsResult.error)console.error('Chargement amis pour messages:',friendsResult.error);
+    await fetchProfiles([...(friendRows||[]).flatMap(r=>[r.de,r.a]),...(data||[]).flatMap(m=>[m.de,m.a])].filter(i=>i!==state.user.id));
+    state.messagesCache={data:data||[],friendRows:friendRows||[]};
+  }
   const msgs=(data||[]).filter(m=>!state.blocked.has(m.de===state.user.id?m.a:m.de)), people=new Map();
   const unreadOf=id=>msgs.filter(m=>m.de===id&&m.a===state.user.id&&m.lu===false).length;
   // A friend is a conversation contact even if neither person has sent a message yet.
@@ -784,6 +791,7 @@ render.messages=async()=>{
         btn.disabled=false;
         toast('Suppression impossible : '+error.message);
       }else{
+        if(state.messagesCache)state.messagesCache.data=state.messagesCache.data.filter(x=>x.id!==msg.id);
         toast('Message supprimé.');
       }
     }).catch(err=>{
@@ -792,7 +800,7 @@ render.messages=async()=>{
       toast('Suppression impossible : '+(err.message||err));
     });
   }));
-  $('#chat-back')?.addEventListener('click',()=>{state.activeChat=null;render.messages();});
+  $('#chat-back')?.addEventListener('click',()=>{state.activeChat=null;state.replyTo=null;render.messages();});
   $('#chat-attach-btn')?.addEventListener('click',()=>$('#chat-media')?.click());
   $('#chat-media')?.addEventListener('change',e=>{const f=e.target.files?.[0],note=$('#chat-file-name');if(note){note.textContent=f?`📎 ${f.name}`:'';note.hidden=!f;}});
 
@@ -822,6 +830,7 @@ render.messages=async()=>{
       const {error:sendError}=await state.client.from('messages').insert({de:state.user.id,a:selected,texte:content});
       if(sendError)throw sendError;
       stamp.textContent='Envoyé · à l’instant';
+      if(state.messagesCache)state.messagesCache.data.push({id:tempId,de:state.user.id,a:selected,texte:content,created_at:new Date().toISOString(),lu:false});
       const msgTools=document.createElement('div');msgTools.className='message-tools';
       const copyBtn=document.createElement('button');copyBtn.type='button';copyBtn.textContent='Copier';
       copyBtn.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(parsed.text||'');toast('Message copié.');}catch(_){toast('Copie non disponible sur ce navigateur.');}});
@@ -948,7 +957,7 @@ document.addEventListener('click',async e=>{
   const del=e.target.closest('[data-delete-post]');
   if(del){if(!confirm('Supprimer cette publication ?'))return;const {error}=await state.client.from('posts').delete().eq('id',del.dataset.deletePost);toast(error?error.message:'Publication supprimée.');render.profil();return;}
   const chat=e.target.closest('[data-message]');
-  if(chat){state.activeChat=chat.dataset.message;go('messages');return;}
+  if(chat){state.activeChat=chat.dataset.message;state.route='messages';$$('.screen').forEach(s=>s.classList.toggle('active',s.id==='s-messages'));render.messages();return;}
   const open=e.target.closest('[data-chat-open]');
   if(open){state.activeChat=open.dataset.chatOpen;render.messages();return;}
   const profile=e.target.closest('[data-profile]');
