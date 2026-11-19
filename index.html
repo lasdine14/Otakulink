@@ -710,6 +710,7 @@ render.messages=async()=>{
     const send=e.submitter||e.target.querySelector('button[type="submit"]');if(send)send.disabled=true;
     try{if(file){const url=await uploadOtakuFile(file,'messages');content+=`${content?'\n\n':''}[[media:${file.type.startsWith('video/')?'video':'image'}:${url}]]`;}const {error:sendError}=await state.client.from('messages').insert({de:state.user.id,a:selected,texte:content});
     if(sendError){console.error('Envoi message:',sendError);toast('Envoi impossible : '+sendError.message);if(send)send.disabled=false;return;}
+    await createOtakuNotification(selected,'message');
     state.activeChat=selected;await render.messages();}catch(sendErr){toast(sendErr.message||'Envoi impossible.');if(send)send.disabled=false;}
   });
 };
@@ -789,9 +790,9 @@ document.addEventListener('click',async e=>{
     render.rencontres();return;
   }
   const connect=e.target.closest('[data-connect]');
-  if(connect){const {error}=await state.client.from('amis').insert({de:state.user.id,a:connect.dataset.connect,statut:'attente'});toast(error?(error.code==='23505'?'Demande déjà envoyée, ou vous êtes déjà amis.':error.message):'Demande envoyée.');if(state.route==='decouvrir')loadDiscover();return;}
+  if(connect){const target=connect.dataset.connect;const {error}=await state.client.from('amis').insert({de:state.user.id,a:target,statut:'attente'});if(!error)await createOtakuNotification(target,'connection_request');toast(error?(error.code==='23505'?'Demande déjà envoyée, ou vous êtes déjà amis.':error.message):'Demande envoyée.');if(state.route==='decouvrir')loadDiscover();return;}
   const accept=e.target.closest('[data-accept]');
-  if(accept){const {error}=await state.client.from('amis').update({statut:'ami'}).eq('de',accept.dataset.accept).eq('a',state.user.id);toast(error?error.message:'Demande acceptée.');state.route==='decouvrir'?loadDiscover():render.connexions();return;}
+  if(accept){const requester=accept.dataset.accept;const {error}=await state.client.from('amis').update({statut:'ami'}).eq('de',requester).eq('a',state.user.id);if(!error)await createOtakuNotification(requester,'connection_accepted');toast(error?error.message:'Demande acceptée.');state.route==='decouvrir'?loadDiscover():render.connexions();return;}
   const decline=e.target.closest('[data-decline]');
   if(decline){const {error}=await state.client.from('amis').delete().eq('de',decline.dataset.decline).eq('a',state.user.id);toast(error?error.message:'Demande refusée.');render.connexions();return;}
   const toggleComments=e.target.closest('[data-toggle-comments]');
@@ -892,6 +893,8 @@ async function createOtakuNotification(destinataire,type,post_id=null){
  const {error}=await state.client.from('notifications').insert({destinataire,acteur:state.user.id,type,post_id});
  if(error) console.warn('Notification non enregistrée:',error.message);
 }
+function otakuNotificationLabel(type){return ({like:'a aimé ta publication',comment:'a commenté ta publication',follow:'a commencé à te suivre',connection_request:'t’a envoyé une demande de connexion',connection_accepted:'a accepté ta demande de connexion',message:'t’a envoyé un message'})[type]||'a interagi avec toi';}
+function otakuNotificationIcon(type){return ({like:'❤️',comment:'💬',follow:'➕',connection_request:'🤝',connection_accepted:'✅',message:'✉️'})[type]||'🔔';}
 async function renderStoriesTray(){
  const host=$('#stories-tray');if(!host||!state.client||!state.user)return;
  const {data,error}=await state.client.from('stories').select('id,auteur,media_url,media_type,created_at').gt('created_at',new Date(Date.now()-86400000).toISOString()).order('created_at',{ascending:false}).limit(80);
@@ -915,7 +918,7 @@ async function renderNotifications(){
  const {data,error}=await state.client.from('notifications').select('id,acteur,type,post_id,lu,created_at').order('created_at',{ascending:false}).limit(40);
  if(error){host.innerHTML='<small style="color:var(--muted)">Notifications indisponibles. Exécute le SQL inclus dans Paramètres.</small>';return;}
  const rows=data||[];await fetchProfiles(rows.map(x=>x.acteur));
- host.innerHTML=rows.length?rows.map(n=>`<button class="friend" data-notif-read="${n.id}" data-notif-post="${n.post_id||''}" style="width:100%;text-align:left;background:${n.lu?'transparent':'rgba(0,210,255,.08)'};border:0"><span>${n.type==='like'?'❤️':n.type==='comment'?'💬':n.type==='follow'?'➕':'🔔'}</span><span class="meta"><b>${esc(state.users.find(u=>u.id===n.acteur)?.pseudo||'Un membre')}</b><small>${n.type==='like'?'a aimé ta publication':n.type==='comment'?'a commenté ta publication':n.type==='follow'?'a commencé à te suivre':'a interagi avec toi'} · ${fmtDate(n.created_at)}</small></span>${n.lu?'':'<span class="badge">Nouveau</span>'}</button>`).join(''):'<small style="color:var(--muted)">Tu n’as pas encore de notification.</small>';
+ host.innerHTML=rows.length?rows.map(n=>`<button class="friend" data-notif-read="${n.id}" data-notif-post="${n.post_id||''}" style="width:100%;text-align:left;background:${n.lu?'transparent':'rgba(0,210,255,.08)'};border:0"><span>${otakuNotificationIcon(n.type)}</span><span class="meta"><b>${esc(state.users.find(u=>u.id===n.acteur)?.pseudo||'Un membre')}</b><small>${otakuNotificationLabel(n.type)} · ${fmtDate(n.created_at)}</small></span>${n.lu?'':'<span class="badge">Nouveau</span>'}</button>`).join(''):'<small style="color:var(--muted)">Tu n’as pas encore de notification.</small>';
 }
 // Extend the community screen with Stories and an inbox for activity notifications.
 const _renderCommunity=render.communaute;
@@ -1025,8 +1028,8 @@ async function openGlobalNotifications(){
   const badge=$('#global-notif-count');if(badge){badge.hidden=!unread;badge.textContent=unread>9?'9+':String(unread);}
   host.innerHTML=rows.length?rows.map(n=>{
     const u=state.users.find(x=>x.id===n.acteur);
-    const icon=n.type==='like'?'❤️':n.type==='comment'?'💬':n.type==='follow'?'➕':'🔔';
-    const label=n.type==='like'?'a aimé ta publication':n.type==='comment'?'a commenté ta publication':n.type==='follow'?'a commencé à te suivre':'a interagi avec toi';
+    const icon=otakuNotificationIcon(n.type);
+    const label=otakuNotificationLabel(n.type);
     return `<button class="quick-result" data-global-notif-read="${n.id}" style="width:100%;text-align:left;background:${n.lu?'transparent':'rgba(0,210,255,.09)'}">
       <span style="font-size:22px">${icon}</span><span class="meta"><b>${esc(u?.pseudo||'Un membre')}</b><small>${label} · ${fmtDate(n.created_at)}</small></span>${n.lu?'':'<span class="badge">Nouveau</span>'}
     </button>`;
@@ -1036,7 +1039,7 @@ document.addEventListener('click',async e=>{
   const preset=e.target.closest('[data-search-preset]');
   if(preset){state.query=preset.dataset.searchPreset;$('#modal-root').innerHTML='';go('decouvrir');return;}
   const n=e.target.closest('[data-global-notif-read]');
-  if(n&&state.client){const {error}=await state.client.from('notifications').update({lu:true}).eq('id',n.dataset.globalNotifRead);if(error)toast('Impossible de marquer cette notification.');else{n.style.opacity='.55';n.querySelector('.badge')?.remove();await refreshGlobalNotificationCount();}}
+  if(n&&state.client){const {error}=await state.client.from('notifications').update({lu:true}).eq('id',n.dataset.globalNotifRead);if(error){toast('Impossible de marquer cette notification.');return;}await refreshGlobalNotificationCount();const {data:notice}=await state.client.from('notifications').select('acteur,post_id,type').eq('id',n.dataset.globalNotifRead).maybeSingle();$('#modal-root').innerHTML='';if(notice?.post_id){go('communaute');}else if(notice?.acteur){const {data:profile}=await state.client.from('profiles').select('*').eq('id',notice.acteur).maybeSingle();if(profile){state.viewedProfile=profile;go('profil');}}}
 });
 const _renderDiscoverOriginal=render.decouvrir;
 render.decouvrir=async()=>{
@@ -1241,4 +1244,35 @@ init();
 .chat-compose-row .send{flex:0 0 44px;width:44px;height:44px;min-height:44px;border-radius:50%;font-size:20px;padding:0}
 #chat-file-name{display:block;padding:0 8px 4px;color:var(--cyan);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #chat-file-name[hidden]{display:none}
+</style>
+
+<style id="otaku-chat-fullscreen-fix">
+@media(max-width:899px){
+  /* Conversation plein écran : les messages occupent tout l'espace disponible */
+  body:has(#s-messages .msg-wrap.chat-open){overflow:hidden}
+  #s-messages .msg-wrap.chat-open{
+    position:fixed!important;inset:0!important;width:100vw;height:100vh;height:100dvh;
+    z-index:1000!important;display:flex!important;flex-direction:column;gap:0!important;
+    margin:0!important;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)!important;
+    background:linear-gradient(160deg,#071a3b,#030b20);
+  }
+  #s-messages .msg-wrap.chat-open>.chat{
+    display:flex!important;flex:1 1 auto!important;min-height:0!important;height:100%!important;
+    width:100%;margin:0!important;padding:12px 14px 10px!important;
+    border:0!important;border-radius:0!important;box-shadow:none!important;overflow:hidden;
+  }
+  #s-messages .msg-wrap.chat-open .chat-head{
+    flex:0 0 auto;min-height:54px;padding:4px 0 12px;
+    position:relative;border-bottom:1px solid var(--line);
+  }
+  #s-messages .msg-wrap.chat-open .chat-body{
+    flex:1 1 auto!important;min-height:0!important;overflow-y:auto!important;
+    padding:16px 2px!important;overscroll-behavior:contain;
+  }
+  #s-messages .msg-wrap.chat-open .chat-composer{
+    flex:0 0 auto;margin-top:8px;padding:6px 8px!important;
+    padding-bottom:max(6px,env(safe-area-inset-bottom))!important;
+  }
+  #bottomnav{display:none!important}
+}
 </style>
