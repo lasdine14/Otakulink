@@ -696,6 +696,13 @@ render.messages=async()=>{
   const selected=state.activeChat&&people.has(state.activeChat)?state.activeChat:null;
   if(state.activeChat&&!selected)state.activeChat=null;
   const thread=selected?msgs.filter(m=>(m.de===state.user.id&&m.a===selected)||(m.de===selected&&m.a===state.user.id)):[];
+  const reactionChoices=['❤️','😂','😍','😮','👍'];
+  let messageReactions=[];
+  if(thread.length){
+    const {data:reactionRows,error:reactionError}=await state.client.from('message_reactions').select('message_id,user_id,emoji').in('message_id',thread.map(m=>m.id));
+    if(!reactionError)messageReactions=reactionRows||[];
+    else console.warn('Réactions indisponibles (exécute le SQL des réactions):',reactionError.message);
+  }
   const isMobile=window.matchMedia('(max-width:899px)').matches;
   $('#messages-content').innerHTML=`<div class="msg-wrap ${selected?'chat-open':''}"><div class="card conv-col" style="padding:10px">${people.size?[...people.values()].map(p=>`<div class="conv ${p.id===selected?'active':''}" data-chat-open="${p.id}">${avatar(p,'sm')}<div class="meta"><b>${esc(p.pseudo||'Membre')}</b><small>Ouvrir la discussion</small></div>${unreadOf(p.id)?`<span class="badge">${unreadOf(p.id)}</span>`:''}</div>`).join(''):empty('Aucun ami disponible','Accepte une invitation pour pouvoir commencer une discussion.')}</div><div class="card chat" style="margin:0"><div class="chat-head">${isMobile&&selected?'<button type="button" class="icon-btn" id="chat-back" aria-label="Retour aux conversations">←</button>':''}<b>${selected?esc(people.get(selected)?.pseudo||'Membre'):'Choisis un ami'}</b></div><div class="chat-body" id="chat-body">${selected?(thread.map(m=>`<div class="bubble ${m.de===state.user.id?'out':'in'}" data-message-bubble="${m.id}">
       ${(()=>{const media=postTextAndImage(m.texte);return `${esc(media.text).replace(/\n/g,'<br>')}${media.url?(media.kind==='video'?`<video src="${esc(media.url)}" controls playsinline style="display:block;max-width:240px;max-height:220px;border-radius:10px;margin-top:6px"></video>`:`<img src="${esc(media.url)}" alt="Image envoyée" style="display:block;max-width:220px;max-height:220px;border-radius:10px;margin-top:6px">`):''}`})()}
@@ -705,9 +712,27 @@ render.messages=async()=>{
         <button type="button" data-message-copy="${m.id}">Copier</button>
         ${m.de===state.user.id?`<button type="button" class="message-delete" data-message-delete="${m.id}">Supprimer</button>`:''}
       </div>
+      <div class="message-reactions">
+        ${reactionChoices.map(emoji=>{const rows=messageReactions.filter(r=>r.message_id===m.id&&r.emoji===emoji);const mine=rows.some(r=>r.user_id===state.user.id);return rows.length?`<button type="button" class="reaction-chip ${mine?'mine':''}" data-message-react="${m.id}" data-emoji="${emoji}">${emoji} ${rows.length}</button>`:'';}).join('')}
+        <span class="reaction-picker">${reactionChoices.map(emoji=>`<button type="button" class="reaction-choice" data-message-react="${m.id}" data-emoji="${emoji}" aria-label="Réagir ${emoji}">${emoji}</button>`).join('')}</span>
+      </div>
     </div>`).join('')||'<p style="color:var(--muted);text-align:center">Aucun message pour le moment. Envoie le premier !</p>'):'<p style="color:var(--muted);text-align:center">Sélectionne un ami dans la liste pour commencer.</p>'}</div>${selected?`<form class="chat-composer" id="chat-form"><div id="reply-preview" class="reply-preview" ${state.replyTo?'':'hidden'}>${state.replyTo?`<span>↩ Réponse à <b>${esc(state.replyTo.pseudo)}</b><small>${esc(state.replyTo.text.slice(0,90))}</small></span><button type="button" id="cancel-reply" aria-label="Annuler la réponse">✕</button>`:''}</div><input id="chat-media" type="file" accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/quicktime" hidden><div class="chat-compose-row"><button class="chat-attach-icon" type="button" id="chat-attach-btn" aria-label="Joindre une photo ou une vidéo" title="Photo ou vidéo">＋</button><input id="chat-input" maxlength="2000" placeholder="Écrire un message…" autocomplete="off"><button class="send" type="submit" aria-label="Envoyer le message">➤</button></div><small id="chat-file-name" hidden></small></form>`:''}</div></div>`;
   const body=$('#chat-body');if(body)body.scrollTop=body.scrollHeight;
   if(selected&&thread.some(m=>m.de===selected&&m.lu===false))state.client.from('messages').update({lu:true}).eq('de',selected).eq('a',state.user.id).eq('lu',false).then(()=>refreshUnread());
+  $('#messages-content')?.querySelectorAll('[data-message-react]').forEach(btn=>btn.addEventListener('click',async()=>{
+    const messageId=btn.dataset.messageReact,emoji=btn.dataset.emoji;
+    if(!messageId||!reactionChoices.includes(emoji)||btn.disabled)return;
+    btn.disabled=true;
+    const mine=messageReactions.find(r=>r.message_id===messageId&&r.user_id===state.user.id);
+    let result;
+    if(mine&&mine.emoji===emoji){
+      result=await state.client.from('message_reactions').delete().eq('message_id',messageId).eq('user_id',state.user.id);
+    }else{
+      result=await state.client.from('message_reactions').upsert({message_id:messageId,user_id:state.user.id,emoji},{onConflict:'message_id,user_id'});
+    }
+    if(result.error){toast('Réaction impossible : '+result.error.message+' — vérifie le SQL.');btn.disabled=false;return;}
+    await render.messages();
+  }));
   $('#cancel-reply')?.addEventListener('click',()=>{state.replyTo=null;render.messages();});
   $('#messages-content')?.querySelectorAll('[data-message-reply]').forEach(btn=>btn.addEventListener('click',()=>{
     const msg=thread.find(x=>x.id===btn.dataset.messageReply);if(!msg)return;
@@ -1289,6 +1314,13 @@ init();
 
 <style id="otaku-messaging-advanced">
 .message-tools{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px;padding-top:5px;border-top:1px solid rgba(150,190,255,.13)}
+.message-reactions{display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin-top:6px}
+.reaction-chip,.reaction-choice{border:1px solid rgba(100,160,255,.28);background:rgba(8,20,50,.55);border-radius:999px;padding:3px 8px;font-size:13px;min-width:28px}
+.reaction-chip.mine{border-color:#19c8ff;background:rgba(0,190,255,.18)}
+.reaction-picker{display:inline-flex;gap:3px;opacity:.72}
+.reaction-choice{padding:2px 5px;background:transparent;border-color:transparent}
+.reaction-choice:active,.reaction-chip:active{transform:scale(.94)}
+
 .message-tools button{font-size:11px;color:#b8d5f5;opacity:.82;padding:2px 0}
 .message-tools button:active{opacity:1;color:var(--cyan)}
 .message-tools .message-delete{color:#ff8290}
