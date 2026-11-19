@@ -712,7 +712,7 @@ render.messages=async()=>{
     data=cached.data;friendRows=cached.friendRows;error=null;
   }else{
     ({data,error}=await mq('id,de,a,texte,created_at,lu'));
-    if(error&&/\\blu\\b/.test(error.message||''))({data,error}=await mq('id,de,a,texte,created_at'));
+    if(error&&/\blu\b/i.test(error.message||''))({data,error}=await mq('id,de,a,texte,created_at'));
     if(error){console.error('Chargement messages:',error);$('#messages-content').innerHTML=empty('Messages indisponibles',error.message||'Vérifie le schéma SQL et les règles RLS.');return;}
     const friendsResult=await state.client.from('amis').select('de,a,statut').eq('statut','ami').or(`de.eq.${state.user.id},a.eq.${state.user.id}`);
     friendRows=friendsResult.data||[];
