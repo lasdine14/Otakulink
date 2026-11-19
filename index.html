@@ -825,7 +825,24 @@ document.addEventListener('click',async e=>{
   const toggleComments=e.target.closest('[data-toggle-comments]');
   if(toggleComments){const box=$('#comments-'+toggleComments.dataset.toggleComments);if(box)box.hidden=!box.hidden;return;}
   const like=e.target.closest('[data-like]');
-  if(like){const id=like.dataset.like;const {data:existing}=await state.client.from('likes').select('post_id').eq('post_id',id).eq('user_id',state.user.id).maybeSingle();const result=existing?await state.client.from('likes').delete().eq('post_id',id).eq('user_id',state.user.id):await state.client.from('likes').insert({post_id:id,user_id:state.user.id});if(result.error)toast(result.error.message);else{if(!existing){const post=state.posts.find(p=>p.id===id);if(post)await createOtakuNotification(post.auteur,'like',post.id);}render.communaute();}return;}
+  if(like){
+    const id=like.dataset.like;
+    if(like.dataset.busy==='1')return;
+    like.dataset.busy='1';like.disabled=true;
+    const {data:existing,error:checkError}=await state.client.from('likes').select('post_id').eq('post_id',id).eq('user_id',state.user.id).maybeSingle();
+    if(checkError){like.dataset.busy='0';like.disabled=false;toast(checkError.message);return;}
+    const result=existing
+      ?await state.client.from('likes').delete().eq('post_id',id).eq('user_id',state.user.id)
+      :await state.client.from('likes').insert({post_id:id,user_id:state.user.id});
+    like.dataset.busy='0';like.disabled=false;
+    if(result.error){toast(result.error.message);return;}
+    const match=(like.textContent||'').match(/(\d+)/),current=match?Number(match[1]):0;
+    const next=Math.max(0,current+(existing?-1:1));
+    like.textContent=`${existing?'🤍':'❤️'} ${next}`;
+    like.classList.toggle('liked',!existing);
+    if(!existing){const post=state.posts.find(p=>p.id===id);if(post)await createOtakuNotification(post.auteur,'like',post.id);}
+    return;
+  }
   const del=e.target.closest('[data-delete-post]');
   if(del){if(!confirm('Supprimer cette publication ?'))return;const {error}=await state.client.from('posts').delete().eq('id',del.dataset.deletePost);toast(error?error.message:'Publication supprimée.');render.profil();return;}
   const chat=e.target.closest('[data-message]');
@@ -856,7 +873,18 @@ document.addEventListener('submit',async e=>{
   const btn=form.querySelector('button');if(btn)btn.disabled=true;
   const {error}=await state.client.from('commentaires').insert({post_id:postId,auteur:state.user.id,texte});
   if(error){toast('Commentaire impossible : '+error.message);if(btn)btn.disabled=false;return;}
-  const post=state.posts.find(x=>x.id===postId);if(post)await createOtakuNotification(post.auteur,'comment',post.id);toast('Commentaire publié.');render.communaute();
+  const post=state.posts.find(x=>x.id===postId);if(post)await createOtakuNotification(post.auteur,'comment',post.id);
+  const commentBox=document.getElementById('comments-'+postId);
+  if(commentBox){
+    const item=document.createElement('div');item.className='post-comment';
+    const author=document.createElement('b');author.textContent=state.profile?.pseudo||state.user.email?.split('@')[0]||'Moi';
+    item.append(author,document.createTextNode(' '+texte));
+    const date=document.createElement('small');date.style.display='block';date.textContent='À l’instant';item.appendChild(date);
+    const commentForm=commentBox.querySelector('form');commentBox.insertBefore(item,commentForm||null);commentBox.hidden=false;
+  }
+  const toggle=document.querySelector(`[data-toggle-comments="${postId}"]`);
+  if(toggle){const match=(toggle.textContent||'').match(/(\d+)/),count=match?Number(match[1]):0;toggle.textContent=`💬 ${count+1}`;}
+  field.value='';if(btn)btn.disabled=false;toast('Commentaire publié.');
 });
 /* === EXTENSIONS SOCIALES OT AKULINK === */
 const OTaku_SCHEMA_SQL = `-- OtakuLink : Stories, abonnements, notifications et couverture de profil
@@ -1311,6 +1339,8 @@ init();
     flex:0 0 auto;margin-top:8px;padding:6px 8px!important;
     padding-bottom:max(6px,env(safe-area-inset-bottom))!important;
   }
-  #bottomnav{display:none!important}
+  /* La barre reste visible dans toutes les pages, sauf pendant une conversation plein écran. */
+  body:has(#s-messages .msg-wrap.chat-open) #bottomnav{display:none!important}
+  body:not(:has(#s-messages .msg-wrap.chat-open)) #bottomnav{display:grid!important}
 }
 </style>
