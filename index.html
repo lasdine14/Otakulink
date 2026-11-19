@@ -471,7 +471,7 @@ const TORII = `<svg class="torii" viewBox="0 0 64 52" fill="none" stroke="#22d3e
 const LOGO = big => `<div class="logo ${big?'big':''}">${TORII}<b>Otaku<span>Link</span></b></div>`;
 const NAV = [['decouvrir','🔎','Amis'],['rencontres','💘','Rencontres'],['communaute','👥','Communauté'],['messages','💬','Messages'],['connexions','🤝','Connexions'],['profil','👤','Profil'],['parametres','⚙️','Paramètres']];
 const BOTTOM = ['decouvrir','rencontres','communaute','FAB','messages','profil'];
-const state = { client:null, user:null, profile:null, route:'decouvrir', query:'', filter:'Tous', posts:[], users:[], requests:[], friends:[], conversations:[], activeChat:null, settings:{dark:true,private:false,notifications:true}, busy:false, blocked:new Set(), blockedByMe:new Set(), unread:0 };
+const state = { client:null, user:null, profile:null, route:'decouvrir', query:'', filter:'Tous', posts:[], users:[], requests:[], friends:[], conversations:[], activeChat:null, replyTo:null, settings:{dark:true,private:false,notifications:true}, busy:false, blocked:new Set(), blockedByMe:new Set(), unread:0 };
 
 function ageOf(d){if(!d)return -1;const [y,m,day]=String(d).split('-').map(Number);if(!y||!m||!day)return -1;const now=new Date();let a=now.getFullYear()-y;if(now.getMonth()+1<m||(now.getMonth()+1===m&&now.getDate()<day))a--;return a;}
 async function loadBlocks(){const {data}=await state.client.from('blocages').select('de,a');const rows=data||[];state.blockedByMe=new Set(rows.filter(x=>x.de===state.user.id).map(x=>x.a));state.blocked=new Set(rows.map(x=>x.de===state.user.id?x.a:x.de));}
@@ -697,9 +697,37 @@ render.messages=async()=>{
   if(state.activeChat&&!selected)state.activeChat=null;
   const thread=selected?msgs.filter(m=>(m.de===state.user.id&&m.a===selected)||(m.de===selected&&m.a===state.user.id)):[];
   const isMobile=window.matchMedia('(max-width:899px)').matches;
-  $('#messages-content').innerHTML=`<div class="msg-wrap ${selected?'chat-open':''}"><div class="card conv-col" style="padding:10px">${people.size?[...people.values()].map(p=>`<div class="conv ${p.id===selected?'active':''}" data-chat-open="${p.id}">${avatar(p,'sm')}<div class="meta"><b>${esc(p.pseudo||'Membre')}</b><small>Ouvrir la discussion</small></div>${unreadOf(p.id)?`<span class="badge">${unreadOf(p.id)}</span>`:''}</div>`).join(''):empty('Aucun ami disponible','Accepte une invitation pour pouvoir commencer une discussion.')}</div><div class="card chat" style="margin:0"><div class="chat-head">${isMobile&&selected?'<button type="button" class="icon-btn" id="chat-back" aria-label="Retour aux conversations">←</button>':''}<b>${selected?esc(people.get(selected)?.pseudo||'Membre'):'Choisis un ami'}</b></div><div class="chat-body" id="chat-body">${selected?(thread.map(m=>`<div class="bubble ${m.de===state.user.id?'out':'in'}">${(()=>{const media=postTextAndImage(m.texte);return `${esc(media.text)}${media.url?(media.kind==='video'?`<video src="${esc(media.url)}" controls playsinline style="display:block;max-width:240px;max-height:220px;border-radius:10px;margin-top:6px"></video>`:`<img src="${esc(media.url)}" alt="Image envoyée" style="display:block;max-width:220px;max-height:220px;border-radius:10px;margin-top:6px">`):''}`})()}<small>${fmtDate(m.created_at)}${m.de===state.user.id&&m.lu?' · ✓✓ Lu':''}</small></div>`).join('')||'<p style="color:var(--muted);text-align:center">Aucun message pour le moment. Envoie le premier !</p>'):'<p style="color:var(--muted);text-align:center">Sélectionne un ami dans la liste pour commencer.</p>'}</div>${selected?`<form class="chat-composer" id="chat-form"><input id="chat-media" type="file" accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/quicktime" hidden><div class="chat-compose-row"><button class="chat-attach-icon" type="button" id="chat-attach-btn" aria-label="Joindre une photo ou une vidéo" title="Photo ou vidéo">＋</button><input id="chat-input" maxlength="2000" placeholder="Écrire un message…" autocomplete="off"><button class="send" type="submit" aria-label="Envoyer le message">➤</button></div><small id="chat-file-name" hidden></small></form>`:''}</div></div>`;
+  $('#messages-content').innerHTML=`<div class="msg-wrap ${selected?'chat-open':''}"><div class="card conv-col" style="padding:10px">${people.size?[...people.values()].map(p=>`<div class="conv ${p.id===selected?'active':''}" data-chat-open="${p.id}">${avatar(p,'sm')}<div class="meta"><b>${esc(p.pseudo||'Membre')}</b><small>Ouvrir la discussion</small></div>${unreadOf(p.id)?`<span class="badge">${unreadOf(p.id)}</span>`:''}</div>`).join(''):empty('Aucun ami disponible','Accepte une invitation pour pouvoir commencer une discussion.')}</div><div class="card chat" style="margin:0"><div class="chat-head">${isMobile&&selected?'<button type="button" class="icon-btn" id="chat-back" aria-label="Retour aux conversations">←</button>':''}<b>${selected?esc(people.get(selected)?.pseudo||'Membre'):'Choisis un ami'}</b></div><div class="chat-body" id="chat-body">${selected?(thread.map(m=>`<div class="bubble ${m.de===state.user.id?'out':'in'}" data-message-bubble="${m.id}">
+      ${(()=>{const media=postTextAndImage(m.texte);return `${esc(media.text).replace(/\n/g,'<br>')}${media.url?(media.kind==='video'?`<video src="${esc(media.url)}" controls playsinline style="display:block;max-width:240px;max-height:220px;border-radius:10px;margin-top:6px"></video>`:`<img src="${esc(media.url)}" alt="Image envoyée" style="display:block;max-width:220px;max-height:220px;border-radius:10px;margin-top:6px">`):''}`})()}
+      <small>${fmtDate(m.created_at)}${m.de===state.user.id&&m.lu?' · ✓✓ Lu':''}</small>
+      <div class="message-tools">
+        <button type="button" data-message-reply="${m.id}">↩ Répondre</button>
+        <button type="button" data-message-copy="${m.id}">Copier</button>
+        ${m.de===state.user.id?`<button type="button" class="message-delete" data-message-delete="${m.id}">Supprimer</button>`:''}
+      </div>
+    </div>`).join('')||'<p style="color:var(--muted);text-align:center">Aucun message pour le moment. Envoie le premier !</p>'):'<p style="color:var(--muted);text-align:center">Sélectionne un ami dans la liste pour commencer.</p>'}</div>${selected?`<form class="chat-composer" id="chat-form"><div id="reply-preview" class="reply-preview" ${state.replyTo?'':'hidden'}>${state.replyTo?`<span>↩ Réponse à <b>${esc(state.replyTo.pseudo)}</b><small>${esc(state.replyTo.text.slice(0,90))}</small></span><button type="button" id="cancel-reply" aria-label="Annuler la réponse">✕</button>`:''}</div><input id="chat-media" type="file" accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/quicktime" hidden><div class="chat-compose-row"><button class="chat-attach-icon" type="button" id="chat-attach-btn" aria-label="Joindre une photo ou une vidéo" title="Photo ou vidéo">＋</button><input id="chat-input" maxlength="2000" placeholder="Écrire un message…" autocomplete="off"><button class="send" type="submit" aria-label="Envoyer le message">➤</button></div><small id="chat-file-name" hidden></small></form>`:''}</div></div>`;
   const body=$('#chat-body');if(body)body.scrollTop=body.scrollHeight;
   if(selected&&thread.some(m=>m.de===selected&&m.lu===false))state.client.from('messages').update({lu:true}).eq('de',selected).eq('a',state.user.id).eq('lu',false).then(()=>refreshUnread());
+  $('#cancel-reply')?.addEventListener('click',()=>{state.replyTo=null;render.messages();});
+  $('#messages-content')?.querySelectorAll('[data-message-reply]').forEach(btn=>btn.addEventListener('click',()=>{
+    const msg=thread.find(x=>x.id===btn.dataset.messageReply);if(!msg)return;
+    const sender=msg.de===state.user.id?(state.profile?.pseudo||'Moi'):(people.get(msg.de)?.pseudo||'Membre');
+    state.replyTo={id:msg.id,pseudo:sender,text:postTextAndImage(msg.texte).text||'Média'};
+    render.messages();$('#chat-input')?.focus();
+  }));
+  $('#messages-content')?.querySelectorAll('[data-message-copy]').forEach(btn=>btn.addEventListener('click',async()=>{
+    const msg=thread.find(x=>x.id===btn.dataset.messageCopy);if(!msg)return;
+    try{await navigator.clipboard.writeText(postTextAndImage(msg.texte).text||'');toast('Message copié.');}
+    catch(_){toast('Copie non disponible sur ce navigateur.');}
+  }));
+  $('#messages-content')?.querySelectorAll('[data-message-delete]').forEach(btn=>btn.addEventListener('click',async()=>{
+    const msg=thread.find(x=>x.id===btn.dataset.messageDelete);if(!msg||msg.de!==state.user.id)return;
+    if(!confirm('Supprimer ce message pour tout le monde ?'))return;
+    btn.disabled=true;
+    const {error}=await state.client.from('messages').delete().eq('id',msg.id).eq('de',state.user.id);
+    if(error){toast('Suppression impossible : '+error.message);btn.disabled=false;return;}
+    toast('Message supprimé.');await render.messages();
+  }));
   $('#chat-back')?.addEventListener('click',()=>{state.activeChat=null;render.messages();});
   $('#chat-attach-btn')?.addEventListener('click',()=>$('#chat-media')?.click());
   $('#chat-media')?.addEventListener('change',e=>{const f=e.target.files?.[0],note=$('#chat-file-name');if(note){note.textContent=f?`📎 ${f.name}`:'';note.hidden=!f;}});
@@ -708,10 +736,9 @@ render.messages=async()=>{
     e.preventDefault();
     const input=$('#chat-input'),file=$('#chat-media')?.files?.[0];let content=input?.value.trim()||'';if(!content&&!file)return;
     const send=e.submitter||e.target.querySelector('button[type="submit"]');if(send)send.disabled=true;
-    try{if(file){const url=await uploadOtakuFile(file,'messages');content+=`${content?'\n\n':''}[[media:${file.type.startsWith('video/')?'video':'image'}:${url}]]`;}const {error:sendError}=await state.client.from('messages').insert({de:state.user.id,a:selected,texte:content});
+    try{if(state.replyTo){const quoted=String(state.replyTo.text||'').replace(/\s+/g,' ').slice(0,180);content=`↪ Réponse à ${state.replyTo.pseudo} : « ${quoted} »\n\n${content}`;}if(file){const url=await uploadOtakuFile(file,'messages');content+=`${content?'\n\n':''}[[media:${file.type.startsWith('video/')?'video':'image'}:${url}]]`;}const {error:sendError}=await state.client.from('messages').insert({de:state.user.id,a:selected,texte:content});
     if(sendError){console.error('Envoi message:',sendError);toast('Envoi impossible : '+sendError.message);if(send)send.disabled=false;return;}
-    await createOtakuNotification(selected,'message');
-    state.activeChat=selected;await render.messages();}catch(sendErr){toast(sendErr.message||'Envoi impossible.');if(send)send.disabled=false;}
+    state.replyTo=null;state.activeChat=selected;await render.messages();}catch(sendErr){toast(sendErr.message||'Envoi impossible.');if(send)send.disabled=false;}
   });
 };
 render.profil=async()=>{
@@ -790,9 +817,9 @@ document.addEventListener('click',async e=>{
     render.rencontres();return;
   }
   const connect=e.target.closest('[data-connect]');
-  if(connect){const target=connect.dataset.connect;const {error}=await state.client.from('amis').insert({de:state.user.id,a:target,statut:'attente'});if(!error)await createOtakuNotification(target,'connection_request');toast(error?(error.code==='23505'?'Demande déjà envoyée, ou vous êtes déjà amis.':error.message):'Demande envoyée.');if(state.route==='decouvrir')loadDiscover();return;}
+  if(connect){const {error}=await state.client.from('amis').insert({de:state.user.id,a:connect.dataset.connect,statut:'attente'});toast(error?(error.code==='23505'?'Demande déjà envoyée, ou vous êtes déjà amis.':error.message):'Demande envoyée.');if(state.route==='decouvrir')loadDiscover();return;}
   const accept=e.target.closest('[data-accept]');
-  if(accept){const requester=accept.dataset.accept;const {error}=await state.client.from('amis').update({statut:'ami'}).eq('de',requester).eq('a',state.user.id);if(!error)await createOtakuNotification(requester,'connection_accepted');toast(error?error.message:'Demande acceptée.');state.route==='decouvrir'?loadDiscover():render.connexions();return;}
+  if(accept){const {error}=await state.client.from('amis').update({statut:'ami'}).eq('de',accept.dataset.accept).eq('a',state.user.id);toast(error?error.message:'Demande acceptée.');state.route==='decouvrir'?loadDiscover():render.connexions();return;}
   const decline=e.target.closest('[data-decline]');
   if(decline){const {error}=await state.client.from('amis').delete().eq('de',decline.dataset.decline).eq('a',state.user.id);toast(error?error.message:'Demande refusée.');render.connexions();return;}
   const toggleComments=e.target.closest('[data-toggle-comments]');
@@ -893,8 +920,6 @@ async function createOtakuNotification(destinataire,type,post_id=null){
  const {error}=await state.client.from('notifications').insert({destinataire,acteur:state.user.id,type,post_id});
  if(error) console.warn('Notification non enregistrée:',error.message);
 }
-function otakuNotificationLabel(type){return ({like:'a aimé ta publication',comment:'a commenté ta publication',follow:'a commencé à te suivre',connection_request:'t’a envoyé une demande de connexion',connection_accepted:'a accepté ta demande de connexion',message:'t’a envoyé un message'})[type]||'a interagi avec toi';}
-function otakuNotificationIcon(type){return ({like:'❤️',comment:'💬',follow:'➕',connection_request:'🤝',connection_accepted:'✅',message:'✉️'})[type]||'🔔';}
 async function renderStoriesTray(){
  const host=$('#stories-tray');if(!host||!state.client||!state.user)return;
  const {data,error}=await state.client.from('stories').select('id,auteur,media_url,media_type,created_at').gt('created_at',new Date(Date.now()-86400000).toISOString()).order('created_at',{ascending:false}).limit(80);
@@ -918,7 +943,7 @@ async function renderNotifications(){
  const {data,error}=await state.client.from('notifications').select('id,acteur,type,post_id,lu,created_at').order('created_at',{ascending:false}).limit(40);
  if(error){host.innerHTML='<small style="color:var(--muted)">Notifications indisponibles. Exécute le SQL inclus dans Paramètres.</small>';return;}
  const rows=data||[];await fetchProfiles(rows.map(x=>x.acteur));
- host.innerHTML=rows.length?rows.map(n=>`<button class="friend" data-notif-read="${n.id}" data-notif-post="${n.post_id||''}" style="width:100%;text-align:left;background:${n.lu?'transparent':'rgba(0,210,255,.08)'};border:0"><span>${otakuNotificationIcon(n.type)}</span><span class="meta"><b>${esc(state.users.find(u=>u.id===n.acteur)?.pseudo||'Un membre')}</b><small>${otakuNotificationLabel(n.type)} · ${fmtDate(n.created_at)}</small></span>${n.lu?'':'<span class="badge">Nouveau</span>'}</button>`).join(''):'<small style="color:var(--muted)">Tu n’as pas encore de notification.</small>';
+ host.innerHTML=rows.length?rows.map(n=>`<button class="friend" data-notif-read="${n.id}" data-notif-post="${n.post_id||''}" style="width:100%;text-align:left;background:${n.lu?'transparent':'rgba(0,210,255,.08)'};border:0"><span>${n.type==='like'?'❤️':n.type==='comment'?'💬':n.type==='follow'?'➕':'🔔'}</span><span class="meta"><b>${esc(state.users.find(u=>u.id===n.acteur)?.pseudo||'Un membre')}</b><small>${n.type==='like'?'a aimé ta publication':n.type==='comment'?'a commenté ta publication':n.type==='follow'?'a commencé à te suivre':'a interagi avec toi'} · ${fmtDate(n.created_at)}</small></span>${n.lu?'':'<span class="badge">Nouveau</span>'}</button>`).join(''):'<small style="color:var(--muted)">Tu n’as pas encore de notification.</small>';
 }
 // Extend the community screen with Stories and an inbox for activity notifications.
 const _renderCommunity=render.communaute;
@@ -1028,8 +1053,8 @@ async function openGlobalNotifications(){
   const badge=$('#global-notif-count');if(badge){badge.hidden=!unread;badge.textContent=unread>9?'9+':String(unread);}
   host.innerHTML=rows.length?rows.map(n=>{
     const u=state.users.find(x=>x.id===n.acteur);
-    const icon=otakuNotificationIcon(n.type);
-    const label=otakuNotificationLabel(n.type);
+    const icon=n.type==='like'?'❤️':n.type==='comment'?'💬':n.type==='follow'?'➕':'🔔';
+    const label=n.type==='like'?'a aimé ta publication':n.type==='comment'?'a commenté ta publication':n.type==='follow'?'a commencé à te suivre':'a interagi avec toi';
     return `<button class="quick-result" data-global-notif-read="${n.id}" style="width:100%;text-align:left;background:${n.lu?'transparent':'rgba(0,210,255,.09)'}">
       <span style="font-size:22px">${icon}</span><span class="meta"><b>${esc(u?.pseudo||'Un membre')}</b><small>${label} · ${fmtDate(n.created_at)}</small></span>${n.lu?'':'<span class="badge">Nouveau</span>'}
     </button>`;
@@ -1039,7 +1064,7 @@ document.addEventListener('click',async e=>{
   const preset=e.target.closest('[data-search-preset]');
   if(preset){state.query=preset.dataset.searchPreset;$('#modal-root').innerHTML='';go('decouvrir');return;}
   const n=e.target.closest('[data-global-notif-read]');
-  if(n&&state.client){const {error}=await state.client.from('notifications').update({lu:true}).eq('id',n.dataset.globalNotifRead);if(error){toast('Impossible de marquer cette notification.');return;}await refreshGlobalNotificationCount();const {data:notice}=await state.client.from('notifications').select('acteur,post_id,type').eq('id',n.dataset.globalNotifRead).maybeSingle();$('#modal-root').innerHTML='';if(notice?.post_id){go('communaute');}else if(notice?.acteur){const {data:profile}=await state.client.from('profiles').select('*').eq('id',notice.acteur).maybeSingle();if(profile){state.viewedProfile=profile;go('profil');}}}
+  if(n&&state.client){const {error}=await state.client.from('notifications').update({lu:true}).eq('id',n.dataset.globalNotifRead);if(error)toast('Impossible de marquer cette notification.');else{n.style.opacity='.55';n.querySelector('.badge')?.remove();await refreshGlobalNotificationCount();}}
 });
 const _renderDiscoverOriginal=render.decouvrir;
 render.decouvrir=async()=>{
@@ -1233,6 +1258,19 @@ document.head.appendChild(otakuLayoutFix);
 try{const saved=JSON.parse(localStorage.getItem('otakulink_settings')||'{}');state.settings={...state.settings,...saved};applyTheme();}catch(_){}
 init();
 </script>
+
+<style id="otaku-messaging-advanced">
+.message-tools{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px;padding-top:5px;border-top:1px solid rgba(150,190,255,.13)}
+.message-tools button{font-size:11px;color:#b8d5f5;opacity:.82;padding:2px 0}
+.message-tools button:active{opacity:1;color:var(--cyan)}
+.message-tools .message-delete{color:#ff8290}
+.reply-preview{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 10px;margin-bottom:5px;border-left:3px solid var(--cyan);border-radius:8px;background:rgba(0,190,255,.09);font-size:12px}
+.reply-preview span{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.reply-preview small{display:block;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+.reply-preview button{width:28px;height:28px;border-radius:50%;background:rgba(255,255,255,.08);flex:none}
+.bubble{overflow-wrap:anywhere}
+</style>
+
 </body>
 </html>
 
