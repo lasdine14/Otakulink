@@ -555,7 +555,7 @@ async function init() {
   showAuth('welcome');
   if(!SUPABASE_READY) return;
   try {
-    const {createClient}=await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm');
+    const {createClient}=await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm');
     state.client=createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
     const {data:{session}}=await state.client.auth.getSession();
     if(session) await onSignedIn(session.user);
@@ -872,16 +872,7 @@ render.parametres=async()=>{
   const blockedIds=[...state.blockedByMe];
   let blockedProfiles=[];
   if(blockedIds.length){const {data}=await state.client.from('profiles').select('id,pseudo').in('id',blockedIds);blockedProfiles=data||[];}
-  $('#s-parametres').innerHTML=`${topbar('Paramètres','Préférences de ton compte.')}<div class="two-col"><div><div class="card"><h3>👤 Compte</h3><div class="row"><div class="t">Adresse e-mail<small>${esc(state.user?.email||'')}</small></div></div><div class="row"><div class="t">Thème sombre</div><button class="btn sm ghost" id="theme-toggle">${state.settings.dark?'Activé':'Désactivé'}</button></div><div class="row"><div class="t">Notifications de l’interface<small>Préférence enregistrée sur cet appareil</small></div><button class="btn sm ghost" id="notif-toggle">${state.settings.notifications?'Activées':'Désactivées'}</button></div></div><div class="card"><h3>🔒 Confidentialité</h3><p style="color:var(--muted);font-size:13px">Les règles d’accès aux données sont appliquées côté Supabase (RLS). Les commentaires et les champs centres d’intérêt/animes nécessitent la migration SQL ci-dessous.</p><details style="margin-top:12px"><summary style="cursor:pointer;color:var(--cyan)">SQL à exécuter pour les commentaires</summary><textarea readonly style="width:100%;min-height:190px;margin-top:8px;padding:10px;border-radius:10px;background:#071127;border:1px solid var(--line);font-size:11px" id="comments-sql">alter table public.profiles add column if not exists centres_interet text default '';
-alter table public.profiles add column if not exists animes_favoris text default '';
-create table if not exists public.commentaires (id uuid primary key default gen_random_uuid(), post_id uuid not null references public.posts(id) on delete cascade, auteur uuid not null references auth.users(id) on delete cascade, texte text not null check (char_length(texte) between 1 and 500), created_at timestamptz not null default now());
-alter table public.commentaires enable row level security;
-drop policy if exists "comments read for authenticated" on public.commentaires;
-drop policy if exists "comments insert own" on public.commentaires;
-drop policy if exists "comments delete own" on public.commentaires;
-create policy "comments read for authenticated" on public.commentaires for select to authenticated using (true);
-create policy "comments insert own" on public.commentaires for insert to authenticated with check (auth.uid() = auteur);
-create policy "comments delete own" on public.commentaires for delete to authenticated using (auth.uid() = auteur);</textarea><button class="btn sm ghost" type="button" id="copy-comments-sql">Copier le SQL</button></details><details style="margin-top:12px"><summary style="cursor:pointer;color:var(--cyan)">SQL des Stories, abonnements et notifications</summary><textarea readonly style="width:100%;min-height:280px;margin-top:8px;padding:10px;border-radius:10px;background:#071127;border:1px solid var(--line);font-size:11px" id="social-sql"></textarea><button class="btn sm ghost" type="button" id="copy-social-sql">Copier le SQL social</button></details><h3 style="margin-top:14px">Membres bloqués (${blockedIds.length})</h3>${blockedProfiles.length?blockedProfiles.map(u=>`<div class="friend"><div class="meta"><b>${esc(u.pseudo||'Membre')}</b></div><button class="btn sm ghost" data-unblock="${u.id}">Débloquer</button></div>`).join(''): '<small style="color:var(--muted)">Aucun membre bloqué.</small>'}</div></div><div><div class="card"><h3>⚠️ Zone de sécurité</h3><button class="btn ghost block" id="export-data">⬇️ Télécharger mes données</button><button class="btn ghost block" id="reset-password" style="margin-top:10px">Réinitialiser mon mot de passe</button><button class="btn danger block" id="logout" style="margin-top:12px">Se déconnecter</button><button class="btn ghost block" id="delete-account" style="margin-top:12px;color:#ff6070">Supprimer mon compte</button></div><div class="card"><h3>À propos</h3><p style="color:var(--muted)">OtakuLink — communauté anime et manga.</p></div></div></div>`;
+  $('#s-parametres').innerHTML=`${topbar('Paramètres','Préférences de ton compte.')}<div class="two-col"><div><div class="card"><h3>👤 Compte</h3><div class="row"><div class="t">Adresse e-mail<small>${esc(state.user?.email||'')}</small></div></div><div class="row"><div class="t">Thème sombre</div><button class="btn sm ghost" id="theme-toggle">${state.settings.dark?'Activé':'Désactivé'}</button></div><div class="row"><div class="t">Notifications de l’interface<small>Préférence enregistrée sur cet appareil</small></div><button class="btn sm ghost" id="notif-toggle">${state.settings.notifications?'Activées':'Désactivées'}</button></div></div><div class="card"><h3>📖 Mode d’emploi</h3><p style="color:var(--muted);font-size:13px">Tout ce qu’il faut savoir pour bien utiliser OtakuLink.</p><details style="margin-top:10px"><summary style="cursor:pointer;color:var(--cyan)">Découvrir et Connexions</summary><p style="color:var(--muted);font-size:13px">Cherche des membres, ouvre leur profil et envoie une demande d’ami. Retrouve tes demandes et tes amis dans Connexions.</p></details><details style="margin-top:8px"><summary style="cursor:pointer;color:var(--cyan)">Communauté</summary><p style="color:var(--muted);font-size:13px">Publie, commente et réagis aux posts des autres membres. Un contenu te dérange ? Appuie sur 🚩 pour le signaler.</p></details><details style="margin-top:8px"><summary style="cursor:pointer;color:var(--cyan)">Messages</summary><p style="color:var(--muted);font-size:13px">Tu peux discuter avec tes amis, répondre à un message et réagir avec des emojis.</p></details><details style="margin-top:8px"><summary style="cursor:pointer;color:var(--cyan)">Rencontres (16 ans et plus)</summary><p style="color:var(--muted);font-size:13px">Renseigne ta date de naissance puis active ton profil Rencontres. Tu ne vois que les membres de ta tranche d’âge (16-17 ans ou 18 ans et plus) qui ont aussi activé leur profil. Tu peux le désactiver à tout moment.</p></details><details style="margin-top:8px"><summary style="cursor:pointer;color:var(--cyan)">Profil et Otaku+</summary><p style="color:var(--muted);font-size:13px">Personnalise ta photo, ta couverture, ta bio et tes animes préférés. Dans Otaku+, relève des quiz et gagne de l’XP.</p></details><details style="margin-top:8px"><summary style="cursor:pointer;color:var(--cyan)">Sécurité</summary><p style="color:var(--muted);font-size:13px">Tu peux bloquer ou signaler un membre depuis son profil. Les membres bloqués apparaissent plus bas dans cette page, d’où tu peux les débloquer.</p></details></div><div class="card"><h3>💡 Pourquoi OtakuLink ?</h3><p style="color:var(--muted);font-size:13px;line-height:1.5">OtakuLink est né pour offrir aux fans d’anime et de manga un endroit à eux : se retrouver, discuter, partager leur passion et faire de nouvelles rencontres.</p><p style="color:var(--muted);font-size:13px;line-height:1.5">L’idée générale du projet vient de <b>lasdine14</b>, créateur de contenu sur TikTok (lasdine14) et sur YouTube (oeil_otaku).</p></div><div class="card"><h3>🚫 Membres bloqués (${blockedIds.length})</h3>${blockedProfiles.length?blockedProfiles.map(u=>`<div class="friend"><div class="meta"><b>${esc(u.pseudo||'Membre')}</b></div><button class="btn sm ghost" data-unblock="${u.id}">Débloquer</button></div>`).join(''): '<small style="color:var(--muted)">Aucun membre bloqué.</small>'}</div></div><div><div class="card"><h3>⚠️ Zone de sécurité</h3><button class="btn ghost block" id="export-data">⬇️ Télécharger mes données</button><button class="btn ghost block" id="reset-password" style="margin-top:10px">Réinitialiser mon mot de passe</button><button class="btn danger block" id="logout" style="margin-top:12px">Se déconnecter</button><button class="btn ghost block" id="delete-account" style="margin-top:12px;color:#ff6070">Supprimer mon compte</button></div><div class="card"><h3>À propos</h3><p style="color:var(--muted)">OtakuLink — communauté anime et manga.</p><p style="color:var(--muted);font-size:13px">Idée originale : lasdine14 (TikTok : lasdine14 · YouTube : oeil_otaku).</p></div></div></div>`;
   $('#theme-toggle').onclick=()=>{state.settings.dark=!state.settings.dark;localStorage.setItem('otakulink_settings',JSON.stringify(state.settings));applyTheme();render.parametres();};
   $('#notif-toggle').onclick=async()=>{if(!state.settings.notifications&&'Notification' in window&&Notification.permission==='default'){const permission=await Notification.requestPermission();if(permission!=='granted')toast('Les notifications du navigateur restent désactivées.');}state.settings.notifications=!state.settings.notifications;localStorage.setItem('otakulink_settings',JSON.stringify(state.settings));render.parametres();};
   if($('#social-sql'))$('#social-sql').value=OTaku_SCHEMA_SQL;$('#copy-social-sql')?.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(OTaku_SCHEMA_SQL);toast('SQL social copié. Colle-le dans Supabase.');}catch(_){$('#social-sql')?.select();toast('Sélectionne le SQL puis copie-le.');}});
@@ -1284,7 +1275,7 @@ async function loadOtakuPolls(){const host=$('#poll-list');if(!host)return;const
 async function createOtakuPoll(){const question=prompt('Question du sondage :');if(!question?.trim())return;const raw=prompt('Propositions séparées par des virgules (2 à 6) :');if(!raw)return;const options=[...new Set(raw.split(',').map(x=>x.trim()).filter(Boolean))].slice(0,6);if(options.length<2)return toast('Ajoute au moins deux propositions.');const {data,error}=await state.client.from('otaku_polls').insert({auteur:state.user.id,question:question.trim()}).select('id').single();if(error)return toast('Sondage impossible : '+error.message);const {error:oe}=await state.client.from('otaku_poll_options').insert(options.map(texte=>({poll_id:data.id,texte})));if(oe)return toast('Question créée, options non enregistrées : '+oe.message);toast('Sondage publié !');loadOtakuPolls();}
 document.addEventListener('click',async e=>{const join=e.target.closest('[data-og-join]');if(join){const {error}=await state.client.from('otaku_group_members').insert({group_id:join.dataset.ogJoin,membre:state.user.id});if(error)return toast(error.message);toast('Tu as rejoint le groupe.');loadOtakuGroups();return;}const open=e.target.closest('[data-og-open]');if(open){openOtakuGroup(open.dataset.ogOpen,open.dataset.ogName);return;}const vote=e.target.closest('[data-poll-vote]');if(vote){const {error}=await state.client.from('otaku_poll_votes').insert({poll_id:vote.dataset.pollId,option_id:vote.dataset.pollVote,votant:state.user.id});if(error)return toast(error.code==='23505'?'Tu as déjà voté.':error.message);toast('Vote enregistré !');loadOtakuPolls();}});
 const _renderSettingsBase=render.parametres;
-render.parametres=async()=>{await _renderSettingsBase();const col=$('#s-parametres .two-col > div:first-child');if(!col||$('#extra-social-sql'))return;const card=document.createElement('div');card.className='card';card.innerHTML=`<h3>✨ Nouvelles fonctions OtakuLink</h3><p style="color:var(--muted);font-size:13px">Le SQL ci-dessous active les groupes de discussion et les sondages. Les autres fonctions (blocage, signalement, recherche avancée et accusés de lecture) sont intégrées à l’interface.</p><details style="margin-top:10px"><summary style="color:var(--cyan);cursor:pointer">Afficher le SQL des groupes et sondages</summary><textarea id="extra-social-sql" readonly style="width:100%;min-height:260px;margin-top:8px;padding:10px;border-radius:10px;background:#071127;border:1px solid var(--line);font-size:11px"></textarea><button class="btn sm ghost" id="copy-extra-social" style="margin-top:8px">Copier le SQL</button></details>`;col.appendChild(card);$('#extra-social-sql').value=OTaku_EXTRA_SQL;$('#copy-extra-social').onclick=async()=>{try{await navigator.clipboard.writeText(OTaku_EXTRA_SQL);toast('SQL des groupes et sondages copié.');}catch(_){$('#extra-social-sql').select();toast('Sélectionne le SQL puis copie-le.');}};};
+render.parametres=async()=>{await _renderSettingsBase();};
 
 
 /* ===== OtakuLink : barre globale, recherche rapide et notifications =====
@@ -1621,8 +1612,7 @@ function warmOtakuScreens(){
 const _goWithWarmup=go;
 go=function(route){_goWithWarmup(route);if(route==='decouvrir'||route==='communaute')warmOtakuScreens();};
 </script>
-</body>
-</html>
+
 
 
 
@@ -1738,5 +1728,105 @@ go=function(route){_goWithWarmup(route);if(route==='decouvrir'||route==='communa
  document.addEventListener('keydown',e=>{if(e.key==='Escape')close();});
 })();
 </script>
+<script id="ol-extras">
+/* ===== OtakuLink : ajouts repris de l'ancienne maquette (mot de passe, tags, sujets, groupes, stats, onglets) ===== */
+(function(){
+const Q=(s,r=document)=>r.querySelector(s), QA=(s,r=document)=>[...r.querySelectorAll(s)];
+function after(obj,name,fn){const o=obj[name];if(!o)return;obj[name]=async function(){const r=await o.apply(this,arguments);try{await fn.apply(this,arguments);}catch(e){console.error(e);}return r;};}
+const card=(id,html)=>{const c=document.createElement("div");c.className="card";c.id=id;c.innerHTML=html;return c;};
 
+/* 2) Tags dans la création de publication */
+const _oc=openComposer;
+openComposer=function(){
+  _oc.apply(this,arguments);
+  const t=Q("#m-text");if(!t||Q("#ol-tags"))return;
+  const d=document.createElement("div");d.id="ol-tags";d.className="chips";d.style.marginTop="8px";
+  d.innerHTML=["Anime","Manga","Gaming","Cosplay","OtakuLife"].map(x=>`<button type="button" class="chip" data-tag="#${x}">#${x}</button>`).join("");
+  t.insertAdjacentElement("afterend",d);
+  d.onclick=e=>{const b=e.target.closest("[data-tag]");if(!b)return;t.value=(t.value+" "+b.dataset.tag).trim();t.dispatchEvent(new Event("input"));t.focus();};
+};
 
+/* 1) + 6) Paramètres : mot de passe + onglets Compte / Sécurité / Aide */
+let curTab="compte";
+after(render,"parametres",async()=>{
+  const root=Q("#s-parametres");if(!root||Q("#ol-tabs"))return;
+  const col=Q(".two-col > div:first-child",root);
+  if(col&&state.client&&!Q("#ol-pw-card")){
+    col.appendChild(card("ol-pw-card",`<h3>🔑 Mot de passe</h3><label>Nouveau mot de passe<input id="ol-pw1" type="password" autocomplete="new-password"></label><label>Confirmer le mot de passe<input id="ol-pw2" type="password" autocomplete="new-password"></label><button class="btn sm" id="ol-pw-btn" type="button" style="margin-top:10px">Changer le mot de passe</button>`));
+    Q("#ol-pw-btn").onclick=async()=>{
+      const a=Q("#ol-pw1").value,b=Q("#ol-pw2").value;
+      if(a.length<8)return toast("Le mot de passe doit contenir au moins 8 caractères.");
+      if(a!==b)return toast("Les deux mots de passe ne sont pas identiques.");
+      const btn=Q("#ol-pw-btn");btn.disabled=true;
+      const {error}=await state.client.auth.updateUser({password:a});
+      btn.disabled=false;
+      if(error)return toast("Impossible de changer le mot de passe : "+error.message);
+      Q("#ol-pw1").value=Q("#ol-pw2").value="";toast("Mot de passe modifié ✅");
+    };
+  }
+  const tabOf=c=>{const h=Q("h3",c)?.textContent||"";
+    if(/Mode d|Pourquoi|propos/.test(h))return "aide";
+    if(/bloqu|Zone de s|Mot de passe/.test(h))return "securite";
+    return "compte";};
+  const bar=document.createElement("div");bar.id="ol-tabs";bar.className="chips";bar.style.margin="0 0 12px";
+  bar.innerHTML=[["compte","Compte"],["securite","Sécurité"],["aide","Aide"]].map(x=>`<button type="button" class="chip" data-t="${x[0]}">${x[1]}</button>`).join("");
+  const grid=Q(".two-col",root);grid.parentNode.insertBefore(bar,grid);
+  const apply=()=>{QA(".card",grid).forEach(c=>{c.style.display=tabOf(c)===curTab?"":"none";});
+    QA("[data-t]",bar).forEach(b=>{const on=b.dataset.t===curTab;b.classList.toggle("active",on);b.style.borderColor=on?"var(--cyan)":"";b.style.color=on?"var(--cyan)":"";});};
+  bar.onclick=e=>{const b=e.target.closest("[data-t]");if(b){curTab=b.dataset.t;apply();}};
+  apply();
+});
+
+/* 5) Statistiques du profil (chiffres réels) */
+after(render,"profil",async()=>{
+  const root=Q("#s-profil"),p=state.viewedProfile||state.profile;if(!root||!p?.id||!state.client)return;
+  Q("#ol-stats")?.remove();
+  const cnt=async(t,f)=>{const {count}=await f(state.client.from(t).select("*",{count:"exact",head:true}));return count??0;};
+  const mine=p.id===state.user?.id;
+  const [posts,fol,sub,friends]=await Promise.all([
+    cnt("posts",q=>q.eq("auteur",p.id)),cnt("abonnements",q=>q.eq("a",p.id)),cnt("abonnements",q=>q.eq("de",p.id)),
+    mine?cnt("amis",q=>q.eq("statut","ami").or(`de.eq.${p.id},a.eq.${p.id}`)):Promise.resolve(null)]);
+  const days=p.created_at?Math.max(1,Math.ceil((Date.now()-new Date(p.created_at))/864e5)):null;
+  const s=[[posts,"Publications"],[fol,"Abonnés"],[sub,"Abonnements"]];
+  if(friends!==null)s.push([friends,"Amis"]);if(days)s.push([days,"Jours sur OtakuLink"]);
+  root.appendChild(card("ol-stats",`<h3>Statistiques</h3><div class="stats">${s.map(x=>`<div class="stat"><b>${x[0]}</b><small>${x[1]}</small></div>`).join("")}</div>`));
+});
+
+/* 3) + 4) Découvrir : sujets populaires et groupes recommandés (données réelles) */
+async function showTag(tag){
+  const {data}=await state.client.from("posts").select("texte,created_at").ilike("texte","%"+tag+"%").order("created_at",{ascending:false}).limit(10);
+  Q("#modal-root").innerHTML=`<div class="modal" id="modal"><div class="sheet"><div style="display:flex;align-items:center;gap:10px;margin-bottom:12px"><button class="icon-btn" id="m-close" type="button">←</button><h3 style="flex:1">${esc(tag)}</h3></div>${(data||[]).map(p=>`<div class="card"><p>${esc(String(p.texte||"").slice(0,300))}</p><small style="color:var(--muted)">${new Date(p.created_at).toLocaleDateString("fr-FR")}</small></div>`).join("")||"<small style=\"color:var(--muted)\">Aucune publication pour ce sujet.</small>"}</div></div>`;
+  const close=()=>{Q("#modal-root").innerHTML="";};Q("#m-close").onclick=close;Q("#modal").onclick=e=>{if(e.target.id==="modal")close();};
+}
+async function topicsCard(screen){
+  Q("#ol-topics")?.remove();
+  const since=new Date(Date.now()-30*864e5).toISOString();
+  const {data,error}=await state.client.from("posts").select("texte").gte("created_at",since).limit(300);
+  if(error)return;
+  const n={};(data||[]).forEach(p=>(String(p.texte||"").match(/#[\p{L}\p{N}_]{2,30}/gu)||[]).forEach(t=>{const k=t.toLowerCase();n[k]=(n[k]||0)+1;}));
+  const top=Object.entries(n).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  const c=card("ol-topics",`<h3>Sujets populaires</h3>${top.length?top.map(x=>`<button type="button" class="chip" data-topic="${esc(x[0])}">${esc(x[0])} · ${x[1]}</button>`).join(" "):"<small style=\"color:var(--muted)\">Aucun sujet pour le moment. Ajoute des #tags à tes publications !</small>"}`);
+  c.onclick=e=>{const b=e.target.closest("[data-topic]");if(b)showTag(b.dataset.topic);};
+  screen.appendChild(c);
+}
+async function groupsCard(screen){
+  Q("#ol-groups")?.remove();
+  const {data:gs,error}=await state.client.from("otaku_groups").select("id,nom,description").order("created_at",{ascending:false}).limit(30);
+  if(error||!gs?.length)return;
+  const {data:ms}=await state.client.from("otaku_group_members").select("group_id,membre");
+  const rows=gs.map(g=>({g,n:(ms||[]).filter(m=>m.group_id===g.id).length,joined:(ms||[]).some(m=>m.group_id===g.id&&m.membre===state.user.id)})).sort((a,b)=>b.n-a.n).slice(0,3);
+  const c=card("ol-groups",`<h3>Groupes recommandés</h3>${rows.map(r=>`<div class="friend"><div class="meta"><b>${esc(r.g.nom)}</b><small>${r.n} membre(s)</small></div>${r.joined?"<small style=\"color:var(--muted)\">Membre ✓</small>":`<button class="btn sm" type="button" data-join-group="${r.g.id}">Rejoindre</button>`}</div>`).join("")}`);
+  c.onclick=async e=>{const b=e.target.closest("[data-join-group]");if(!b)return;b.disabled=true;
+    const {error}=await state.client.from("otaku_group_members").insert({group_id:b.dataset.joinGroup,membre:state.user.id});
+    if(error){b.disabled=false;return toast("Impossible de rejoindre ce groupe : "+error.message);}
+    toast("Tu as rejoint le groupe ✅");groupsCard(screen);};
+  screen.appendChild(c);
+}
+after(render,"decouvrir",async()=>{
+  const s=Q("#s-decouvrir");if(!s||!state.client||!state.user)return;
+  await topicsCard(s);await groupsCard(s);
+});
+})();
+</script>
+</body>
+</html>
