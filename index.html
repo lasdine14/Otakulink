@@ -430,6 +430,50 @@ html[data-theme="light"] #global-toolbar .gt-action{background:#f1f6ff}
 }
 #s-otakuplus .op-search input { cursor:text !important; }
 
+
+/* Otaku+ interactions: Android/mobile hardening */
+#s-otakuplus #op-search,
+#s-otakuplus #op-kind,
+#s-otakuplus #op-search-go,
+#s-otakuplus [data-op-fav] {
+  pointer-events:auto !important;
+  position:relative;
+  z-index:20;
+}
+#s-otakuplus #op-search {
+  -webkit-user-select:text !important;
+  user-select:text !important;
+  touch-action:manipulation;
+  opacity:1 !important;
+  visibility:visible !important;
+}
+
+
+/* Force real editable/focusable search field on Android */
+#s-otakuplus input#op-search {
+ display:block !important;
+ width:100% !important;
+ min-width:0 !important;
+ min-height:48px !important;
+ height:48px !important;
+ flex:1 1 180px !important;
+ opacity:1 !important;
+ visibility:visible !important;
+ pointer-events:auto !important;
+ touch-action:pan-y !important;
+ -webkit-appearance:none !important;
+ appearance:none !important;
+ -webkit-user-select:text !important;
+ user-select:text !important;
+ -webkit-user-modify:read-write-plaintext-only !important;
+ background:#17243e !important;
+ color:#ffffff !important;
+}
+#s-otakuplus input#op-search:focus {
+ outline:2px solid #00cfff !important;
+ border-color:#00cfff !important;
+}
+
 </style>
 <style id="otaku-mobile-layout-final">
 html,body{width:100%;max-width:100%;overflow-x:hidden}
@@ -1693,7 +1737,7 @@ const otPlusQuestions=[
 function otPlusShell(){return `<div class="topbar"><div><h1>⛩️ Otaku+</h1><p>Découvre, progresse et participe à la communauté.</p></div><span class="sp"></span><span class="op-xp-pill">⚡ ${otPlusData().xp} XP</span></div><div class="op-tabs"><button class="op-tab active" data-op-tab="catalogue">🎌 Anime/Manga</button><button class="op-tab" data-op-tab="progression">🏆 Progression</button><button class="op-tab" data-op-tab="quiz">🧠 Quiz</button><button class="op-tab" data-op-tab="events">📅 Événements</button><button class="op-tab" data-op-tab="ranking">🏆 Classement</button><button class="op-tab" data-op-tab="card">🪪 Ma carte</button></div><div id="op-cloud-notice">${opSetupNotice()}</div><div id="op-panel"></div>`}
 function renderOtakuPlus(){const host=$('#s-otakuplus');if(!host||!state.user)return;const tab=host.dataset.opTab||'catalogue';host.innerHTML=otPlusShell();host.dataset.opTab=tab;host.querySelectorAll('[data-op-tab]').forEach(b=>b.classList.toggle('active',b.dataset.opTab===tab));const panel=$('#op-panel');if(tab==='catalogue')opRenderCatalog(panel);if(tab==='progression')opRenderProgress(panel);if(tab==='quiz')opRenderQuiz(panel);if(tab==='events')opRenderEvents(panel);if(tab==='ranking')opRenderRanking(panel);if(tab==='card')opRenderCard(panel);}
 async function opRenderCatalog(panel){
- panel.innerHTML=`<div class="card"><h3>🔎 Explorer les œuvres</h3><div class="op-search"><select id="op-kind"><option value="anime">Anime</option><option value="manga">Manga</option></select><input id="op-search" type="search" inputmode="search" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="80" placeholder="Ex. Frieren, One Piece…"><button type="button" class="btn sm" id="op-search-go">Rechercher</button></div><p class="op-note">Catalogue alimenté par Tenrai. Les résultats et images proviennent du catalogue MyAnimeList.</p></div><div id="op-catalog-results">${opCatalogCards(otPlusData().favorites||[])}</div>`;
+ panel.innerHTML=`<div class="card"><h3>🔎 Explorer les œuvres</h3><div class="op-search"><select id="op-kind"><option value="anime">Anime</option><option value="manga">Manga</option></select><input id="op-search" type="text" inputmode="text" enterkeyhint="search" tabindex="0" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="80" placeholder="Ex. Frieren, One Piece…"><button type="button" class="btn sm" id="op-search-go">Rechercher</button></div><p class="op-note">Catalogue alimenté par Tenrai. Les résultats et images proviennent du catalogue MyAnimeList.</p></div><div id="op-catalog-results">${opCatalogCards(otPlusData().favorites||[])}</div>`;
  const field=panel.querySelector('#op-search'),button=panel.querySelector('#op-search-go');
  if(field){field.readOnly=false;field.disabled=false;field.removeAttribute('readonly');field.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();opSearchCatalog();}});}
  if(button)button.addEventListener('click',e=>{e.preventDefault();opSearchCatalog();});
@@ -1720,7 +1764,7 @@ if(!window.__otakuCatalogEvents){
  window.__otakuCatalogEvents=true;
  document.addEventListener('click',function(e){
   const btn=e.target.closest('#s-otakuplus #op-search-go');
-  if(btn){e.preventDefault();e.stopPropagation();opSearchCatalog();}
+  if(btn){e.preventDefault();e.stopImmediatePropagation();opSearchCatalog();}
  },true);
  document.addEventListener('keydown',function(e){
   if(e.target && e.target.matches('#s-otakuplus #op-search') && e.key==='Enter'){
@@ -1730,6 +1774,75 @@ if(!window.__otakuCatalogEvents){
  document.addEventListener('focusin',function(e){
   if(e.target && e.target.matches('#s-otakuplus #op-search')){
    e.target.disabled=false;e.target.readOnly=false;
+  }
+ },true);
+}
+
+
+// Capture-phase Otaku+ handlers: keep catalogue controls working on mobile.
+if(!window.__otakuPlusCaptureV2){
+ window.__otakuPlusCaptureV2=true;
+ document.addEventListener('click',function(e){
+  const search=e.target.closest && e.target.closest('#s-otakuplus #op-search-go');
+  if(search){e.preventDefault();e.stopImmediatePropagation();opSearchCatalog();return;}
+  const fav=e.target.closest && e.target.closest('#s-otakuplus [data-op-fav]');
+  if(fav){
+   e.preventDefault();e.stopImmediatePropagation();
+   const d=otPlusData(),id=String(fav.dataset.opFav||'');
+   const kind=fav.dataset.opKind||'Anime';
+   const idx=(d.favorites||[]).findIndex(x=>String(x.id)===id&&x.kind===kind);
+   if(idx>=0){d.favorites.splice(idx,1);toast('Retiré de ta liste.');}
+   else{
+    d.favorites=[...(d.favorites||[]),{
+     id,title:fav.dataset.opTitle||'Sans titre',image:fav.dataset.opImage||'',
+     kind,year:fav.dataset.opYear||'',score:fav.dataset.opScore||'—',
+     synopsis:fav.dataset.opSynopsis||''
+    }].slice(-50);
+    d.favoriteXpIds=d.favoriteXpIds||[];
+    if(!d.favoriteXpIds.includes(kind+':'+id)){
+     d.favoriteXpIds.push(kind+':'+id);
+     toast('Ajouté à ta liste.');
+     opAwardServer('favorite_add','Ajout à ta collection');
+    }else toast('Ajouté à ta liste.');
+   }
+   otPlusSet(d);
+   const panel=document.querySelector('#op-panel');
+   if(panel)opRenderCatalog(panel);
+   return;
+  }
+ },true);
+ document.addEventListener('keydown',function(e){
+  if(e.target && e.target.matches('#s-otakuplus #op-search') && e.key==='Enter'){
+   e.preventDefault();e.stopImmediatePropagation();opSearchCatalog();
+  }
+ },true);
+ document.addEventListener('focusin',function(e){
+  if(e.target && e.target.matches('#s-otakuplus #op-search')){
+   e.target.disabled=false;e.target.readOnly=false;
+   e.target.style.pointerEvents='auto';
+  }
+ },true);
+}
+
+
+// Explicitly focus the catalogue field from the user's touch gesture (Android).
+if(!window.__otakuSearchFocusFix){
+ window.__otakuSearchFocusFix=true;
+ const focusOtakuSearch=function(e){
+  const field=e.target && e.target.closest && e.target.closest('#s-otakuplus input#op-search');
+  if(!field)return;
+  field.disabled=false;
+  field.readOnly=false;
+  if(field.type!=='text')field.type='text';
+  try{field.focus({preventScroll:true});}catch(_){field.focus();}
+ };
+ document.addEventListener('pointerdown',focusOtakuSearch,true);
+ document.addEventListener('touchstart',focusOtakuSearch,{capture:true,passive:true});
+ document.addEventListener('click',function(e){
+  const field=e.target && e.target.closest && e.target.closest('#s-otakuplus input#op-search');
+  if(field){
+   field.disabled=false;field.readOnly=false;
+   try{field.focus({preventScroll:true});}catch(_){field.focus();}
   }
  },true);
 }
