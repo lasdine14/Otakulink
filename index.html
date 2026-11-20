@@ -483,6 +483,7 @@ html,body{width:100%;max-width:100%;overflow-x:hidden}
 .chat-compose-row .send{flex:0 0 52px;width:52px;height:52px;font-size:23px}
 @media(max-width:899px){.chat-compose-row .send{flex:0 0 44px;width:44px;height:44px;min-height:44px;border-radius:50%;font-size:20px;padding:0}.chat-attach-icon{width:38px;height:38px;flex-basis:38px}}
 </style>
+<style id="otaku-kind-toggle">#s-otakuplus .op-kind-toggle{display:flex;flex:0 0 100%;gap:8px}#s-otakuplus .op-kind-btn{flex:1;min-height:46px;border-radius:14px;border:1px solid var(--line);background:rgba(15,27,66,.8);color:var(--text);font-weight:700;font-size:16px;touch-action:manipulation}#s-otakuplus .op-kind-btn.active{background:linear-gradient(90deg,#087cff,#00d4ff);color:#03142f;border-color:transparent}</style>
 </head>
 <body>
 
@@ -1724,10 +1725,10 @@ const otPlusQuestions=[
 function otPlusShell(){return `<div class="topbar"><div><h1>⛩️ Otaku+</h1><p>Découvre, progresse et participe à la communauté.</p></div><span class="sp"></span><span class="op-xp-pill">⚡ ${otPlusData().xp} XP</span></div><div class="op-tabs"><button class="op-tab active" data-op-tab="catalogue">🎌 Anime/Manga</button><button class="op-tab" data-op-tab="progression">🏆 Progression</button><button class="op-tab" data-op-tab="quiz">🧠 Quiz</button><button class="op-tab" data-op-tab="events">📅 Événements</button><button class="op-tab" data-op-tab="ranking">🏆 Classement</button><button class="op-tab" data-op-tab="card">🪪 Ma carte</button></div><div id="op-cloud-notice">${opSetupNotice()}</div><div id="op-panel"></div>`}
 function renderOtakuPlus(){const host=$('#s-otakuplus');if(!host||!state.user)return;const tab=host.dataset.opTab||'catalogue';host.innerHTML=otPlusShell();host.dataset.opTab=tab;host.querySelectorAll('[data-op-tab]').forEach(b=>b.classList.toggle('active',b.dataset.opTab===tab));const panel=$('#op-panel');if(tab==='catalogue')opRenderCatalog(panel);if(tab==='progression')opRenderProgress(panel);if(tab==='quiz')opRenderQuiz(panel);if(tab==='events')opRenderEvents(panel);if(tab==='ranking')opRenderRanking(panel);if(tab==='card')opRenderCard(panel);}
 async function opRenderCatalog(panel){
- panel.innerHTML=`<div class="card"><h3>🔎 Explorer les œuvres</h3><form id="op-search-form" class="op-search" autocomplete="off"><select id="op-kind" name="kind" aria-label="Type de catalogue"><option value="anime">Anime</option><option value="manga">Manga</option></select><input id="op-search" name="q" type="text" inputmode="text" enterkeyhint="search" tabindex="0" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="80" placeholder="Ex. Frieren, One Piece…" aria-label="Rechercher un anime ou un manga"><button type="submit" class="btn sm" id="op-search-go">Rechercher</button></form><p class="op-note">Catalogue alimenté par Tenrai. Les résultats et images proviennent du catalogue MyAnimeList.</p></div><div id="op-catalog-results">${opCatalogCards(otPlusData().favorites||[])}</div>`;
+ panel.innerHTML=`<div class="card"><h3>🔎 Explorer les œuvres</h3><form id="op-search-form" class="op-search" autocomplete="off"><input type="hidden" id="op-kind" name="kind" value="anime"><div class="op-kind-toggle" role="group" aria-label="Type de catalogue"><button type="button" class="op-kind-btn active" data-op-kind-btn="anime">Anime</button><button type="button" class="op-kind-btn" data-op-kind-btn="manga">Manga</button></div><input id="op-search" name="q" type="text" inputmode="text" enterkeyhint="search" tabindex="0" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="80" placeholder="Ex. Frieren, One Piece…" aria-label="Rechercher un anime ou un manga"><button type="submit" class="btn sm" id="op-search-go">Rechercher</button></form><p class="op-note">Catalogue alimenté par Tenrai. Les résultats et images proviennent du catalogue MyAnimeList.</p></div><div id="op-catalog-results">${opCatalogCards(otPlusData().favorites||[])}</div>`;
  const form=panel.querySelector('#op-search-form');
  const field=panel.querySelector('#op-search');
- if(field){field.disabled=false;field.readOnly=false;field.removeAttribute('readonly');field.style.pointerEvents='auto';field.setAttribute('autocomplete','off');field.setAttribute('inputmode','text');field.addEventListener('pointerdown',()=>{field.focus({preventScroll:true});},{passive:true});field.addEventListener('touchend',()=>{field.focus({preventScroll:true});},{passive:true});}
+ if(field){field.disabled=false;field.readOnly=false;field.removeAttribute('readonly');field.style.pointerEvents='auto';field.setAttribute('autocomplete','off');field.setAttribute('inputmode','text');}
  if(form){form.addEventListener('submit',e=>{e.preventDefault();opSearchCatalog();});const submit=form.querySelector('#op-search-go');if(submit)submit.addEventListener('click',e=>{e.preventDefault();opSearchCatalog();});}
  // Show useful catalogue content immediately, even before the user types.
  if(!(otPlusData().favorites||[]).length){
@@ -1859,6 +1860,14 @@ if(!window.__otakuSearchDelegated){
  document.addEventListener('submit',e=>{if(e.target&&e.target.id==='op-search-form')run(e);},true);
  document.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target&&e.target.id==='op-search')run(e);},true);
 }
+
+/* Anime/Manga : boutons + focus du champ en un seul tap */
+document.addEventListener('click',e=>{
+ const kb=e.target.closest&&e.target.closest('[data-op-kind-btn]');
+ if(kb){const k=kb.dataset.opKindBtn,hid=document.querySelector('#op-kind');if(hid)hid.value=k;document.querySelectorAll('[data-op-kind-btn]').forEach(b=>b.classList.toggle('active',b===kb));const f=document.querySelector('#op-search');if(f)f.placeholder=k==='manga'?'Ex. Berserk, One Piece…':'Ex. Frieren, One Piece…';return;}
+ const f=e.target.closest&&e.target.closest('#op-search');
+ if(f&&document.activeElement!==f)f.focus();
+},true);
 </script>
 
 <style id="otaku-messaging-advanced">
@@ -2150,4 +2159,4 @@ decorate();
 </body>
 </html>
 
-<style id="otaku-search-android-final">#s-otakuplus #op-search-form{position:relative!important;z-index:9999!important;pointer-events:auto!important}#s-otakuplus #op-search{display:block!important;position:relative!important;z-index:10000!important;pointer-events:auto!important;touch-action:pan-y!important;user-select:text!important;-webkit-user-select:text!important;opacity:1!important;visibility:visible!important}#s-otakuplus #op-search:focus{outline:2px solid #00dfff!important}</style>
+<style id="otaku-search-android-final">#s-otakuplus #op-search-form{position:relative!important;z-index:9999!important;pointer-events:auto!important}#s-otakuplus #op-search{display:block!important;position:relative!important;z-index:10000!important;pointer-events:auto!important;touch-action:manipulation!important;user-select:text!important;-webkit-user-select:text!important;opacity:1!important;visibility:visible!important}#s-otakuplus #op-search:focus{outline:2px solid #00dfff!important}</style>
