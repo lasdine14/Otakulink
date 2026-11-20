@@ -1849,6 +1849,16 @@ document.head.appendChild(opStyle);
 
 try{const saved=JSON.parse(localStorage.getItem('otakulink_settings')||'{}');state.settings={...state.settings,...saved};applyTheme();}catch(_){}
 init();
+
+/* Correctif recherche Otaku+ : gestionnaires délégués (survivent aux re-rendus) */
+if(!window.__otakuSearchDelegated){
+ window.__otakuSearchDelegated=true;
+ let lastRun=0;
+ const run=e=>{e.preventDefault();e.stopPropagation();const now=Date.now();if(now-lastRun<500)return;lastRun=now;try{opSearchCatalog();document.querySelector('#op-catalog-results')?.scrollIntoView({block:'nearest',behavior:'smooth'});}catch(err){toast('Erreur de recherche : '+String(err?.message||err).slice(0,80));}};
+ document.addEventListener('click',e=>{if(e.target.closest&&e.target.closest('#op-search-go'))run(e);},true);
+ document.addEventListener('submit',e=>{if(e.target&&e.target.id==='op-search-form')run(e);},true);
+ document.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target&&e.target.id==='op-search')run(e);},true);
+}
 </script>
 
 <style id="otaku-messaging-advanced">
