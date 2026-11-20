@@ -577,7 +577,7 @@ async function onSignedIn(user) {
     const {error:dobError}=await state.client.from('infos_privees').upsert({id:user.id,date_naissance:birthdate},{onConflict:'id',ignoreDuplicates:true});
     if(dobError)console.warn('Synchronisation de la date de naissance :',dobError.message);
   }
-  await loadBlocks(); if(!state.rt){state.rt=true;startRealtime();state.client.channel('notifications-'+state.user.id).on('postgres_changes',{event:'INSERT',schema:'public',table:'notifications',filter:`destinataire=eq.${state.user.id}`},async p=>{const actor=p.new.acteur;const {data}=actor?await state.client.from('profiles').select('pseudo').eq('id',actor).maybeSingle():{data:null};const who=data?.pseudo||'Un membre';const msg=p.new.type==='story_reaction'?'a réagi à ta Story':p.new.type==='like'?'a aimé ta publication':p.new.type==='comment'?'a commenté ta publication':'a interagi avec toi';toast('🔔 '+who+' '+msg+'.');notifyUser('OtakuLink',who+' '+msg+'.');refreshGlobalNotificationCount();}).subscribe();}
+  await loadBlocks(); if(!state.rt){state.rt=true;startRealtime();state.client.channel('notifications-'+state.user.id).on('postgres_changes',{event:'INSERT',schema:'public',table:'notifications',filter:`destinataire=eq.${state.user.id}`},async p=>{const actor=p.new.acteur;const {data}=actor?await state.client.from('profiles').select('pseudo').eq('id',actor).maybeSingle():{data:null};const who=data?.pseudo||'Un membre';const isMatch=p.new.type==='match';const msg=p.new.type==='story_reaction'?'a réagi à ta Story':p.new.type==='like'?'a aimé ta publication':p.new.type==='comment'?'a commenté ta publication':'a interagi avec toi';if(isMatch){const mt='🎉🎉 Félicitations ! C’est réciproque avec '+who+' ! Vous pouvez discuter.';if(window.__olMatchWith!==actor)toast(mt);notifyUser('OtakuLink',mt);}else{toast('🔔 '+who+' '+msg+'.');notifyUser('OtakuLink',who+' '+msg+'.');}refreshGlobalNotificationCount();}).subscribe();}
   showApp();
 }
 document.addEventListener('click',async e=>{
@@ -993,7 +993,7 @@ document.addEventListener('click',async e=>{
   const datingPass=e.target.closest('[data-dating-pass]');
   if(datingLike||datingPass){
     const personId=(datingLike||datingPass).dataset[datingLike?'datingLike':'datingPass'];
-    const action=datingLike?'like':'pass';const control=datingLike||datingPass;control.disabled=true;const {error}=await state.client.from('rencontres_actions').insert({de:state.user.id,a:personId,action});if(error){control.disabled=false;toast('Impossible d’enregistrer ton choix : '+(error.code==='23505'?'Tu as déjà répondu à ce profil.':error.message));return;}if(datingLike){const {data:back,error:backError}=await state.client.from('rencontres_actions').select('de').eq('de',personId).eq('a',state.user.id).eq('action','like').maybeSingle();toast(backError?'Intérêt envoyé.':back?'C’est réciproque ! Discute avec cette personne 💜':'Intérêt envoyé.');if(back){state.activeChat=personId;setTimeout(()=>go('messages'),900);}}else toast('Profil passé.');
+    const action=datingLike?'like':'pass';const control=datingLike||datingPass;control.disabled=true;const {error}=await state.client.from('rencontres_actions').insert({de:state.user.id,a:personId,action});if(error){control.disabled=false;toast('Impossible d’enregistrer ton choix : '+(error.code==='23505'?'Tu as déjà répondu à ce profil.':error.message));return;}if(datingLike){const {data:back,error:backError}=await state.client.from('rencontres_actions').select('de').eq('de',personId).eq('a',state.user.id).eq('action','like').maybeSingle();if(back){window.__olMatchWith=personId;setTimeout(()=>{window.__olMatchWith=null;},6000);}toast(backError?'Intérêt envoyé.':back?'🎉🎉 Félicitations ! C’est réciproque ! Discute avec cette personne 💜':'Intérêt envoyé.');if(back){state.activeChat=personId;setTimeout(()=>go('messages'),900);}}else toast('Profil passé.');
     render.rencontres();return;
   }
   const connect=e.target.closest('[data-connect]');
@@ -1223,7 +1223,7 @@ async function renderNotifications(){
  const {data,error}=await state.client.from('notifications').select('id,acteur,type,post_id,story_id,lu,created_at').order('created_at',{ascending:false}).limit(40);
  if(error){host.innerHTML='<small style="color:var(--muted)">Notifications indisponibles. Exécute le SQL inclus dans Paramètres.</small>';return;}
  const rows=data||[];await fetchProfiles(rows.map(x=>x.acteur));
- host.innerHTML=rows.length?rows.map(n=>`<button class="friend" data-notif-read="${n.id}" data-notif-post="${n.post_id||''}" style="width:100%;text-align:left;background:${n.lu?'transparent':'rgba(0,210,255,.08)'};border:0"><span>${n.type==='like'?'❤️':n.type==='comment'?'💬':n.type==='follow'?'➕':n.type==='story_reaction'?'✨':'🔔'}</span><span class="meta"><b>${esc(state.users.find(u=>u.id===n.acteur)?.pseudo||'Un membre')}</b><small>${n.type==='like'?'a aimé ta publication':n.type==='comment'?'a commenté ta publication':n.type==='follow'?'a commencé à te suivre':n.type==='story_reaction'?'a réagi à ta Story':'a interagi avec toi'} · ${fmtDate(n.created_at)}</small></span>${n.lu?'':'<span class="badge">Nouveau</span>'}</button>`).join(''):'<small style="color:var(--muted)">Tu n’as pas encore de notification.</small>';
+ host.innerHTML=rows.length?rows.map(n=>`<button class="friend" data-notif-read="${n.id}" data-notif-post="${n.post_id||''}" style="width:100%;text-align:left;background:${n.lu?'transparent':'rgba(0,210,255,.08)'};border:0"><span>${n.type==='like'?'❤️':n.type==='comment'?'💬':n.type==='match'?'🎉':n.type==='follow'?'➕':n.type==='story_reaction'?'✨':'🔔'}</span><span class="meta"><b>${esc(state.users.find(u=>u.id===n.acteur)?.pseudo||'Un membre')}</b><small>${n.type==='match'?'— 🎉 Félicitations ! C’est réciproque, vous pouvez discuter.':n.type==='like'?'a aimé ta publication':n.type==='comment'?'a commenté ta publication':n.type==='follow'?'a commencé à te suivre':n.type==='story_reaction'?'a réagi à ta Story':'a interagi avec toi'} · ${fmtDate(n.created_at)}</small></span>${n.lu?'':'<span class="badge">Nouveau</span>'}</button>`).join(''):'<small style="color:var(--muted)">Tu n’as pas encore de notification.</small>';
 }
 // Extend the community screen with Stories and an inbox for activity notifications.
 const _renderCommunity=render.communaute;
@@ -1333,8 +1333,8 @@ async function openGlobalNotifications(){
   const badge=$('#global-notif-count');if(badge){badge.hidden=!unread;badge.textContent=unread>9?'9+':String(unread);}
   host.innerHTML=rows.length?rows.map(n=>{
     const u=state.users.find(x=>x.id===n.acteur);
-    const icon=n.type==='like'?'❤️':n.type==='comment'?'💬':n.type==='follow'?'➕':n.type==='story_reaction'?'✨':'🔔';
-    const label=n.type==='like'?'a aimé ta publication':n.type==='comment'?'a commenté ta publication':n.type==='follow'?'a commencé à te suivre':n.type==='story_reaction'?'a réagi à ta Story':'a interagi avec toi';
+    const icon=n.type==='like'?'❤️':n.type==='comment'?'💬':n.type==='match'?'🎉':n.type==='follow'?'➕':n.type==='story_reaction'?'✨':'🔔';
+    const label=n.type==='match'?'— 🎉 Félicitations ! C’est réciproque, vous pouvez discuter.':n.type==='like'?'a aimé ta publication':n.type==='comment'?'a commenté ta publication':n.type==='follow'?'a commencé à te suivre':n.type==='story_reaction'?'a réagi à ta Story':'a interagi avec toi';
     return `<button class="quick-result" data-global-notif-read="${n.id}" style="width:100%;text-align:left;background:${n.lu?'transparent':'rgba(0,210,255,.09)'}">
       <span style="font-size:22px">${icon}</span><span class="meta"><b>${esc(u?.pseudo||'Un membre')}</b><small>${label} · ${fmtDate(n.created_at)}</small></span>${n.lu?'':'<span class="badge">Nouveau</span>'}
     </button>`;
@@ -1826,6 +1826,47 @@ after(render,"decouvrir",async()=>{
   const s=Q("#s-decouvrir");if(!s||!state.client||!state.user)return;
   await topicsCard(s);await groupsCard(s);
 });
+})();
+</script>
+<script id="ol-media-posts">
+/* Agrandir / télécharger les médias des publications (en arrière-plan, sans rechargement) */
+(function(){
+const st=document.createElement("style");
+st.textContent=".ol-media{position:relative;display:block;line-height:0}.ol-media>.post-media,.ol-media>img,.ol-media>video{display:block}.ol-media>img{cursor:zoom-in}.ol-media-actions{position:absolute;right:8px;top:8px;display:flex;gap:6px;line-height:1}.ol-media-actions button{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:rgba(0,0,0,.72);color:#fff;border:1px solid rgba(255,255,255,.35);font-size:16px;padding:0}";
+document.head.appendChild(st);
+const SEL=".post-media,.group-message img,.group-message video";
+const nameOf=u=>{try{return decodeURIComponent(u.split("?")[0].split("/").pop())||"otakulink-media";}catch(_){return "otakulink-media";}};
+function decorate(){
+  document.querySelectorAll(SEL).forEach(m=>{
+    if(m.closest(".ol-media"))return;
+    const url=m.currentSrc||m.getAttribute("src");if(!url)return;
+    const kind=m.tagName==="VIDEO"?"video":"image",name=nameOf(url),u=esc(url),nm=esc(name);
+    const w=document.createElement("span");w.className="ol-media";
+    m.parentNode.insertBefore(w,m);w.appendChild(m);
+    if(kind==="image"){m.setAttribute("data-chat-view",url);m.dataset.kind="image";m.dataset.name=name;}
+    const a=document.createElement("span");a.className="ol-media-actions";
+    a.innerHTML=`<button type="button" data-chat-view="${u}" data-kind="${kind}" data-name="${nm}" aria-label="Agrandir">⤢</button><button type="button" data-ol-dl="${u}" data-name="${nm}" aria-label="Télécharger">⬇</button>`;
+    w.appendChild(a);
+  });
+}
+let raf=0;
+new MutationObserver(()=>{cancelAnimationFrame(raf);raf=requestAnimationFrame(decorate);}).observe(document.body,{childList:true,subtree:true});
+document.addEventListener("click",async e=>{
+  const b=e.target.closest("[data-ol-dl]");if(!b)return;
+  e.preventDefault();e.stopPropagation();
+  if(b.dataset.busy)return;b.dataset.busy="1";const old=b.textContent;b.textContent="…";
+  const url=b.dataset.olDl,name=b.dataset.name||"otakulink-media";
+  try{
+    const r=await fetch(url);if(!r.ok)throw new Error("dl");
+    const blob=await r.blob(),o=URL.createObjectURL(blob),a=document.createElement("a");
+    a.href=o;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(o),1500);
+    b.textContent="✓";
+  }catch(_){
+    const a=document.createElement("a");a.href=url;a.target="_blank";a.rel="noopener";a.download=name;a.click();b.textContent="↗";
+  }
+  setTimeout(()=>{b.textContent=old;delete b.dataset.busy;},1500);
+},true);
+decorate();
 })();
 </script>
 </body>
