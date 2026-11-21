@@ -485,6 +485,20 @@ html,body{width:100%;max-width:100%;overflow-x:hidden}
 </style>
 <style id="otaku-kind-toggle">#s-otakuplus .op-kind-toggle{display:flex;flex:0 0 100%;gap:8px}#s-otakuplus .op-kind-btn{flex:1;min-height:46px;border-radius:14px;border:1px solid var(--line);background:rgba(15,27,66,.8);color:var(--text);font-weight:700;font-size:16px;touch-action:manipulation}#s-otakuplus .op-kind-btn.active{background:linear-gradient(90deg,#087cff,#00d4ff);color:#03142f;border-color:transparent}</style>
 <style id="otaku-plus-fixes">#s-otakuplus .op-chips{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 12px}#s-otakuplus .op-chip{min-height:42px;padding:0 16px;border-radius:999px;border:1px solid var(--line);background:rgba(15,27,66,.8);color:var(--text);font-weight:700;touch-action:manipulation;position:relative;z-index:21;pointer-events:auto!important}#s-otakuplus .op-chip.on{background:linear-gradient(90deg,#087cff,#00d4ff);color:#03142f;border-color:transparent}#s-otakuplus .op-label{color:var(--muted);margin:10px 0 2px}#s-otakuplus .op-card-avatar img{display:block}#s-otakuplus .op-quiz-list{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}#s-otakuplus .op-quiz-pick{display:flex;flex-direction:column;align-items:center;gap:2px;padding:14px 8px;border-radius:16px;border:1px solid var(--line);background:rgba(15,27,66,.8);color:var(--text);touch-action:manipulation;position:relative;z-index:21;pointer-events:auto!important}#s-otakuplus .op-quiz-pick span{font-size:30px}#s-otakuplus .op-quiz-pick small{color:var(--muted)}#s-otakuplus #op-panel button{touch-action:manipulation;pointer-events:auto!important}</style>
+<style id="op-new-manga-css">
+#s-otakuplus .op-new{margin:0 0 6px}
+#s-otakuplus .op-strip{display:flex;gap:12px;overflow-x:auto;padding:2px 2px 10px;scroll-snap-type:x proximity;scrollbar-width:none}
+#s-otakuplus .op-strip::-webkit-scrollbar{display:none}
+#s-otakuplus .op-poster{flex:none;width:128px;scroll-snap-align:start;display:flex;flex-direction:column;gap:5px}
+#s-otakuplus .op-poster .cover{position:relative;width:128px;aspect-ratio:2/3;border-radius:14px;overflow:hidden;border:1px solid var(--line);box-shadow:var(--glow);background:var(--card2)}
+#s-otakuplus .op-poster .cover img{width:100%;height:100%;object-fit:cover;display:block}
+#s-otakuplus .op-poster .tag-new{position:absolute;left:6px;top:6px;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:800;background:var(--red);color:#fff}
+#s-otakuplus .op-poster .tag-new.soon{background:var(--violet)}
+#s-otakuplus .op-poster b{font-size:13px;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+#s-otakuplus .op-poster small{color:var(--muted);font-size:11px;min-height:14px}
+#s-otakuplus .op-poster .acts{display:flex;gap:6px}
+#s-otakuplus .op-poster .acts button{flex:1;padding:7px 0;border-radius:10px;border:1px solid var(--line);background:rgba(15,27,66,.8);font-size:15px}
+</style>
 </head>
 <body>
 
@@ -535,6 +549,13 @@ const $ = (s, r=document) => r.querySelector(s);
 const $$ = (s, r=document) => [...r.querySelectorAll(s)];
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmtDate = v => v ? new Date(v).toLocaleString('fr-FR',{dateStyle:'short',timeStyle:'short'}) : '';
+const opChatTime=v=>v?new Date(v).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}):'';
+const opDayKey=v=>{const d=new Date(v);return d.getFullYear()+'-'+d.getMonth()+'-'+d.getDate();};
+function opDaySep(prev,m){
+  if(!m?.created_at||(prev?.created_at&&opDayKey(prev.created_at)===opDayKey(m.created_at)))return '';
+  const k=opDayKey(m.created_at),label=k===opDayKey(Date.now())?'Aujourd’hui':k===opDayKey(Date.now()-864e5)?'Hier':new Date(m.created_at).toLocaleDateString('fr-FR',{weekday:'short',day:'numeric',month:'short'});
+  return `<div class="day-sep">${esc(label)}</div>`;
+}
 const toast = message => {
   const el=document.createElement('div'); el.className='toast'; el.textContent=message;
   document.body.appendChild(el); setTimeout(()=>el.remove(),3000);
@@ -665,6 +686,26 @@ document.addEventListener('click',e=>{
   const g=e.target.closest('[data-go]'); if(g){if(g.dataset.go==='profil')state.viewedProfile=null;go(g.dataset.go);return;}
   if(e.target.closest('#fab')) openComposer();
 });
+const BG_ROUTES=new Set(['communaute','decouvrir','connexions','messages']);
+const INFLIGHT={};
+/* Préchargement discret (en arrière-plan) des écrans Amis et Communauté */
+let warmBusy=false;
+function warmScreens(){
+  if(warmBusy||!state.client||!state.user)return;
+  const work=async()=>{
+    warmBusy=true;
+    for(const r of ['communaute','decouvrir']){
+      const s=$('#s-'+r);
+      if(state.route===r||!s||s.dataset.loaded==='true'||INFLIGHT[r])continue;
+      INFLIGHT[r]=Date.now();
+      try{await render[r]?.();s.dataset.loaded='true';state.routeCache[r]=Date.now();}
+      catch(err){console.warn('Préchargement '+r,err);}
+      finally{INFLIGHT[r]=0;}
+    }
+    warmBusy=false;
+  };
+  if(window.requestIdleCallback)requestIdleCallback(work,{timeout:2500});else setTimeout(work,1200);
+}
 function go(route){
   const previous=state.route;
   state.route=route;
@@ -673,10 +714,22 @@ function go(route){
   const screen=$('#s-'+route), now=Date.now(), cached=state.routeCache?.[route]||0;
   // Réutilise l'écran déjà affiché pendant 30 secondes : évite les requêtes et animations inutiles.
   if(screen?.dataset.loaded==='true' && now-cached<30000){if(previous!==route)$('#screens').scrollTo({top:0});return;}
-  const task=render[route]?.();
-  if(task&&typeof task.then==='function')task.finally(()=>{if(screen){screen.dataset.loaded='true';state.routeCache[route]=Date.now();}});
+  if(INFLIGHT[route]&&now-INFLIGHT[route]<15000){if(previous!==route)$('#screens').scrollTo({top:0});return;} // actualisation déjà en cours
+  // Écran déjà chargé : on garde son contenu affiché et on le rafraîchit en arrière-plan
+  // (plus de « Chargement… » qui efface tout à chaque changement d'onglet).
+  let keep=null;
+  if(screen&&screen.dataset.loaded==='true'&&BG_ROUTES.has(route)){keep=document.createDocumentFragment();while(screen.firstChild)keep.appendChild(screen.firstChild);}
+  let task;
+  try{task=render[route]?.();}catch(err){if(keep)screen.replaceChildren(keep);throw err;}
+  const isAsync=!!task&&typeof task.then==='function';
+  if(keep&&isAsync)screen.replaceChildren(keep);
+  if(isAsync){
+    INFLIGHT[route]=Date.now();
+    task.catch(err=>console.error(err)).finally(()=>{INFLIGHT[route]=0;if(screen){screen.dataset.loaded='true';state.routeCache[route]=Date.now();}});
+  }
   else if(screen){screen.dataset.loaded='true';state.routeCache[route]=now;}
   if(previous!==route)$('#screens').scrollTo({top:0});
+  warmScreens();
 }
 const topbar=(title,sub='')=>`<div class="topbar"><div><h1>${title}</h1><p>${esc(sub)}</p></div><div class="sp"></div><button class="av sm g4" data-go="profil">👤</button></div>`;
 const render={};
@@ -736,16 +789,17 @@ render.communaute=async()=>{
   const {data,error}=await state.client.from('posts').select('id,auteur,texte,categorie,created_at').order('created_at',{ascending:false}).limit(50);
   if(error){console.error(error);$('#feed').innerHTML=empty('Impossible de charger le fil','Vérifie les tables et les règles RLS dans Supabase.');return;}
   state.posts=data||[];
-  state.posts=state.posts.filter(p=>!state.blocked.has(p.auteur));await fetchProfiles(state.posts.map(p=>p.auteur));
+  state.posts=state.posts.filter(p=>!state.blocked.has(p.auteur));
   const ids=state.posts.map(p=>p.id);
-  let liked=new Set(),counts={};
-  if(ids.length){
-    const likesRes=await state.client.from('likes').select('post_id,user_id').in('post_id',ids);
-    (likesRes.data||[]).forEach(x=>{counts[x.post_id]=(counts[x.post_id]||0)+1;if(x.user_id===state.user.id)liked.add(x.post_id);});
-    
-  }
-  let commentsByPost={};
-  if(ids.length){const cr=await state.client.from('commentaires').select('id,post_id,auteur,texte,created_at').in('post_id',ids).order('created_at',{ascending:true});if(!cr.error)(cr.data||[]).forEach(c=>(commentsByPost[c.post_id]??=[]).push(c));}
+  let liked=new Set(),counts={},commentsByPost={};
+  // Profils, likes et commentaires sont demandés en même temps (et plus l'un après l'autre) : le fil s'affiche bien plus vite.
+  const [,likesRes,cr]=await Promise.all([
+    fetchProfiles(state.posts.map(p=>p.auteur)),
+    ids.length?state.client.from('likes').select('post_id,user_id').in('post_id',ids):Promise.resolve({data:[]}),
+    ids.length?state.client.from('commentaires').select('id,post_id,auteur,texte,created_at').in('post_id',ids).order('created_at',{ascending:true}):Promise.resolve({data:[],error:null})
+  ]);
+  (likesRes.data||[]).forEach(x=>{counts[x.post_id]=(counts[x.post_id]||0)+1;if(x.user_id===state.user.id)liked.add(x.post_id);});
+  if(!cr.error)(cr.data||[]).forEach(c=>(commentsByPost[c.post_id]??=[]).push(c));
   const commentUsers=[...new Set(Object.values(commentsByPost).flat().map(c=>c.auteur))];if(commentUsers.length)await fetchProfiles([...state.posts.map(p=>p.auteur),...commentUsers]);
   $('#feed').innerHTML=state.posts.length?state.posts.map(p=>{const content=postTextAndImage(p.texte);const comments=commentsByPost[p.id]||[];return `<div class="card"><div class="post-head"><button type="button" class="profile-link" data-profile="${p.auteur}" aria-label="Voir le profil">${avatar(state.users.find(u=>u.id===p.auteur),'sm')}</button><div><b><button type="button" class="profile-link" data-profile="${p.auteur}">${esc(state.users.find(u=>u.id===p.auteur)?.pseudo||'Membre')}</button></b><small>${fmtDate(p.created_at)}</small></div></div><p>${esc(content.text)}</p>${content.url?(content.kind==='video'?`<video class="post-media" src="${esc(content.url)}" controls playsinline preload="metadata"></video>`:`<img class="post-media" src="${esc(content.url)}" alt="Image de publication" loading="lazy" referrerpolicy="no-referrer">`):''}<div class="post-actions" style="margin-top:12px"><button data-like="${p.id}" class="${liked.has(p.id)?'liked':''}">${liked.has(p.id)?'❤️':'🤍'} ${counts[p.id]||0}</button><button data-toggle-comments="${p.id}">💬 ${comments.length}</button><span class="sp"></span>${p.auteur!==state.user.id?`<button data-report-post="${p.id}" aria-label="Signaler">🚩</button>`:`<button data-delete-post="${p.id}" aria-label="Supprimer">🗑️</button>`}</div><div class="comment-list" id="comments-${p.id}" hidden>${comments.map(c=>`<div class="post-comment"><b>${esc(state.users.find(u=>u.id===c.auteur)?.pseudo||'Membre')}</b> ${esc(c.texte)}<small style="display:block">${fmtDate(c.created_at)}</small></div>`).join('')}<form class="comment-form" data-comment-form="${p.id}"><input name="texte" maxlength="500" placeholder="Écrire un commentaire…" required><button class="btn sm">Envoyer</button></form></div></div>`;}).join(''):empty('Pas encore de publication','Sois le premier à partager quelque chose avec la communauté.');
 };
@@ -804,9 +858,9 @@ render.messages=async()=>{
   if(state.activeChat&&!selected)state.activeChat=null;
   const thread=selected?msgs.filter(m=>(m.de===state.user.id&&m.a===selected)||(m.de===selected&&m.a===state.user.id)):[];
   const isMobile=window.matchMedia('(max-width:899px)').matches;
-  $('#messages-content').innerHTML=`<div class="msg-wrap ${selected?'chat-open':''}"><div class="card conv-col" style="padding:10px">${people.size?[...people.values()].map(p=>`<div class="conv ${p.id===selected?'active':''}" data-chat-open="${p.id}">${avatar(p,'sm')}<div class="meta"><b>${esc(p.pseudo||'Membre')}</b><small>Ouvrir la discussion</small></div>${unreadOf(p.id)?`<span class="badge">${unreadOf(p.id)}</span>`:''}</div>`).join(''):empty('Aucun ami disponible','Accepte une invitation pour pouvoir commencer une discussion.')}</div><div class="card chat" style="margin:0"><div class="chat-head">${isMobile&&selected?'<button type="button" class="icon-btn" id="chat-back" aria-label="Retour aux conversations">←</button>':''}<b>${selected?esc(people.get(selected)?.pseudo||'Membre'):'Choisis un ami'}</b></div><div class="chat-body" id="chat-body">${selected?(thread.map(m=>`<div class="bubble ${m.de===state.user.id?'out':'in'}" data-message-bubble="${m.id}">
+  $('#messages-content').innerHTML=`<div class="msg-wrap ${selected?'chat-open':''}"><div class="card conv-col" style="padding:10px">${people.size?[...people.values()].map(p=>`<div class="conv ${p.id===selected?'active':''}" data-chat-open="${p.id}">${avatar(p,'sm')}<div class="meta"><b>${esc(p.pseudo||'Membre')}</b><small>Ouvrir la discussion</small></div>${unreadOf(p.id)?`<span class="badge">${unreadOf(p.id)}</span>`:''}</div>`).join(''):empty('Aucun ami disponible','Accepte une invitation pour pouvoir commencer une discussion.')}</div><div class="card chat" style="margin:0"><div class="chat-head">${isMobile&&selected?'<button type="button" class="icon-btn" id="chat-back" aria-label="Retour aux conversations">←</button>':''}<b>${selected?esc(people.get(selected)?.pseudo||'Membre'):'Choisis un ami'}</b></div><div class="chat-body" id="chat-body">${selected?(thread.map((m,i)=>`${opDaySep(thread[i-1],m)}<div class="bubble ${m.de===state.user.id?'out':'in'}" data-message-bubble="${m.id}">
       ${(()=>{const media=postTextAndImage(m.texte);const parts=splitReplyMessage(media.text);return `${parts.author?`<div class="reply-context">↪ Réponse à ${esc(parts.author)}</div>`:''}${esc(parts.body).replace(/\n/g,'<br>')}${media.url?(media.kind==='video'?`<div class="chat-media-box"><video src="${esc(media.url)}" controls playsinline preload="metadata"></video><div class="chat-media-actions"><button type="button" title="Voir en grand" aria-label="Voir la vidéo" data-chat-view="${esc(media.url)}" data-kind="video" data-name="otakulink-video.mp4">⛶</button><button type="button" title="Télécharger" aria-label="Télécharger la vidéo" data-chat-download="${esc(media.url)}" data-kind="video" data-name="otakulink-video.mp4">⬇</button></div></div>`:`<div class="chat-media-box"><img src="${esc(media.url)}" alt="Image envoyée" loading="lazy"><div class="chat-media-actions"><button type="button" title="Voir en grand" aria-label="Voir l’image" data-chat-view="${esc(media.url)}" data-kind="image" data-name="otakulink-image.jpg">⛶</button><button type="button" title="Télécharger" aria-label="Télécharger l’image" data-chat-download="${esc(media.url)}" data-kind="image" data-name="otakulink-image.jpg">⬇</button></div></div>`):''}`})()}
-      <small>${fmtDate(m.created_at)}</small>
+      <small>${opChatTime(m.created_at)}</small>
       <div class="message-tools">
         <button type="button" data-message-reply="${m.id}">↩ Répondre</button>
         <button type="button" data-message-copy="${m.id}">Copier</button>
@@ -895,7 +949,7 @@ render.messages=async()=>{
       // colonne facultative (ex. lu) ni d'une autorisation SELECT après INSERT.
       const {error:sendError}=await state.client.from('messages').insert({de:state.user.id,a:selected,texte:content});
       if(sendError)throw sendError;
-      stamp.textContent='Envoyé · à l’instant';
+      stamp.textContent=opChatTime(new Date().toISOString());
       if(state.messagesCache)state.messagesCache.data.push({id:tempId,de:state.user.id,a:selected,texte:content,created_at:new Date().toISOString()});
       const msgTools=document.createElement('div');msgTools.className='message-tools';
       const copyBtn=document.createElement('button');copyBtn.type='button';copyBtn.textContent='Copier';
@@ -971,14 +1025,20 @@ function openComposer(){
   url=URL.createObjectURL(f);
   if(f.type.startsWith('video/')){preview.innerHTML=`<video src="${url}" controls playsinline style="width:100%;max-height:260px;border-radius:12px"></video>`;return;}
   if(!f.type.startsWith('image/')){preview.textContent='Format non pris en charge.';return;}
+  if(f.type==='image/gif'){preview.innerHTML=`<div class="card" style="padding:10px"><small style="color:var(--muted)">GIF animé : envoyé tel quel, sans recadrage.</small><img src="${url}" alt="" style="display:block;width:100%;max-height:260px;object-fit:contain;border-radius:12px;margin-top:8px"></div>`;return;}
   img=new Image();img.onload=()=>{
-   preview.innerHTML=`<div class="card" style="padding:10px"><b>Recadrer ta photo</b><small style="display:block;color:var(--muted);margin:5px 0">Déplace l’image avec ton doigt et ajuste le zoom.</small><canvas id="m-crop-canvas" width="720" height="720" style="display:block;width:min(100%,320px);aspect-ratio:1;margin:auto;border-radius:12px;touch-action:none"></canvas><label style="display:block;margin-top:10px">Zoom <input id="m-crop-zoom" type="range" min="1" max="3" step=".01" value="1" style="width:100%"></label><button class="btn sm ghost" id="m-crop-reset" type="button">Réinitialiser</button></div>`;
-   paint();const c=$('#m-crop-canvas');
+   const W=1080,orig=Math.min(2,Math.max(.5,img.naturalWidth/img.naturalHeight));
+   preview.innerHTML=`<div class="card" style="padding:10px"><b>Recadrer ta photo</b><div class="chips" id="m-crop-ratios" style="margin:8px 0 4px"><button type="button" class="chip active" data-r="orig">Original</button><button type="button" class="chip" data-r="1">1:1</button><button type="button" class="chip" data-r="0.8">4:5</button><button type="button" class="chip" data-r="1.7778">16:9</button></div><div style="display:flex;align-items:center;gap:10px;margin:6px 0"><span aria-hidden="true">🔍</span><input id="m-crop-zoom" type="range" min="1" max="3" step=".01" value="1" aria-label="Zoom" style="flex:1"><button class="btn sm ghost" id="m-crop-reset" type="button">Réinitialiser</button></div><small style="display:block;color:var(--muted)">Glisse l’image avec ton doigt pour la déplacer.</small><canvas id="m-crop-canvas" width="${W}" height="${Math.round(W/orig)}" style="display:block;max-width:100%;max-height:42vh;width:auto;height:auto;margin:8px auto 0;border-radius:12px;touch-action:none"></canvas></div>`;
+   const c=$('#m-crop-canvas');
+   const setRatio=r=>{c.height=Math.round(W/r);scale=1;dx=dy=0;$('#m-crop-zoom').value=1;paint();};
+   paint();
    c.onpointerdown=e=>{drag={x:e.clientX,y:e.clientY,dx,dy};c.setPointerCapture(e.pointerId);};
    c.onpointermove=e=>{if(!drag)return;const r=c.getBoundingClientRect(),k=c.width/r.width;dx=drag.dx+(e.clientX-drag.x)*k;dy=drag.dy+(e.clientY-drag.y)*k;paint();};
    c.onpointerup=c.onpointercancel=()=>drag=null;
    $('#m-crop-zoom').oninput=e=>{scale=Number(e.target.value);paint();};
    $('#m-crop-reset').onclick=()=>{scale=1;dx=dy=0;$('#m-crop-zoom').value=1;paint();};
+   $('#m-crop-ratios').onclick=e=>{const b=e.target.closest('[data-r]');if(!b)return;$$('#m-crop-ratios .chip').forEach(x=>x.classList.toggle('active',x===b));setRatio(b.dataset.r==='orig'?orig:Number(b.dataset.r));};
+   preview.scrollIntoView({block:'nearest',behavior:'smooth'});
   };img.onerror=()=>preview.textContent='Impossible de lire cette image.';img.src=url;
  };
  const close=()=>{clean();$('#modal-root').innerHTML='';};
@@ -987,7 +1047,7 @@ function openComposer(){
   const btn=$('#m-pub'),original=fi.files?.[0],text=t.value.trim();
   if(!text&&!original)return toast('Écris un message ou ajoute un média.');
   let uploadFile=original;
-  if(original&&original.type.startsWith('image/')){
+  if(original&&original.type.startsWith('image/')&&original.type!=='image/gif'){
    const blob=await new Promise(resolve=>$('#m-crop-canvas')?.toBlob(resolve,'image/jpeg',.9));
    if(!blob)return toast('Impossible de préparer le recadrage.');
    uploadFile=new File([blob],(original.name.replace(/\.[^.]+$/,'')||'photo')+'-recadree.jpg',{type:'image/jpeg'});
@@ -1804,8 +1864,42 @@ let otPlusQuestions=[
 ];
 function otPlusShell(){return `<div class="topbar"><div><h1>⛩️ Otaku+</h1><p>Découvre, progresse et participe à la communauté.</p></div><span class="sp"></span><span class="op-xp-pill">⚡ ${otPlusData().xp} XP</span></div><div class="op-tabs"><button class="op-tab active" data-op-tab="catalogue">🎌 Anime/Manga</button><button class="op-tab" data-op-tab="defi">📆 Défi du jour</button><button class="op-tab" data-op-tab="progression">🏆 Progression</button><button class="op-tab" data-op-tab="quiz">🧠 Quiz</button><button class="op-tab" data-op-tab="events">📅 Événements</button><button class="op-tab" data-op-tab="ranking">🏆 Classement</button><button class="op-tab" data-op-tab="card">🪪 Ma carte</button></div><div id="op-cloud-notice">${opSetupNotice()}</div><div id="op-panel"></div>`}
 function renderOtakuPlus(){const host=$('#s-otakuplus');if(!host||!state.user)return;const tab=host.dataset.opTab||'catalogue';host.innerHTML=otPlusShell();host.dataset.opTab=tab;host.querySelectorAll('[data-op-tab]').forEach(b=>b.classList.toggle('active',b.dataset.opTab===tab));const panel=$('#op-panel');if(tab==='catalogue')opRenderCatalog(panel);if(tab==='defi')opRenderDefi(panel);if(tab==='progression')opRenderProgress(panel);if(tab==='quiz')opRenderQuiz(panel);if(tab==='events')opRenderEvents(panel);if(tab==='ranking')opRenderRanking(panel);if(tab==='card')opRenderCard(panel);}
+/* ===== Nouveaux mangas : bande d'affiches (chargée en arrière-plan) ===== */
+let opNewMangaCache={t:0,fresh:[],soon:[]};
+const opMonthFmt=new Intl.DateTimeFormat('fr-FR',{month:'long',year:'numeric'});
+function opPoster(x,tag,saved){
+  const d=x.from?new Date(x.from):null,ok=d&&!isNaN(d);
+  const when=ok?(tag==='soon'?'Prévu : ':'')+opMonthFmt.format(d):'';
+  return `<div class="op-poster"><div class="cover"><img src="${esc(x.image)}" alt="" loading="lazy" onerror="var p=this.closest('.op-poster');if(p)p.remove()"><span class="tag-new${tag==='soon'?' soon':''}">${tag==='soon'?'BIENTÔT':'NOUVEAU'}</span></div><b>${esc(x.title)}</b><small>${esc(when)}</small><div class="acts"><button type="button" aria-label="${saved?'Retirer de ma liste':'Ajouter à ma liste'}" data-op-fav="${esc(x.id)}" data-op-title="${esc(x.title)}" data-op-image="${esc(x.image)}" data-op-kind="Manga" data-op-year="${esc(x.year)}" data-op-score="${esc(x.score)}" data-op-yt="" data-op-synopsis="${esc((x.synopsis||'').slice(0,500))}">${saved?'✓':'＋'}</button><button type="button" aria-label="Où lire" data-op-where="1" data-op-kind="Manga" data-op-title="${esc(x.title)}">📖</button></div></div>`;
+}
+function opPaintNewManga(){
+  const host=$('#op-new-manga');if(!host)return;
+  const fav=otPlusData().favorites||[];
+  const sec=(title,rows,tag)=>rows.length?`<h3 class="op-section-title">${title}</h3><div class="op-strip">${rows.map(x=>opPoster(x,tag,fav.some(f=>f.id===x.id&&f.kind==='Manga'))).join('')}</div>`:'';
+  const html=sec('🆕 Nouveaux mangas',opNewMangaCache.fresh,'new')+sec('🔜 Bientôt en rayon',opNewMangaCache.soon,'soon');
+  host.innerHTML=html?`<div class="op-new">${html}</div>`:'<small style="display:block;color:var(--muted);margin:8px 0">Les nouveautés manga sont indisponibles pour le moment.</small>';
+}
+async function opLoadNewManga(){
+  if(!$('#op-new-manga'))return;
+  if(Date.now()-opNewMangaCache.t<1800000&&(opNewMangaCache.fresh.length||opNewMangaCache.soon.length)){opPaintNewManga();return;}
+  $('#op-new-manga').innerHTML='<small style="display:block;color:var(--muted);margin:8px 0">Chargement des nouveautés manga…</small>';
+  const get=async url=>{const c=new AbortController(),t=setTimeout(()=>c.abort(),10000);try{const r=await fetch(url,{signal:c.signal});if(!r.ok)return [];const j=await r.json();return j.data||[];}catch(_){return [];}finally{clearTimeout(t);}};
+  const norm=x=>({id:String(x.mal_id),title:x.title||x.title_english||'Sans titre',image:x.images?.jpg?.large_image_url||x.images?.jpg?.image_url||'',year:x.published?.from?.slice(0,4)||'',score:x.score||'—',synopsis:x.synopsis||'',from:x.published?.from||''});
+  const usable=r=>r.image&&!/questionmark/i.test(r.image);
+  const iso=days=>new Date(Date.now()-days*864e5).toISOString().slice(0,10);
+  const recent=days=>get(`https://api.tenrai.org/v1/manga?status=publishing&type=manga&start_date=${iso(days)}&order_by=members&sort=desc&limit=20&sfw=true`);
+  const upcoming=get('https://api.tenrai.org/v1/top/manga?filter=upcoming&limit=15&sfw=true');
+  let [a,soon]=await Promise.all([recent(120),upcoming]);
+  const seen=new Set(),now=Date.now();
+  const clean=(arr,future)=>arr.map(norm).filter(r=>usable(r)&&!seen.has(r.id)&&(future||!r.from||new Date(r.from)<=now)&&seen.add(r.id));
+  let fresh=clean(a,false);
+  if(fresh.length<5){const b=await recent(365);seen.clear();fresh=clean(a.concat(b),false);}
+  opNewMangaCache={t:Date.now(),fresh:fresh.slice(0,12),soon:clean(soon,true).slice(0,12)};
+  opPaintNewManga();
+}
 async function opRenderCatalog(panel){
- panel.innerHTML=`<div class="card"><h3>🔎 Explorer les œuvres</h3><form id="op-search-form" class="op-search" autocomplete="off"><input type="hidden" id="op-kind" name="kind" value="anime"><div class="op-kind-toggle" role="group" aria-label="Type de catalogue"><button type="button" class="op-kind-btn active" data-op-kind-btn="anime">Anime</button><button type="button" class="op-kind-btn" data-op-kind-btn="manga">Manga</button></div><input id="op-search" name="q" type="text" inputmode="text" enterkeyhint="search" tabindex="0" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="80" placeholder="Ex. Frieren, One Piece…" aria-label="Rechercher un anime ou un manga"><button type="submit" class="btn sm" id="op-search-go">Rechercher</button></form><p class="op-note">Catalogue alimenté par Tenrai. Les résultats et images proviennent du catalogue MyAnimeList.</p></div><div id="op-catalog-results">${opCatalogCards(otPlusData().favorites||[])}</div>`;
+ panel.innerHTML=`<div class="card"><h3>🔎 Explorer les œuvres</h3><form id="op-search-form" class="op-search" autocomplete="off"><input type="hidden" id="op-kind" name="kind" value="anime"><div class="op-kind-toggle" role="group" aria-label="Type de catalogue"><button type="button" class="op-kind-btn active" data-op-kind-btn="anime">Anime</button><button type="button" class="op-kind-btn" data-op-kind-btn="manga">Manga</button></div><input id="op-search" name="q" type="text" inputmode="text" enterkeyhint="search" tabindex="0" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="80" placeholder="Ex. Frieren, One Piece…" aria-label="Rechercher un anime ou un manga"><button type="submit" class="btn sm" id="op-search-go">Rechercher</button></form><p class="op-note">Catalogue alimenté par Tenrai. Les résultats et images proviennent du catalogue MyAnimeList.</p></div><div id="op-new-manga"></div><div id="op-catalog-results">${opCatalogCards(otPlusData().favorites||[])}</div>`;
+ opLoadNewManga(); // en arrière-plan, sans bloquer le catalogue
  const form=panel.querySelector('#op-search-form');
  const field=panel.querySelector('#op-search');
  if(field){field.disabled=false;field.readOnly=false;field.removeAttribute('readonly');field.style.pointerEvents='auto';field.setAttribute('autocomplete','off');field.setAttribute('inputmode','text');}
@@ -1998,6 +2092,8 @@ function opOpenWhere(title,kind){
  const rows=isAnime?[
   ['🟠','Crunchyroll','Catalogue officiel d’anime en streaming','https://www.crunchyroll.com/search?q='+q],
   ['🔴','Netflix','Séries et films d’animation','https://www.netflix.com/search?q='+q],
+  ['🇫🇷','ADN','Plateforme française dédiée à l’anime (VOSTFR et VF)','https://animationdigitalnetwork.com/'],
+  ['🔵','Prime Video','Séries et films d’animation','https://www.primevideo.com/search?phrase='+q],
   ['▶️','YouTube (chaînes officielles)','Épisodes gratuits proposés par les studios','https://www.youtube.com/results?search_query='+q+'+episode+officiel']
  ]:[
   ['🟥','MANGA Plus','Chapitres officiels gratuits (Shueisha)','https://mangaplus.shueisha.co.jp/'],
@@ -2374,6 +2470,34 @@ go=function(route){_goWithWarmup(route);if(route==='decouvrir'||route==='communa
 #chat-media-viewer .viewer-actions{display:flex;gap:12px}
 #chat-media-viewer button{padding:10px 16px;border-radius:22px;background:#10254a;border:1px solid #168dff;color:#fff}
 </style>
+<style id="op-chat-compact-v2">
+/* Messagerie compacte : texte plus petit, heure dans la bulle, actions au toucher */
+#s-messages .msg-wrap .chat-body{gap:3px}
+#s-messages .msg-wrap .bubble{display:flow-root;max-width:82%;padding:5px 9px 4px;border-radius:12px;font-size:13px;line-height:1.3}
+#s-messages .msg-wrap .bubble small{float:right;display:block;margin:8px 0 0 9px;font-size:9.5px;line-height:1;opacity:.65}
+#s-messages .msg-wrap .bubble .reply-context{font-size:11px;margin-bottom:3px}
+#s-messages .msg-wrap .bubble .message-tools{display:none;clear:both;gap:14px;margin-top:5px;padding-top:4px}
+#s-messages .msg-wrap .bubble.show-tools .message-tools{display:flex}
+#s-messages .msg-wrap .bubble .message-tools button{font-size:11px;padding:2px 0}
+#s-messages .day-sep{align-self:center;margin:8px 0 4px;padding:2px 10px;font-size:11px;color:var(--muted);background:rgba(15,27,66,.6);border-radius:999px}
+#s-messages .msg-wrap .chat-compose-row input{font-size:13.5px}
+/* Publication en plein écran */
+#feed>.card>p,#feed>.card>.post-media{cursor:pointer}
+#post-viewer{position:fixed;inset:0;z-index:1500;display:flex;flex-direction:column;background:var(--bg)}
+#post-viewer .pv-bar{display:flex;align-items:center;gap:12px;padding:calc(10px + env(safe-area-inset-top)) 14px 10px;border-bottom:1px solid var(--line)}
+#post-viewer .pv-bar b{font-size:17px}
+#post-viewer .pv-body{flex:1;overflow-y:auto;padding:14px 14px calc(26px + env(safe-area-inset-bottom));overscroll-behavior:contain}
+#post-viewer .post-head{display:flex;gap:10px;align-items:center;margin-bottom:12px}
+#post-viewer .pv-text{font-size:16px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere;margin:0 0 14px}
+#post-viewer .pv-media{display:block;width:100%;max-height:72dvh;object-fit:contain;border-radius:14px;background:#000;margin:0 0 14px}
+#post-viewer img.pv-media{cursor:zoom-in}
+#post-viewer .pv-actions{display:flex;align-items:center;gap:18px;padding:10px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);font-size:16px}
+#post-viewer .pv-like{font-size:16px;padding:4px 0}
+#post-viewer h4{margin:16px 0 8px;font-size:15px}
+#post-viewer .post-comment{padding:8px 0;border-bottom:1px solid rgba(80,140,255,.15);font-size:14px;overflow-wrap:anywhere}
+html.pv-open body{overflow:hidden}
+</style>
+
 
 <div id="chat-media-viewer" aria-hidden="true">
  <div class="viewer-content">
@@ -2566,6 +2690,71 @@ document.addEventListener("click",async e=>{
   setTimeout(()=>{b.textContent=old;delete b.dataset.busy;},1500);
 },true);
 decorate();
+})();
+</script>
+<script id="op-post-viewer">
+/* Publication en plein écran + messages : appuyer sur un message affiche ses actions */
+(function(){
+ let ov=null;
+ function close(fromPop){
+  if(!ov)return;
+  ov.remove();ov=null;document.documentElement.classList.remove('pv-open');
+  if(!fromPop&&history.state&&history.state.pv){try{history.back();}catch(_){}}
+ }
+ function open(card){
+  const likeBtn=card.querySelector('[data-like]'),head=card.querySelector(':scope > .post-head'),
+        txt=card.querySelector(':scope > p')?.textContent||'',media=card.querySelector(':scope > .post-media'),
+        cmts=[...card.querySelectorAll('.post-comment')];
+  ov=document.createElement('div');ov.id='post-viewer';ov.setAttribute('role','dialog');ov.setAttribute('aria-modal','true');
+  const bar=document.createElement('div');bar.className='pv-bar';
+  bar.innerHTML='<button type="button" class="icon-btn" data-pv-close aria-label="Retour">←</button><b>Publication</b>';
+  const body=document.createElement('div');body.className='pv-body';
+  if(head)body.appendChild(head.cloneNode(true));
+  if(txt){const p=document.createElement('p');p.className='pv-text';p.textContent=txt;body.appendChild(p);}
+  if(media){
+   const isV=media.tagName==='VIDEO',m=document.createElement(isV?'video':'img'),src=media.currentSrc||media.getAttribute('src')||'';
+   m.className='pv-media';m.src=src;
+   if(isV){m.controls=true;m.playsInline=true;m.preload='metadata';}
+   else{m.alt='Image de publication';m.referrerPolicy='no-referrer';m.dataset.chatView=src;m.dataset.kind='image';m.dataset.name='otakulink-image.jpg';}
+   body.appendChild(m);
+  }
+  const act=document.createElement('div');act.className='pv-actions';
+  if(likeBtn){const lb=document.createElement('button');lb.type='button';lb.className='pv-like'+(likeBtn.classList.contains('liked')?' liked':'');lb.dataset.pvLike=likeBtn.dataset.like;lb.textContent=likeBtn.textContent;act.appendChild(lb);}
+  const cc=document.createElement('span');cc.textContent='💬 '+cmts.length;act.appendChild(cc);body.appendChild(act);
+  if(cmts.length){const h=document.createElement('h4');h.textContent='Commentaires';body.appendChild(h);cmts.forEach(c=>body.appendChild(c.cloneNode(true)));}
+  ov.append(bar,body);document.body.appendChild(ov);document.documentElement.classList.add('pv-open');
+  try{history.pushState({pv:1},'');}catch(_){}
+  ov.addEventListener('click',e=>{
+   if(e.target.closest('[data-pv-close]')){close();return;}
+   if(e.target.closest('[data-profile]')){close();return;}
+   const lb=e.target.closest('[data-pv-like]');
+   if(lb){
+    const src=[...document.querySelectorAll('[data-like]')].find(x=>x.dataset.like===lb.dataset.pvLike&&!ov.contains(x));
+    if(src){src.click();setTimeout(()=>{lb.textContent=src.textContent;lb.classList.toggle('liked',src.classList.contains('liked'));},250);}
+   }
+  });
+ }
+ window.addEventListener('popstate',()=>close(true));
+ document.addEventListener('keydown',e=>{if(e.key==='Escape')close();});
+ /* Toucher une publication (texte, image, zone vide) l'ouvre en plein écran ; boutons et liens gardent leur rôle */
+ document.addEventListener('click',e=>{
+  if(ov||!e.target.closest)return;
+  const card=e.target.closest('.card');
+  if(!card||!card.querySelector(':scope > .post-head')||!card.querySelector('[data-like]'))return;
+  if(e.target.closest('button,a,input,textarea,select,label,video,form,.comment-list,.post-actions'))return;
+  e.preventDefault();e.stopPropagation();open(card);
+ },true);
+ /* Messages : toucher une bulle affiche Répondre / Copier / Supprimer */
+ document.addEventListener('click',e=>{
+  if(!e.target.closest)return;
+  const tool=e.target.closest('#s-messages .message-tools button');
+  if(tool){setTimeout(()=>document.querySelectorAll('#s-messages .bubble.show-tools').forEach(x=>x.classList.remove('show-tools')),0);return;}
+  const b=e.target.closest('#s-messages .bubble[data-message-bubble]');
+  if(!b||e.target.closest('button,a,video,.chat-media-box'))return;
+  const was=b.classList.contains('show-tools');
+  document.querySelectorAll('#s-messages .bubble.show-tools').forEach(x=>x.classList.remove('show-tools'));
+  if(!was)b.classList.add('show-tools');
+ });
 })();
 </script>
 </body>
