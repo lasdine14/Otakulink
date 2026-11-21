@@ -611,33 +611,48 @@ async function loadBlocks(){const {data}=await state.client.from('blocages').sel
 async function fetchProfiles(ids){ids=[...new Set(ids)].filter(Boolean);if(!ids.length){state.users=[];return state.users;}const {data}=await state.client.from('profiles').select('id,pseudo,bio,pays,avatar_url,cover_url,centres_interet,animes_favoris').in('id',ids);state.users=data||[];return state.users;}
 
 /* ===== OtakuLink Pro ===== */
-const PRO_WHATSAPP='';   // ← mets ici le numéro WhatsApp qui reçoit les demandes Pro, ex. '242060000000'
-const PRO_PRIX='à définir'; // ← ex. '2 000 FCFA / mois'
+const PRO_WHATSAPP='242067279904'; // numéro WhatsApp / Mobile Money qui reçoit les paiements Pro
+const PRO_NUM_AFFICHE='06 727 99 04';
+const PRO_PRIX='1 000 FCFA / mois',PRO_MONTANT=1000;
 state.proIds=state.proIds||new Set();state.discreet=state.discreet||new Set();
 const isPro=()=>state.proIds.has(state.user?.id);
 const isDiscreet=()=>isPro()&&state.discreet.has(state.user?.id);
 async function loadProFlags(){
-  try{const {data,error}=await state.client.from('profiles').select('id,masquer_discret').eq('pro',true);if(error)throw error;
-    state.proIds=new Set((data||[]).map(x=>x.id));state.discreet=new Set((data||[]).filter(x=>x.masquer_discret).map(x=>x.id));state.proReady=true;paintPro();}
-  catch(e){state.proReady=false;}
+  try{
+    let r=await state.client.from('profiles').select('id,masquer_discret,pro_until').eq('pro',true);
+    if(r.error)r=await state.client.from('profiles').select('id,masquer_discret').eq('pro',true);
+    if(r.error)throw r.error;
+    const now=Date.now(),act=(r.data||[]).filter(x=>!x.pro_until||new Date(x.pro_until).getTime()>now);
+    state.proIds=new Set(act.map(x=>x.id));state.discreet=new Set(act.filter(x=>x.masquer_discret).map(x=>x.id));
+    state.proUntil=(r.data||[]).find(x=>x.id===state.user?.id)?.pro_until||null;state.proReady=true;paintPro();
+  }catch(e){state.proReady=false;}
+  try{const {data}=await state.client.rpc('is_admin');state.isAdmin=data===true;}catch(_){state.isAdmin=false;}
 }
 function paintPro(){$$('.av').forEach(av=>{const d=av.querySelector(':scope>.pdot[data-presence]');if(d&&state.proIds.has(d.dataset.presence)){av.classList.add('pro');if(!av.querySelector('.probadge'))av.insertAdjacentHTML('beforeend','<i class="probadge">✦</i>');}});}
-function openProModal(){
+async function openProModal(){
   const pro=isPro(),root=$('#modal-root');
-  root.innerHTML=`<div class="modal" id="modal"><div class="sheet" style="max-width:460px"><div class="row"><b style="font-size:19px">✦ OtakuLink Pro</b><span class="sp"></span><button class="icon-btn" id="pro-close" aria-label="Fermer">✕</button></div>
-    ${pro?'<p style="color:#fbbf24;font-weight:700;margin:6px 0">Tu es membre Pro. Merci de soutenir OtakuLink ✦</p>':`<p class="sub" style="margin:6px 0">Plus de style, plus de discrétion.</p>`}
+  let pending=null;try{const {data}=await state.client.from('pro_requests').select('id').eq('user_id',state.user.id).eq('statut','attente').limit(1);pending=data&&data[0];}catch(_){}
+  const until=pro&&state.proUntil?new Date(state.proUntil).toLocaleDateString('fr-FR'):'';
+  root.innerHTML=`<div class="modal" id="modal"><div class="sheet" style="max-width:460px;max-height:90vh;overflow-y:auto"><div class="row"><b style="font-size:19px">✦ OtakuLink Pro</b><span class="sp"></span><button class="icon-btn" id="pro-close" aria-label="Fermer">✕</button></div>
+    ${pro?`<p style="color:#fbbf24;font-weight:700;margin:6px 0">Tu es membre Pro${until?` jusqu’au ${until}`:''} ✦</p>`:`<p class="sub" style="margin:6px 0">Plus de style, plus de discrétion.</p>`}
     <ul class="pro-list"><li>✦ <b>Badge Pro</b> et cadre doré autour de ta photo, partout dans l’app</li><li>🕶️ <b>Mode discret</b> : masque tes coches « lu » et ton statut « en ligne »</li></ul>
     <p style="font-size:12px;color:var(--muted);margin:10px 0 2px">Bientôt :</p>
     <ul class="pro-list pro-soon-list"><li>🖼️ Fonds d’écran exclusifs</li><li>💘 Boost et « qui t’a liké » dans Rencontres</li><li>👀 Voir qui a visité ton profil</li></ul>
-    ${pro?`<button class="btn block ghost" id="pro-discret">Mode discret : ${isDiscreet()?'Activé':'Désactivé'}</button>`
-         :`<p style="margin:10px 0;font-size:14px">Prix : <b>${esc(PRO_PRIX)}</b></p><button class="btn block gold" id="pro-ask">Demander Pro ✦</button><small style="display:block;color:var(--muted);margin-top:8px;text-align:center">Paiement par Mobile Money. Ton compte est activé après confirmation.</small>`}
+    ${pro?`<button class="btn block ghost" id="pro-discret" style="margin-bottom:12px">Mode discret : ${isDiscreet()?'Activé':'Désactivé'}</button>`:''}
+    ${pending?`<div class="card" style="margin:8px 0"><b>⏳ Demande en attente</b><small style="display:block;color:var(--muted);margin-top:4px">Ton paiement est en cours de vérification. Ton compte sera activé dès la confirmation.</small></div>`
+      :`<div class="card" style="margin:8px 0"><b>${PRO_PRIX}</b><small style="display:block;color:var(--muted);margin:6px 0">1. Envoie <b>${PRO_MONTANT.toLocaleString('fr-FR')} FCFA</b> par Mobile Money au <b>${PRO_NUM_AFFICHE}</b>.<br>2. Écris ci-dessous le numéro avec lequel tu as payé.</small><input id="pro-payeur" inputmode="tel" placeholder="Numéro utilisé pour payer" maxlength="20" style="width:100%;margin:6px 0;padding:12px;border-radius:12px;border:1px solid var(--line);background:rgba(15,27,66,.85)"><button class="btn block gold" id="pro-ask">${pro?'J’ai payé · Prolonger de 30 jours':'J’ai payé · Activer Pro'} ✦</button></div>`}
+    <button class="btn block ghost" id="pro-wa" style="margin-top:6px">💬 Écrire sur WhatsApp</button>
   </div></div>`;
   $('#pro-close').onclick=()=>root.innerHTML='';
   $('#modal').onclick=e=>{if(e.target.id==='modal')root.innerHTML='';};
-  const ask=$('#pro-ask');if(ask)ask.onclick=()=>{
-    if(!PRO_WHATSAPP){toast('Contact Pro pas encore configuré.');return;}
-    const msg=`Bonjour, je veux activer OtakuLink Pro. Mon pseudo : ${state.profile?.pseudo||''} (id : ${state.user.id})`;
-    window.open(`https://wa.me/${PRO_WHATSAPP}?text=${encodeURIComponent(msg)}`,'_blank');};
+  $('#pro-wa').onclick=()=>window.open(`https://wa.me/${PRO_WHATSAPP}?text=${encodeURIComponent(`Bonjour, je veux activer OtakuLink Pro. Mon pseudo : ${state.profile?.pseudo||''}`)}`,'_blank');
+  const ask=$('#pro-ask');if(ask)ask.onclick=async()=>{
+    const payeur=($('#pro-payeur').value||'').trim();
+    if(payeur.replace(/\D/g,'').length<8)return toast('Indique le numéro utilisé pour payer.');
+    ask.disabled=true;
+    const {error}=await state.client.from('pro_requests').insert({user_id:state.user.id,pseudo:state.profile?.pseudo||null,payeur,montant:PRO_MONTANT});
+    if(error){ask.disabled=false;return toast('Demande impossible : '+error.message);}
+    toast('Demande envoyée. Elle sera vérifiée rapidement ✦');openProModal();};
   const dis=$('#pro-discret');if(dis)dis.onclick=async()=>{
     const next=!isDiscreet();dis.disabled=true;
     const {error}=await state.client.from('profiles').update({masquer_discret:next}).eq('id',state.user.id);
@@ -647,6 +662,47 @@ function openProModal(){
     dis.textContent='Mode discret : '+(next?'Activé':'Désactivé');
     try{if(next)await state.presenceCh?.untrack();else await state.presenceCh?.track({at:Date.now()});}catch(_){}
     toast(next?'Mode discret activé.':'Mode discret désactivé.');};
+}
+
+/* ===== Administration : paiements Pro + signalements ===== */
+async function openAdminModal(tab='paiements'){
+  if(!state.isAdmin)return;
+  const root=$('#modal-root');
+  root.innerHTML=`<div class="modal" id="modal"><div class="sheet" style="max-width:560px;max-height:90vh;overflow-y:auto"><div class="row"><b style="font-size:19px">🛡️ Administration</b><span class="sp"></span><button class="icon-btn" id="adm-close" aria-label="Fermer">✕</button></div>
+    <div class="row" style="gap:8px;margin:8px 0"><button class="btn sm ${tab==='paiements'?'':'ghost'}" data-adm="paiements">💰 Paiements</button><button class="btn sm ${tab==='signalements'?'':'ghost'}" data-adm="signalements">🚩 Signalements</button></div>
+    <div id="adm-body"><small style="color:var(--muted)">Chargement…</small></div></div></div>`;
+  $('#adm-close').onclick=()=>root.innerHTML='';
+  $('#modal').onclick=e=>{if(e.target.id==='modal')root.innerHTML='';};
+  root.querySelectorAll('[data-adm]').forEach(b=>b.onclick=()=>openAdminModal(b.dataset.adm));
+  const body=$('#adm-body'),db=state.client;
+  const names=async ids=>{ids=[...new Set(ids.filter(Boolean))];if(!ids.length)return {};const {data}=await db.from('profiles').select('id,pseudo').in('id',ids);return Object.fromEntries((data||[]).map(x=>[x.id,x.pseudo]));};
+  try{
+    if(tab==='paiements'){
+      const {data,error}=await db.from('pro_requests').select('id,user_id,pseudo,payeur,montant,created_at').eq('statut','attente').order('created_at',{ascending:false});
+      if(error)throw error;
+      body.innerHTML=(data||[]).map(r=>`<div class="card" style="margin:10px 0"><div class="row"><b>✦ Pro</b><span class="sp"></span><b>${Number(r.montant||0).toLocaleString('fr-FR')} FCFA</b></div>
+        <div style="margin:6px 0;font-size:14px">Membre : <b>${esc(r.pseudo||'—')}</b><br>A payé depuis : <a href="tel:${esc(r.payeur)}">${esc(r.payeur)}</a><br><small style="color:var(--muted)">${new Date(r.created_at).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</small></div>
+        <button class="btn block" data-pay="${r.id}" data-ok="1">✅ Valider (paiement reçu)</button><button class="btn block ghost danger" style="margin-top:8px" data-pay="${r.id}" data-ok="0">Refuser</button></div>`).join('')||'<div class="card" style="text-align:center;color:var(--muted);margin:10px 0">Aucune demande de paiement en attente.</div>';
+      body.querySelectorAll('[data-pay]').forEach(b=>b.onclick=async()=>{
+        if(b.dataset.ok==='0'&&!confirm('Refuser cette demande ?'))return;
+        b.disabled=true;const {error}=await db.rpc('admin_set_pro_request',{p_id:Number(b.dataset.pay),p_ok:b.dataset.ok==='1'});
+        if(error){b.disabled=false;return toast('Erreur : '+error.message);}
+        toast(b.dataset.ok==='1'?'Pro activé pour 30 jours ✦':'Demande refusée.');loadProFlags();openAdminModal('paiements');});
+    }else{
+      const {data,error}=await db.from('signalements').select('*').limit(60);
+      if(error)throw error;
+      const rows=(data||[]).sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')));
+      const nm=await names(rows.flatMap(r=>[r.auteur,r.cible_user]));
+      const ids=rows.map(r=>r.cible_post).filter(Boolean);let posts={};
+      if(ids.length){const {data:ps}=await db.from('posts').select('id,texte').in('id',ids);posts=Object.fromEntries((ps||[]).map(x=>[x.id,x.texte]));}
+      body.innerHTML=rows.map(r=>`<div class="card" style="margin:10px 0"><div style="font-size:14px"><b>${esc(nm[r.auteur]||'Membre')}</b> a signalé ${r.cible_post?`une publication`:`<b>${esc(nm[r.cible_user]||'un membre')}</b>`}</div>
+        ${r.cible_post?`<div style="margin:6px 0;padding:8px 10px;border-radius:10px;background:rgba(255,255,255,.06);font-size:13px;overflow-wrap:anywhere">${esc((posts[r.cible_post]??'(publication introuvable ou déjà supprimée)').slice(0,300))}</div>`:''}
+        <div style="margin:6px 0;font-size:13px;color:var(--muted)">Motif : ${esc(r.motif||'—')}</div>
+        <div class="row" style="gap:8px">${r.cible_post?`<button class="btn sm danger" data-delpost="${r.cible_post}" data-sig="${r.id}">🗑️ Supprimer la publication</button>`:''}<button class="btn sm ghost" data-ign="${r.id}">Ignorer</button></div></div>`).join('')||'<div class="card" style="text-align:center;color:var(--muted);margin:10px 0">Aucun signalement 🎉</div>';
+      body.querySelectorAll('[data-ign]').forEach(b=>b.onclick=async()=>{b.disabled=true;const {error}=await db.from('signalements').delete().eq('id',b.dataset.ign);if(error){b.disabled=false;return toast('Erreur : '+error.message);}openAdminModal('signalements');});
+      body.querySelectorAll('[data-delpost]').forEach(b=>b.onclick=async()=>{if(!confirm('Supprimer cette publication ?'))return;b.disabled=true;const r1=await db.from('posts').delete().eq('id',b.dataset.delpost);if(r1.error){b.disabled=false;return toast('Erreur : '+r1.error.message);}await db.from('signalements').delete().eq('id',b.dataset.sig);toast('Publication supprimée.');openAdminModal('signalements');});
+    }
+  }catch(e){body.innerHTML=`<div class="err">Indisponible : ${esc(e.message||e)}<br><small>Vérifie que le fichier SQL Pro a bien été lancé dans Supabase.</small></div>`;}
 }
 
 /* ===== Présence en ligne + accusés de lecture ===== */
@@ -1081,7 +1137,7 @@ render.parametres=async()=>{
   const blockedIds=[...state.blockedByMe];
   let blockedProfiles=[];
   if(blockedIds.length){const {data}=await state.client.from('profiles').select('id,pseudo').in('id',blockedIds);blockedProfiles=data||[];}
-  $('#s-parametres').innerHTML=`${topbar('Paramètres','Préférences de ton compte.')}<div class="two-col"><div><div class="card"><h3>✦ OtakuLink Pro</h3><div class="row"><div class="t">${isPro()?'Tu es membre Pro':'Badge, cadre doré, mode discret'}<small>${isPro()?'Gère ton mode discret':'Découvre les avantages'}</small></div><button class="btn sm gold" data-pro-open="1">${isPro()?'Gérer':'Découvrir'}</button></div></div><div class="card"><h3>👤 Compte</h3><div class="row"><div class="t">Adresse e-mail<small>${esc(state.user?.email||'')}</small></div></div><div class="row"><div class="t">Thème sombre</div><button class="btn sm ghost" id="theme-toggle">${state.settings.dark?'Activé':'Désactivé'}</button></div><div class="row"><div class="t">Notifications de l’interface<small>Préférence enregistrée sur cet appareil</small></div><button class="btn sm ghost" id="notif-toggle">${state.settings.notifications?'Activées':'Désactivées'}</button></div></div><div class="card"><h3>📖 Mode d’emploi</h3><p style="color:var(--muted);font-size:13px">Tout ce qu’il faut savoir pour bien utiliser OtakuLink.</p><details style="margin-top:10px"><summary style="cursor:pointer;color:var(--cyan)">Découvrir et Connexions</summary><p style="color:var(--muted);font-size:13px">Cherche des membres, ouvre leur profil et envoie une demande d’ami. Retrouve tes demandes et tes amis dans Connexions.</p></details><details style="margin-top:8px"><summary style="cursor:pointer;color:var(--cyan)">Communauté</summary><p style="color:var(--muted);font-size:13px">Publie, commente et réagis aux posts des autres membres. Un contenu te dérange ? Appuie sur 🚩 pour le signaler.</p></details><details style="margin-top:8px"><summary style="cursor:pointer;color:var(--cyan)">Messages</summary><p style="color:var(--muted);font-size:13px">Tu peux discuter avec tes amis, répondre à un message et réagir avec des emojis.</p></details><details style="margin-top:8px"><summary style="cursor:pointer;color:var(--cyan)">Rencontres (16 ans et plus)</summary><p style="color:var(--muted);font-size:13px">Renseigne ta date de naissance puis active ton profil Rencontres. Tu ne vois que les membres de ta tranche d’âge (16-17 ans ou 18 ans et plus) qui ont aussi activé leur profil. Tu peux le désactiver à tout moment.</p></details><details style="margin-top:8px"><summary style="cursor:pointer;color:var(--cyan)">Profil et Otaku+</summary><p style="color:var(--muted);font-size:13px">Personnalise ta photo, ta couverture, ta bio et tes animes préférés. Dans Otaku+, relève des quiz et gagne de l’XP.</p></details><details style="margin-top:8px"><summary style="cursor:pointer;color:var(--cyan)">Sécurité</summary><p style="color:var(--muted);font-size:13px">Tu peux bloquer ou signaler un membre depuis son profil. Les membres bloqués apparaissent plus bas dans cette page, d’où tu peux les débloquer.</p></details></div><div class="card"><h3>💡 Pourquoi OtakuLink ?</h3><p style="color:var(--muted);font-size:13px;line-height:1.5">OtakuLink est né pour offrir aux fans d’anime et de manga un endroit à eux : se retrouver, discuter, partager leur passion et faire de nouvelles rencontres.</p><p style="color:var(--muted);font-size:13px;line-height:1.5">L’idée générale du projet vient de <b>lasdine14</b>, créateur de contenu sur TikTok (lasdine14) et sur YouTube (oeil_otaku).</p></div><div class="card"><h3>🚫 Membres bloqués (${blockedIds.length})</h3>${blockedProfiles.length?blockedProfiles.map(u=>`<div class="friend"><div class="meta"><b>${esc(u.pseudo||'Membre')}</b></div><button class="btn sm ghost" data-unblock="${u.id}">Débloquer</button></div>`).join(''): '<small style="color:var(--muted)">Aucun membre bloqué.</small>'}</div></div><div><div class="card"><h3>⚠️ Zone de sécurité</h3><button class="btn ghost block" id="export-data">⬇️ Télécharger mes données</button><button class="btn ghost block" id="reset-password" style="margin-top:10px">Réinitialiser mon mot de passe</button><button class="btn danger block" id="logout" style="margin-top:12px">Se déconnecter</button><button class="btn ghost block" id="delete-account" style="margin-top:12px;color:#ff6070">Supprimer mon compte</button></div><div class="card"><h3>À propos</h3><p style="color:var(--muted)">OtakuLink — communauté anime et manga.</p><p style="color:var(--muted);font-size:13px">Idée originale : lasdine14 (TikTok : lasdine14 · YouTube : oeil_otaku).</p></div></div></div>`;
+  $('#s-parametres').innerHTML=`${topbar('Paramètres','Préférences de ton compte.')}<div class="two-col"><div><div class="card"><h3>✦ OtakuLink Pro</h3><div class="row"><div class="t">${isPro()?'Tu es membre Pro':'Badge, cadre doré, mode discret'}<small>${isPro()?'Gère ton mode discret':'Découvre les avantages'}</small></div><button class="btn sm gold" data-pro-open="1">${isPro()?'Gérer':'Découvrir'}</button></div></div>${state.isAdmin?`<div class="card"><h3>🛡️ Administration</h3><div class="row"><div class="t">Paiements Pro et signalements<small>Réservé à l’administrateur</small></div><button class="btn sm" data-admin-open="1">Ouvrir</button></div></div>`:''}<div class="card"><h3>👤 Compte</h3><div class="row"><div class="t">Adresse e-mail<small>${esc(state.user?.email||'')}</small></div></div><div class="row"><div class="t">Thème sombre</div><button class="btn sm ghost" id="theme-toggle">${state.settings.dark?'Activé':'Désactivé'}</button></div><div class="row"><div class="t">Notifications de l’interface<small>Préférence enregistrée sur cet appareil</small></div><button class="btn sm ghost" id="notif-toggle">${state.settings.notifications?'Activées':'Désactivées'}</button></div></div><div class="card"><h3>📖 Mode d’emploi</h3><p style="color:var(--muted);font-size:13px">Tout ce qu’il faut savoir pour bien utiliser OtakuLink.</p><details style="margin-top:10px"><summary style="cursor:pointer;color:var(--cyan)">Découvrir et Connexions</summary><p style="color:var(--muted);font-size:13px">Cherche des membres, ouvre leur profil et envoie une demande d’ami. Retrouve tes demandes et tes amis dans Connexions.</p></details><details style="margin-top:8px"><summary style="cursor:pointer;color:var(--cyan)">Communauté</summary><p style="color:var(--muted);font-size:13px">Publie, commente et réagis aux posts des autres membres. Un contenu te dérange ? Appuie sur 🚩 pour le signaler.</p></details><details style="margin-top:8px"><summary style="cursor:pointer;color:var(--cyan)">Messages</summary><p style="color:var(--muted);font-size:13px">Tu peux discuter avec tes amis, répondre à un message et réagir avec des emojis.</p></details><details style="margin-top:8px"><summary style="cursor:pointer;color:var(--cyan)">Rencontres (16 ans et plus)</summary><p style="color:var(--muted);font-size:13px">Renseigne ta date de naissance puis active ton profil Rencontres. Tu ne vois que les membres de ta tranche d’âge (16-17 ans ou 18 ans et plus) qui ont aussi activé leur profil. Tu peux le désactiver à tout moment.</p></details><details style="margin-top:8px"><summary style="cursor:pointer;color:var(--cyan)">Profil et Otaku+</summary><p style="color:var(--muted);font-size:13px">Personnalise ta photo, ta couverture, ta bio et tes animes préférés. Dans Otaku+, relève des quiz et gagne de l’XP.</p></details><details style="margin-top:8px"><summary style="cursor:pointer;color:var(--cyan)">Sécurité</summary><p style="color:var(--muted);font-size:13px">Tu peux bloquer ou signaler un membre depuis son profil. Les membres bloqués apparaissent plus bas dans cette page, d’où tu peux les débloquer.</p></details></div><div class="card"><h3>💡 Pourquoi OtakuLink ?</h3><p style="color:var(--muted);font-size:13px;line-height:1.5">OtakuLink est né pour offrir aux fans d’anime et de manga un endroit à eux : se retrouver, discuter, partager leur passion et faire de nouvelles rencontres.</p><p style="color:var(--muted);font-size:13px;line-height:1.5">L’idée générale du projet vient de <b>lasdine14</b>, créateur de contenu sur TikTok (lasdine14) et sur YouTube (oeil_otaku).</p></div><div class="card"><h3>🚫 Membres bloqués (${blockedIds.length})</h3>${blockedProfiles.length?blockedProfiles.map(u=>`<div class="friend"><div class="meta"><b>${esc(u.pseudo||'Membre')}</b></div><button class="btn sm ghost" data-unblock="${u.id}">Débloquer</button></div>`).join(''): '<small style="color:var(--muted)">Aucun membre bloqué.</small>'}</div></div><div><div class="card"><h3>⚠️ Zone de sécurité</h3><button class="btn ghost block" id="export-data">⬇️ Télécharger mes données</button><button class="btn ghost block" id="reset-password" style="margin-top:10px">Réinitialiser mon mot de passe</button><button class="btn danger block" id="logout" style="margin-top:12px">Se déconnecter</button><button class="btn ghost block" id="delete-account" style="margin-top:12px;color:#ff6070">Supprimer mon compte</button></div><div class="card"><h3>À propos</h3><p style="color:var(--muted)">OtakuLink — communauté anime et manga.</p><p style="color:var(--muted);font-size:13px">Idée originale : lasdine14 (TikTok : lasdine14 · YouTube : oeil_otaku).</p></div></div></div>`;
   $('#theme-toggle').onclick=()=>{state.settings.dark=!state.settings.dark;localStorage.setItem('otakulink_settings',JSON.stringify(state.settings));applyTheme();render.parametres();};
   $('#notif-toggle').onclick=async()=>{if(!state.settings.notifications&&'Notification' in window&&Notification.permission==='default'){const permission=await Notification.requestPermission();if(permission!=='granted')toast('Les notifications du navigateur restent désactivées.');}state.settings.notifications=!state.settings.notifications;localStorage.setItem('otakulink_settings',JSON.stringify(state.settings));render.parametres();};
   if($('#social-sql'))$('#social-sql').value=OTaku_SCHEMA_SQL;$('#copy-social-sql')?.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(OTaku_SCHEMA_SQL);toast('SQL social copié. Colle-le dans Supabase.');}catch(_){$('#social-sql')?.select();toast('Sélectionne le SQL puis copie-le.');}});
@@ -1195,6 +1251,7 @@ function openComposer(){
  };
 }
 document.addEventListener('click',async e=>{
+  if(e.target.closest('[data-admin-open]')){openAdminModal();return;}
   if(e.target.closest('#pro-soon,[data-pro-open]')){openProModal();return;}
   const rp=e.target.closest('[data-report-post],[data-report-user]');
   if(rp){if(!state.client||!state.user)return toast('Connecte-toi pour signaler un contenu.');const motif=prompt('Motif du signalement (spam, harcèlement, contenu inapproprié…) :');if(!motif?.trim())return;const {error}=await state.client.from('signalements').insert({auteur:state.user.id,cible_user:rp.dataset.reportUser||null,cible_post:rp.dataset.reportPost||null,motif:motif.trim().slice(0,500)});toast(error?error.message:'Merci, signalement envoyé.');return;}
