@@ -1633,8 +1633,9 @@ otakuLayoutFix.textContent=`
 .group-chat-head small{display:block;color:var(--muted);margin-top:3px}
 .group-chat-body{flex:1;min-height:0;overflow-y:auto;padding:14px 2px;display:flex;flex-direction:column;gap:10px}
 .group-message{max-width:90%;align-self:flex-start;background:#172544;border:1px solid rgba(80,140,255,.15);border-radius:16px 16px 16px 4px;padding:12px 14px}
-.group-message p{margin:5px 0;overflow-wrap:anywhere}
-.group-message small{font-size:11px;color:var(--muted)}
+.group-message p{margin:5px 0;overflow-wrap:anywhere;font-size:15px;line-height:1.35}
+.group-message b{font-size:14px}
+.group-message small{font-size:11.5px;color:var(--muted)}
 .group-chat-composer{display:flex;gap:9px;align-items:center;padding:10px 0 0;border-top:1px solid var(--line);flex-shrink:0}
 .group-chat-composer input{flex:1;min-width:0;background:#101d3d;border:1px solid var(--line);border-radius:15px;padding:14px;color:var(--text);font-size:16px}
 @media(max-width:899px){
@@ -1867,10 +1868,10 @@ function renderOtakuPlus(){const host=$('#s-otakuplus');if(!host||!state.user)re
 /* ===== Nouveaux mangas : bande d'affiches (chargée en arrière-plan) ===== */
 let opNewMangaCache={t:0,fresh:[],soon:[]};
 const opMonthFmt=new Intl.DateTimeFormat('fr-FR',{month:'long',year:'numeric'});
-function opPoster(x,tag,saved){
+function opPoster(x,tag,saved,kind){kind=kind||'Manga';
   const d=x.from?new Date(x.from):null,ok=d&&!isNaN(d);
   const when=ok?(tag==='soon'?'Prévu : ':'')+opMonthFmt.format(d):'';
-  return `<div class="op-poster"><div class="cover"><img src="${esc(x.image)}" alt="" loading="lazy" onerror="var p=this.closest('.op-poster');if(p)p.remove()"><span class="tag-new${tag==='soon'?' soon':''}">${tag==='soon'?'BIENTÔT':'NOUVEAU'}</span></div><b>${esc(x.title)}</b><small>${esc(when)}</small><div class="acts"><button type="button" aria-label="${saved?'Retirer de ma liste':'Ajouter à ma liste'}" data-op-fav="${esc(x.id)}" data-op-title="${esc(x.title)}" data-op-image="${esc(x.image)}" data-op-kind="Manga" data-op-year="${esc(x.year)}" data-op-score="${esc(x.score)}" data-op-yt="" data-op-synopsis="${esc((x.synopsis||'').slice(0,500))}">${saved?'✓':'＋'}</button><button type="button" aria-label="Où lire" data-op-where="1" data-op-kind="Manga" data-op-title="${esc(x.title)}">📖</button></div></div>`;
+  return `<div class="op-poster"><div class="cover"><img src="${esc(x.image)}" alt="" loading="lazy" onerror="var p=this.closest('.op-poster');if(p)p.remove()"><span class="tag-new${tag==='soon'?' soon':''}">${tag==='soon'?'BIENTÔT':'NOUVEAU'}</span></div><b>${esc(x.title)}</b><small>${esc(when)}</small><div class="acts"><button type="button" aria-label="${saved?'Retirer de ma liste':'Ajouter à ma liste'}" data-op-fav="${esc(x.id)}" data-op-title="${esc(x.title)}" data-op-image="${esc(x.image)}" data-op-kind="${kind}" data-op-year="${esc(x.year)}" data-op-score="${esc(x.score)}" data-op-yt="" data-op-synopsis="${esc((x.synopsis||'').slice(0,500))}">${saved?'✓':'＋'}</button><button type="button" aria-label="${kind==='Anime'?'Où regarder':'Où lire'}" data-op-where="1" data-op-kind="${kind}" data-op-title="${esc(x.title)}">${kind==='Anime'?'📺':'📖'}</button></div></div>`;
 }
 function opPaintNewManga(){
   const host=$('#op-new-manga');if(!host)return;
@@ -1897,8 +1898,37 @@ async function opLoadNewManga(){
   opNewMangaCache={t:Date.now(),fresh:fresh.slice(0,12),soon:clean(soon,true).slice(0,12)};
   opPaintNewManga();
 }
+
+/* ===== Nouveaux animes : bande d'affiches ===== */
+let opNewAnimeCache={t:0,fresh:[],soon:[]};
+function opPaintNewAnime(){
+  const host=$('#op-new-anime');if(!host)return;
+  const fav=otPlusData().favorites||[];
+  const sec=(title,rows,tag)=>rows.length?`<h3 class="op-section-title">${title}</h3><div class="op-strip">${rows.map(x=>opPoster(x,tag,fav.some(f=>f.id===x.id&&f.kind==='Anime'),'Anime')).join('')}</div>`:'';
+  const html=sec('🆕 Nouveaux animes',opNewAnimeCache.fresh,'new')+sec('🔜 Bientôt à l’écran',opNewAnimeCache.soon,'soon');
+  host.innerHTML=html?`<div class="op-new">${html}</div>`:'<small style="display:block;color:var(--muted);margin:8px 0">Les nouveautés anime sont indisponibles pour le moment.</small>';
+}
+async function opLoadNewAnime(){
+  if(!$('#op-new-anime'))return;
+  if(Date.now()-opNewAnimeCache.t<1800000&&(opNewAnimeCache.fresh.length||opNewAnimeCache.soon.length)){opPaintNewAnime();return;}
+  $('#op-new-anime').innerHTML='<small style="display:block;color:var(--muted);margin:8px 0">Chargement des nouveautés anime…</small>';
+  const get=async url=>{const c=new AbortController(),t=setTimeout(()=>c.abort(),10000);try{const r=await fetch(url,{signal:c.signal});if(!r.ok)return [];const j=await r.json();return j.data||[];}catch(_){return [];}finally{clearTimeout(t);}};
+  const norm=x=>({id:String(x.mal_id),title:x.title||x.title_english||'Sans titre',image:x.images?.jpg?.large_image_url||x.images?.jpg?.image_url||'',year:x.year||x.aired?.from?.slice(0,4)||'',score:x.score||'—',synopsis:x.synopsis||'',from:x.aired?.from||''});
+  const usable=r=>r.image&&!/questionmark/i.test(r.image);
+  const iso=days=>new Date(Date.now()-days*864e5).toISOString().slice(0,10);
+  const recent=days=>get(`https://api.tenrai.org/v1/anime?status=airing&type=tv&start_date=${iso(days)}&order_by=members&sort=desc&limit=20&sfw=true`);
+  const upcoming=get('https://api.tenrai.org/v1/top/anime?filter=upcoming&limit=15&sfw=true');
+  let [a,soon]=await Promise.all([recent(120),upcoming]);
+  const seen=new Set(),now=Date.now();
+  const clean=(arr,future)=>arr.map(norm).filter(r=>usable(r)&&!seen.has(r.id)&&(future||!r.from||new Date(r.from)<=now)&&seen.add(r.id));
+  let fresh=clean(a,false);
+  if(fresh.length<5){const b=await recent(365);seen.clear();fresh=clean(a.concat(b),false);}
+  opNewAnimeCache={t:Date.now(),fresh:fresh.slice(0,12),soon:clean(soon,true).slice(0,12)};
+  opPaintNewAnime();
+}
 async function opRenderCatalog(panel){
- panel.innerHTML=`<div class="card"><h3>🔎 Explorer les œuvres</h3><form id="op-search-form" class="op-search" autocomplete="off"><input type="hidden" id="op-kind" name="kind" value="anime"><div class="op-kind-toggle" role="group" aria-label="Type de catalogue"><button type="button" class="op-kind-btn active" data-op-kind-btn="anime">Anime</button><button type="button" class="op-kind-btn" data-op-kind-btn="manga">Manga</button></div><input id="op-search" name="q" type="text" inputmode="text" enterkeyhint="search" tabindex="0" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="80" placeholder="Ex. Frieren, One Piece…" aria-label="Rechercher un anime ou un manga"><button type="submit" class="btn sm" id="op-search-go">Rechercher</button></form><p class="op-note">Catalogue alimenté par Tenrai. Les résultats et images proviennent du catalogue MyAnimeList.</p></div><div id="op-new-manga"></div><div id="op-catalog-results">${opCatalogCards(otPlusData().favorites||[])}</div>`;
+ panel.innerHTML=`<div class="card"><h3>🔎 Explorer les œuvres</h3><form id="op-search-form" class="op-search" autocomplete="off"><input type="hidden" id="op-kind" name="kind" value="anime"><div class="op-kind-toggle" role="group" aria-label="Type de catalogue"><button type="button" class="op-kind-btn active" data-op-kind-btn="anime">Anime</button><button type="button" class="op-kind-btn" data-op-kind-btn="manga">Manga</button></div><input id="op-search" name="q" type="text" inputmode="text" enterkeyhint="search" tabindex="0" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="80" placeholder="Ex. Frieren, One Piece…" aria-label="Rechercher un anime ou un manga"><button type="submit" class="btn sm" id="op-search-go">Rechercher</button></form><p class="op-note">Catalogue alimenté par Tenrai. Les résultats et images proviennent du catalogue MyAnimeList.</p></div><div id="op-new-anime"></div><div id="op-new-manga"></div><div id="op-catalog-results">${opCatalogCards(otPlusData().favorites||[])}</div>`;
+ opLoadNewAnime();
  opLoadNewManga(); // en arrière-plan, sans bloquer le catalogue
  const form=panel.querySelector('#op-search-form');
  const field=panel.querySelector('#op-search');
@@ -2449,13 +2479,13 @@ go=function(route){_goWithWarmup(route);if(route==='decouvrir'||route==='communa
 @media(max-width:899px){
  #s-messages .msg-wrap.chat-open>.chat{padding:8px 10px 8px!important}
  #s-messages .msg-wrap.chat-open .chat-body{gap:7px;padding:10px 1px!important}
- #s-messages .bubble{max-width:84%;padding:8px 10px;border-radius:14px;font-size:14px;line-height:1.28}
+ #s-messages .bubble{max-width:84%;padding:8px 10px;border-radius:14px;font-size:15px;line-height:1.33}
  #s-messages .bubble small{font-size:10px;margin-top:3px}
  #s-messages .message-tools{gap:9px;margin-top:4px;padding-top:4px;border-top-color:rgba(150,190,255,.09)}
  #s-messages .message-tools button{font-size:10px;padding:1px 0}
  #s-messages .chat-composer{margin-top:5px;padding:4px 6px!important;border-radius:24px}
  #s-messages .chat-compose-row{min-height:42px}
- #s-messages .chat-compose-row input{height:40px;min-height:40px;font-size:14px}
+ #s-messages .chat-compose-row input{height:40px;min-height:40px;font-size:15px}
  #s-messages .chat-compose-row .send{width:40px;height:40px;min-height:40px;flex-basis:40px}
  #s-messages .chat-attach-icon{width:34px;height:34px;flex-basis:34px;font-size:26px}
 }
@@ -2473,14 +2503,14 @@ go=function(route){_goWithWarmup(route);if(route==='decouvrir'||route==='communa
 <style id="op-chat-compact-v2">
 /* Messagerie compacte : texte plus petit, heure dans la bulle, actions au toucher */
 #s-messages .msg-wrap .chat-body{gap:3px}
-#s-messages .msg-wrap .bubble{display:flow-root;max-width:82%;padding:5px 9px 4px;border-radius:12px;font-size:13px;line-height:1.3}
-#s-messages .msg-wrap .bubble small{float:right;display:block;margin:8px 0 0 9px;font-size:9.5px;line-height:1;opacity:.65}
-#s-messages .msg-wrap .bubble .reply-context{font-size:11px;margin-bottom:3px}
+#s-messages .msg-wrap .bubble{display:flow-root;max-width:84%;padding:6px 10px 5px;border-radius:13px;font-size:15px;line-height:1.35}
+#s-messages .msg-wrap .bubble small{float:right;display:block;margin:8px 0 0 9px;font-size:10.5px;line-height:1;opacity:.65}
+#s-messages .msg-wrap .bubble .reply-context{font-size:12.5px;margin-bottom:3px}
 #s-messages .msg-wrap .bubble .message-tools{display:none;clear:both;gap:14px;margin-top:5px;padding-top:4px}
 #s-messages .msg-wrap .bubble.show-tools .message-tools{display:flex}
 #s-messages .msg-wrap .bubble .message-tools button{font-size:11px;padding:2px 0}
 #s-messages .day-sep{align-self:center;margin:8px 0 4px;padding:2px 10px;font-size:11px;color:var(--muted);background:rgba(15,27,66,.6);border-radius:999px}
-#s-messages .msg-wrap .chat-compose-row input{font-size:13.5px}
+#s-messages .msg-wrap .chat-compose-row input{font-size:15px}
 /* Publication en plein écran */
 #feed>.card>p,#feed>.card>.post-media{cursor:pointer}
 #post-viewer{position:fixed;inset:0;z-index:1500;display:flex;flex-direction:column;background:var(--bg)}
