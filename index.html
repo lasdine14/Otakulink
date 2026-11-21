@@ -1798,15 +1798,15 @@ async function opRenderCatalog(panel){
      const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),12000);const res=await fetch('https://api.tenrai.org/v1/top/anime?limit=12&sfw=true',{signal:controller.signal});clearTimeout(timer);
      if(!res.ok)throw new Error('Catalogue temporairement indisponible. Vérifie ta connexion puis réessaie.');
      const json=await res.json();
-     const rows=(json.data||[]).map(x=>({id:String(x.mal_id),title:x.title||x.title_english||'Sans titre',image:x.images?.jpg?.image_url||'',kind:'Anime',year:x.year||'',score:x.score||'—',synopsis:x.synopsis||'',url:x.url||''}));
+     const rows=(json.data||[]).map(x=>({id:String(x.mal_id),title:x.title||x.title_english||'Sans titre',image:x.images?.jpg?.image_url||'',kind:'Anime',year:x.year||'',score:x.score||'—',synopsis:x.synopsis||'',url:x.url||'',trailer:opYtId(x)}));
      if(rows.length)host.innerHTML='<h3 class="op-section-title">🔥 Anime populaires</h3><div class="op-grid">'+rows.map(x=>opMediaCard(x,(otPlusData().favorites||[]).some(f=>f.id===x.id&&f.kind===x.kind))).join('')+'</div>';
      else host.innerHTML='<div class="card">Aucun résultat disponible pour le moment.</div>';
    }catch(err){host.innerHTML='<div class="card">'+(err.name==='AbortError'?'Le catalogue met trop de temps à répondre. Appuie sur Rechercher après avoir saisi un titre.':esc(err.message||'Impossible de charger le catalogue.'))+'</div>';}
  }
 }
 function opCatalogCards(items){return items.length?`<h3 class="op-section-title">⭐ Ma liste locale</h3><div class="op-grid">${items.map(x=>opMediaCard(x,true)).join('')}</div>`:`<div class="card op-empty">Aucune œuvre enregistrée. Recherche un anime ou un manga et ajoute-le à ta liste.</div>`}
-function opMediaCard(x,saved=false){return `<article class="op-media-card"><img src="${esc(x.image||'')}" alt="" loading="lazy" onerror="this.style.display='none'"><div class="op-media-info"><b>${esc(x.title||'Sans titre')}</b><small>${esc(x.kind||'Anime')} · ${esc(x.year||'Année inconnue')} · ⭐ ${esc(x.score||'—')}</small><p>${esc((x.synopsis||'Résumé non disponible.').slice(0,150))}${(x.synopsis||'').length>150?'…':''}</p><button class="btn sm ${saved?'ghost':''}" data-op-fav="${esc(x.id)}" data-op-title="${esc(x.title)}" data-op-image="${esc(x.image)}" data-op-kind="${esc(x.kind)}" data-op-year="${esc(x.year)}" data-op-score="${esc(x.score)}" data-op-synopsis="${esc((x.synopsis||'').slice(0,500))}">${saved?'✓ Dans ma liste':'＋ Ajouter à ma liste'}</button>${x.url?`<a class="op-external" href="${esc(x.url)}" target="_blank" rel="noopener">Voir la fiche ↗</a>`:''}</div></article>`}
-async function opSearchCatalog(){const q=$('#op-search')?.value.trim(),kind=$('#op-kind')?.value||'anime',host=$('#op-catalog-results');if(!q)return toast('Saisis le nom d’une œuvre.');host.innerHTML='<div class="card">Recherche en cours…</div>';try{const url=`https://api.tenrai.org/v1/${kind}?q=${encodeURIComponent(q)}&limit=12&sfw=true`;const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),12000);const res=await fetch(url,{signal:controller.signal});clearTimeout(timer);if(!res.ok)throw new Error(res.status===429?'Trop de recherches en peu de temps. Attends quelques secondes puis réessaie.':'Le catalogue est momentanément indisponible. Vérifie ta connexion.');const json=await res.json();const rows=(json.data||[]).map(x=>({id:String(x.mal_id),title:x.title||x.title_english||'Sans titre',image:x.images?.jpg?.image_url||'',kind:kind==='anime'?'Anime':'Manga',year:x.year||x.published?.from?.slice(0,4)||'',score:x.score||'—',synopsis:x.synopsis||'',url:x.url||''}));if(!rows.length){host.innerHTML='<div class="card">Aucun résultat. Essaie un autre titre.</div>';return;}host.innerHTML=`<h3 class="op-section-title">Résultats (${rows.length})</h3><div class="op-grid">${rows.map(x=>opMediaCard(x,(otPlusData().favorites||[]).some(f=>f.id===x.id&&f.kind===x.kind))).join('')}</div>`;}catch(err){host.innerHTML=`<div class="card">${esc(err.name==='AbortError'?'La recherche prend trop de temps. Vérifie ta connexion puis réessaie.':(err.message||'Erreur réseau. Réessaie plus tard.'))}</div>`;}}
+function opMediaCard(x,saved=false){return `<article class="op-media-card"><img src="${esc(x.image||'')}" alt="" loading="lazy" onerror="this.style.display='none'"><div class="op-media-info"><b>${esc(x.title||'Sans titre')}</b><small>${esc(x.kind||'Anime')} · ${esc(x.year||'Année inconnue')} · ⭐ ${esc(x.score||'—')}</small><p>${esc((x.synopsis||'Résumé non disponible.').slice(0,150))}${(x.synopsis||'').length>150?'…':''}</p><button class="btn sm ${saved?'ghost':''}" data-op-fav="${esc(x.id)}" data-op-title="${esc(x.title)}" data-op-image="${esc(x.image)}" data-op-kind="${esc(x.kind)}" data-op-year="${esc(x.year)}" data-op-score="${esc(x.score)}" data-op-yt="${esc(x.trailer||'')}" data-op-synopsis="${esc((x.synopsis||'').slice(0,500))}">${saved?'✓ Dans ma liste':'＋ Ajouter à ma liste'}</button>${String(x.kind||'Anime')==='Anime'?`<button type="button" class="btn sm ghost" data-op-trailer="1" data-op-yt="${esc(x.trailer||'')}" data-op-title="${esc(x.title||'')}" style="margin-left:6px">▶ Bande-annonce</button>`:''}${x.url?`<a class="op-external" href="${esc(x.url)}" target="_blank" rel="noopener">Voir la fiche ↗</a>`:''}</div></article>`}
+async function opSearchCatalog(){const q=$('#op-search')?.value.trim(),kind=$('#op-kind')?.value||'anime',host=$('#op-catalog-results');if(!q)return toast('Saisis le nom d’une œuvre.');host.innerHTML='<div class="card">Recherche en cours…</div>';try{const url=`https://api.tenrai.org/v1/${kind}?q=${encodeURIComponent(q)}&limit=12&sfw=true`;const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),12000);const res=await fetch(url,{signal:controller.signal});clearTimeout(timer);if(!res.ok)throw new Error(res.status===429?'Trop de recherches en peu de temps. Attends quelques secondes puis réessaie.':'Le catalogue est momentanément indisponible. Vérifie ta connexion.');const json=await res.json();const rows=(json.data||[]).map(x=>({id:String(x.mal_id),title:x.title||x.title_english||'Sans titre',image:x.images?.jpg?.image_url||'',kind:kind==='anime'?'Anime':'Manga',year:x.year||x.published?.from?.slice(0,4)||'',score:x.score||'—',synopsis:x.synopsis||'',url:x.url||'',trailer:opYtId(x)}));if(!rows.length){host.innerHTML='<div class="card">Aucun résultat. Essaie un autre titre.</div>';return;}host.innerHTML=`<h3 class="op-section-title">Résultats (${rows.length})</h3><div class="op-grid">${rows.map(x=>opMediaCard(x,(otPlusData().favorites||[]).some(f=>f.id===x.id&&f.kind===x.kind))).join('')}</div>`;}catch(err){host.innerHTML=`<div class="card">${esc(err.name==='AbortError'?'La recherche prend trop de temps. Vérifie ta connexion puis réessaie.':(err.message||'Erreur réseau. Réessaie plus tard.'))}</div>`;}}
 
 // Capture-phase Otaku+ handlers: keep catalogue controls working on mobile.
 if(!window.__otakuPlusCaptureV2){
@@ -1823,7 +1823,7 @@ if(!window.__otakuPlusCaptureV2){
     d.favorites=[...(d.favorites||[]),{
      id,title:fav.dataset.opTitle||'Sans titre',image:fav.dataset.opImage||'',
      kind,year:fav.dataset.opYear||'',score:fav.dataset.opScore||'—',
-     synopsis:fav.dataset.opSynopsis||''
+     synopsis:fav.dataset.opSynopsis||'',trailer:fav.dataset.opYt||''
     }].slice(-50);
     d.favoriteXpIds=d.favoriteXpIds||[];
     if(!d.favoriteXpIds.includes(kind+':'+id)){
@@ -1929,6 +1929,26 @@ document.head.appendChild(opStyle);
 
 /* Mélange équitable (Fisher-Yates) */
 function opShuffle(a){const r=[...a];for(let i=r.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[r[i],r[j]]=[r[j],r[i]];}return r;}
+
+/* ===== Bandes-annonces ===== */
+function opYtId(x){
+ const t=x&&x.trailer;if(!t)return '';
+ let id=t.youtube_id||'';
+ if(!id){const m=String(t.embed_url||t.url||'').match(/(?:embed\/|v=|youtu\.be\/)([\w-]{6,15})/);if(m)id=m[1];}
+ return /^[\w-]{6,15}$/.test(id)?id:'';
+}
+function opOpenTrailer(title,yt){
+ const search='https://www.youtube.com/results?search_query='+encodeURIComponent((title||'')+' bande annonce officielle');
+ const player=/^[\w-]{6,15}$/.test(yt||'')
+  ?`<div style="position:relative;width:100%;aspect-ratio:16/9;background:#000;border-radius:14px;overflow:hidden"><iframe src="https://www.youtube-nocookie.com/embed/${yt}?autoplay=1&rel=0&playsinline=1" title="Bande-annonce" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin" style="position:absolute;inset:0;width:100%;height:100%;border:0"></iframe></div><p class="op-note" style="margin-top:12px">La vidéo ne se lance pas ? <a class="op-external" href="https://www.youtube.com/watch?v=${yt}" target="_blank" rel="noopener">Ouvrir sur YouTube ↗</a></p>`
+  :`<div style="text-align:center;padding:30px 10px"><div style="font-size:56px">🎬</div><p style="font-size:17px;line-height:1.5;margin:12px 0 18px">Pas de bande-annonce directe pour cette œuvre. Cherche la vidéo officielle sur YouTube.</p><a class="btn" href="${search}" target="_blank" rel="noopener" style="display:inline-block;padding:15px 24px">▶ Chercher sur YouTube</a></div>`;
+ $('#modal-root').innerHTML=`<div class="modal" id="op-trailer-modal" style="align-items:center;padding:12px"><div class="sheet" style="max-width:720px;width:100%;border-radius:18px;padding:16px 16px 18px;background:linear-gradient(160deg,#071a3b,#030b20)"><div style="display:flex;align-items:center;gap:10px;padding-bottom:12px"><b style="font-size:17px;flex:1;min-width:0;overflow-wrap:anywhere">🎬 ${esc(title||'Bande-annonce')}</b><button type="button" class="icon-btn" id="op-trailer-x" aria-label="Fermer">✕</button></div>${player}</div></div>`;
+ const close=()=>{$('#modal-root').innerHTML='';};
+ $('#op-trailer-x').onclick=close;
+ $('#op-trailer-modal').onclick=e=>{if(e.target.id==='op-trailer-modal')close();};
+}
+document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('[data-op-trailer]');if(!b)return;e.preventDefault();e.stopPropagation();opOpenTrailer(b.dataset.opTitle,b.dataset.opYt);},true);
+
 /* ===== DÉFI DES 60 JOURS ===== */
 let opDefiDay=0,opDefiReplay=false,opDefiServer=false;
 const OD_PASS=4;
