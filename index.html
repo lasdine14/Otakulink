@@ -499,6 +499,15 @@ html,body{width:100%;max-width:100%;overflow-x:hidden}
 #s-otakuplus .op-poster .acts{display:flex;gap:6px}
 #s-otakuplus .op-poster .acts button{flex:1;padding:7px 0;border-radius:10px;border:1px solid var(--line);background:rgba(15,27,66,.8);font-size:15px}
 </style>
+<style id="otaku-presence-read">
+.av{overflow:visible!important}
+.pdot{position:absolute;right:-1px;bottom:-1px;width:12px;height:12px;border-radius:50%;background:#22c55e;border:2px solid var(--bg);display:none;z-index:2}
+.pdot.on{display:block}
+.pstat{display:block;font-size:12px;font-weight:600;color:var(--muted);margin-top:1px}
+.pstat.on{color:#22c55e}
+.ticks{display:inline-block;margin-left:5px;font-size:11px;font-weight:700;letter-spacing:-2px;opacity:.85}
+.ticks.read{color:#8ff0ff;opacity:1}
+</style>
 </head>
 <body>
 
@@ -576,8 +585,42 @@ const state = { client:null, user:null, profile:null, route:'decouvrir', query:'
 function ageOf(d){if(!d)return -1;const [y,m,day]=String(d).split('-').map(Number);if(!y||!m||!day)return -1;const now=new Date();let a=now.getFullYear()-y;if(now.getMonth()+1<m||(now.getMonth()+1===m&&now.getDate()<day))a--;return a;}
 async function loadBlocks(){const {data}=await state.client.from('blocages').select('de,a');const rows=data||[];state.blockedByMe=new Set(rows.filter(x=>x.de===state.user.id).map(x=>x.a));state.blocked=new Set(rows.map(x=>x.de===state.user.id?x.a:x.de));}
 async function fetchProfiles(ids){ids=[...new Set(ids)].filter(Boolean);if(!ids.length){state.users=[];return state.users;}const {data}=await state.client.from('profiles').select('id,pseudo,bio,pays,avatar_url,cover_url,centres_interet,animes_favoris').in('id',ids);state.users=data||[];return state.users;}
-async function refreshUnread(){if(!state.client||!state.user)return;/* La table messages actuelle ne possède pas forcément la colonne lu. On désactive le compteur plutôt que de faire échouer la messagerie. */state.unread=0;$$('[data-go="messages"]').forEach(b=>b.querySelector('.badge')?.remove());}
-function startRealtime(){state.client.channel('msgs-'+state.user.id).on('postgres_changes',{event:'INSERT',schema:'public',table:'messages',filter:`a=eq.${state.user.id}`},p=>{if(state.blocked.has(p.new.de))return;if(state.route==='messages'&&state.activeChat===p.new.de&&$('#chat-body')){const body=$('#chat-body');const b=document.createElement('div');b.className='bubble in';b.dataset.messageBubble=p.new.id;const media=postTextAndImage(p.new.texte);const t=document.createElement('div');t.textContent=media.text;b.appendChild(t);const tm=document.createElement('small');tm.textContent=fmtDate(p.new.created_at);b.appendChild(tm);const tools=document.createElement('div');tools.className='message-tools';tools.innerHTML=`<button type="button" data-message-reply="${p.new.id}">↩ Répondre</button><button type="button" data-message-copy="${p.new.id}">Copier</button>`;b.appendChild(tools);body.appendChild(b);body.scrollTop=body.scrollHeight;}else {toast('💬 Nouveau message');notifyUser('Nouveau message OtakuLink','Tu as reçu un nouveau message.');}refreshUnread();}).subscribe();}
+
+/* ===== Présence en ligne + accusés de lecture ===== */
+state.online=state.online||new Set();
+function presenceDot(id){return `<i class="pdot${state.online.has(id)?' on':''}" data-presence="${esc(id)}"></i>`;}
+function paintPresence(){
+  $$('.pdot[data-presence]').forEach(el=>el.classList.toggle('on',state.online.has(el.dataset.presence)));
+  $$('.pstat[data-presence]').forEach(el=>{const on=state.online.has(el.dataset.presence);el.classList.toggle('on',on);el.textContent=on?'● En ligne':'● Hors ligne';});
+}
+function startPresence(){
+  if(!state.client||!state.user)return;
+  const ch=state.client.channel('otakulink-online',{config:{presence:{key:state.user.id}}});
+  ch.on('presence',{event:'sync'},()=>{state.online=new Set(Object.keys(ch.presenceState()));paintPresence();})
+    .subscribe(async st=>{if(st==='SUBSCRIBED'){try{await ch.track({at:Date.now()});}catch(_){}}});
+}
+const tickHTML=m=>m&&m.lu_at?'<span class="ticks read" aria-label="Lu">✓✓</span>':'<span class="ticks" aria-label="Envoyé">✓</span>';
+async function markRead(fromId){
+  if(!state.client||!state.user||state.hasLu===false||document.visibilityState!=='visible')return;
+  try{
+    const {error}=await state.client.rpc('mark_messages_read',{p_from:fromId});
+    if(error)throw error;
+    const now=new Date().toISOString();
+    (state.messagesCache?.data||[]).forEach(m=>{if(m.de===fromId&&m.a===state.user.id&&!m.lu_at)m.lu_at=now;});
+    $$(`[data-chat-open="${fromId}"] .badge`).forEach(b=>b.remove());
+    refreshUnread();
+  }catch(e){console.warn('Accusé de lecture indisponible :',e.message||e);}
+}
+function startReadReceipts(){
+  state.client.channel('reads-'+state.user.id).on('postgres_changes',{event:'UPDATE',schema:'public',table:'messages',filter:`de=eq.${state.user.id}`},p=>{
+    const m=p.new;if(!m||!m.lu_at)return;
+    const c=(state.messagesCache?.data||[]).find(x=>String(x.id)===String(m.id));if(c)c.lu_at=m.lu_at;
+    const t=document.querySelector(`[data-message-bubble="${m.id}"] .ticks`);if(t){t.classList.add('read');t.textContent='✓✓';t.setAttribute('aria-label','Lu');}
+  }).subscribe();
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&state.route==='messages'&&state.activeChat&&$('#chat-body'))markRead(state.activeChat);});
+}
+async function refreshUnread(){if(!state.client||!state.user)return;let n=0;if(state.hasLu!==false){try{const {count,error}=await state.client.from('messages').select('id',{count:'exact',head:true}).eq('a',state.user.id).is('lu_at',null);if(error)throw error;state.hasLu=true;n=count||0;}catch(e){state.hasLu=false;n=0;}}state.unread=n;$$('[data-go="messages"]').forEach(b=>{b.querySelector('.badge')?.remove();if(n>0){const x=document.createElement('span');x.className='badge';x.textContent=n>99?'99+':n;b.appendChild(x);}});}
+function startRealtime(){state.client.channel('msgs-'+state.user.id).on('postgres_changes',{event:'INSERT',schema:'public',table:'messages',filter:`a=eq.${state.user.id}`},p=>{if(state.blocked.has(p.new.de))return;if(state.route==='messages'&&state.activeChat===p.new.de&&$('#chat-body')){const body=$('#chat-body');const b=document.createElement('div');b.className='bubble in';b.dataset.messageBubble=p.new.id;const media=postTextAndImage(p.new.texte);const t=document.createElement('div');t.textContent=media.text;b.appendChild(t);const tm=document.createElement('small');tm.textContent=fmtDate(p.new.created_at);b.appendChild(tm);const tools=document.createElement('div');tools.className='message-tools';tools.innerHTML=`<button type="button" data-message-reply="${p.new.id}">↩ Répondre</button><button type="button" data-message-copy="${p.new.id}">Copier</button>`;b.appendChild(tools);body.appendChild(b);body.scrollTop=body.scrollHeight;markRead(p.new.de);}else {toast('💬 Nouveau message');notifyUser('Nouveau message OtakuLink','Tu as reçu un nouveau message.');}refreshUnread();}).subscribe();}
 const relBtn=id=>{const x=state.rel?.get(id);if(!x)return `<button class="btn sm" data-connect="${id}">Ajouter</button>`;if(x.statut==='ami')return `<button class="btn sm ghost" data-message="${id}">💬 Message</button>`;if(x.de===state.user.id)return `<button class="btn sm ghost" disabled>Demande envoyée</button>`;return `<button class="btn sm" data-accept="${id}">Accepter</button>`;};
 function configNotice() {
   return `<div class="card" style="border-color:#fbbf24">
@@ -643,7 +686,7 @@ async function onSignedIn(user) {
     const {error:dobError}=await state.client.from('infos_privees').upsert({id:user.id,date_naissance:birthdate},{onConflict:'id',ignoreDuplicates:true});
     if(dobError)console.warn('Synchronisation de la date de naissance :',dobError.message);
   }
-  await loadBlocks(); if(!state.rt){state.rt=true;startRealtime();state.client.channel('notifications-'+state.user.id).on('postgres_changes',{event:'INSERT',schema:'public',table:'notifications',filter:`destinataire=eq.${state.user.id}`},async p=>{const actor=p.new.acteur;const {data}=actor?await state.client.from('profiles').select('pseudo').eq('id',actor).maybeSingle():{data:null};const who=data?.pseudo||'Un membre';const isMatch=p.new.type==='match';const msg=p.new.type==='story_reaction'?'a réagi à ta Story':p.new.type==='like'?'a aimé ta publication':p.new.type==='comment'?'a commenté ta publication':'a interagi avec toi';if(isMatch){const mt='🎉🎉 Félicitations ! C’est réciproque avec '+who+' ! Vous pouvez discuter.';if(window.__olMatchWith!==actor)toast(mt);notifyUser('OtakuLink',mt);}else{toast('🔔 '+who+' '+msg+'.');notifyUser('OtakuLink',who+' '+msg+'.');}refreshGlobalNotificationCount();}).subscribe();}
+  await loadBlocks(); if(!state.rt){state.rt=true;startRealtime();startPresence();startReadReceipts();state.client.channel('notifications-'+state.user.id).on('postgres_changes',{event:'INSERT',schema:'public',table:'notifications',filter:`destinataire=eq.${state.user.id}`},async p=>{const actor=p.new.acteur;const {data}=actor?await state.client.from('profiles').select('pseudo').eq('id',actor).maybeSingle():{data:null};const who=data?.pseudo||'Un membre';const isMatch=p.new.type==='match';const msg=p.new.type==='story_reaction'?'a réagi à ta Story':p.new.type==='like'?'a aimé ta publication':p.new.type==='comment'?'a commenté ta publication':'a interagi avec toi';if(isMatch){const mt='🎉🎉 Félicitations ! C’est réciproque avec '+who+' ! Vous pouvez discuter.';if(window.__olMatchWith!==actor)toast(mt);notifyUser('OtakuLink',mt);}else{toast('🔔 '+who+' '+msg+'.');notifyUser('OtakuLink',who+' '+msg+'.');}refreshGlobalNotificationCount();}).subscribe();}
   showApp();
 }
 document.addEventListener('click',async e=>{
@@ -734,7 +777,7 @@ function go(route){
 const topbar=(title,sub='')=>`<div class="topbar"><div><h1>${title}</h1><p>${esc(sub)}</p></div><div class="sp"></div><button class="av sm g4" data-go="profil">👤</button></div>`;
 const render={};
 function empty(title,desc='Aucun élément pour le moment.') {return `<div class="card" style="text-align:center;padding:30px"><div style="font-size:36px;margin-bottom:8px">🌱</div><b>${esc(title)}</b><p style="color:var(--muted);margin-top:8px">${esc(desc)}</p></div>`;}
-function avatar(profile,cls='') {const letter=(profile?.pseudo||'?').trim().charAt(0).toUpperCase();return `<div class="av ${cls} g4">${profile?.avatar_url?`<img src="${esc(profile.avatar_url)}" alt="" referrerpolicy="no-referrer" onerror="this.remove()" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`:esc(letter)}</div>`;}
+function avatar(profile,cls='') {const letter=(profile?.pseudo||'?').trim().charAt(0).toUpperCase();return `<div class="av ${cls} g4">${profile?.avatar_url?`<img src="${esc(profile.avatar_url)}" alt="" referrerpolicy="no-referrer" onerror="this.remove()" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`:esc(letter)}${profile?.id?presenceDot(profile.id):''}</div>`;}
 async function loadDiscover(){
   if(!requireClient()) return;
   let q=state.client.from('profiles').select('id,pseudo,bio,pays,avatar_url').neq('id',state.user.id).order('created_at',{ascending:false}).limit(50);
@@ -832,7 +875,8 @@ render.messages=async()=>{
     data=cached.data;friendRows=cached.friendRows;error=null;
   }else{
     // Lecture compatible avec le schéma actuel : aucune dépendance à la colonne facultative « lu ».
-    ({data,error}=await mq('id,de,a,texte,created_at'));
+    ({data,error}=await mq('id,de,a,texte,created_at,lu_at'));
+    if(error){state.hasLu=false;({data,error}=await mq('id,de,a,texte,created_at'));}else state.hasLu=true;
     if(error){console.error('Chargement messages:',error);$('#messages-content').innerHTML=empty('Messages indisponibles',error.message||'Vérifie le schéma SQL et les règles RLS.');return;}
     const friendsResult=await state.client.from('amis').select('de,a,statut').eq('statut','ami').or(`de.eq.${state.user.id},a.eq.${state.user.id}`);
     friendRows=friendsResult.data||[];
@@ -841,7 +885,7 @@ render.messages=async()=>{
     state.messagesCache={data:data||[],friendRows:friendRows||[]};
   }
   const msgs=(data||[]).filter(m=>!state.blocked.has(m.de===state.user.id?m.a:m.de)), people=new Map();
-  const unreadOf=id=>0; // Le suivi des messages non lus nécessite une colonne « lu » dans Supabase.
+  const unreadOf=id=>state.hasLu?msgs.filter(m=>m.de===id&&m.a===state.user.id&&!m.lu_at).length:0;
   // A friend is a conversation contact even if neither person has sent a message yet.
   (friendRows||[]).forEach(row=>{
     const otherId=row.de===state.user.id?row.a:row.de;
@@ -858,9 +902,9 @@ render.messages=async()=>{
   if(state.activeChat&&!selected)state.activeChat=null;
   const thread=selected?msgs.filter(m=>(m.de===state.user.id&&m.a===selected)||(m.de===selected&&m.a===state.user.id)):[];
   const isMobile=window.matchMedia('(max-width:899px)').matches;
-  $('#messages-content').innerHTML=`<div class="msg-wrap ${selected?'chat-open':''}"><div class="card conv-col" style="padding:10px">${people.size?[...people.values()].map(p=>`<div class="conv ${p.id===selected?'active':''}" data-chat-open="${p.id}">${avatar(p,'sm')}<div class="meta"><b>${esc(p.pseudo||'Membre')}</b><small>Ouvrir la discussion</small></div>${unreadOf(p.id)?`<span class="badge">${unreadOf(p.id)}</span>`:''}</div>`).join(''):empty('Aucun ami disponible','Accepte une invitation pour pouvoir commencer une discussion.')}</div><div class="card chat" style="margin:0"><div class="chat-head">${isMobile&&selected?'<button type="button" class="icon-btn" id="chat-back" aria-label="Retour aux conversations">←</button>':''}<b>${selected?esc(people.get(selected)?.pseudo||'Membre'):'Choisis un ami'}</b></div><div class="chat-body" id="chat-body">${selected?(thread.map((m,i)=>`${opDaySep(thread[i-1],m)}<div class="bubble ${m.de===state.user.id?'out':'in'}" data-message-bubble="${m.id}">
+  $('#messages-content').innerHTML=`<div class="msg-wrap ${selected?'chat-open':''}"><div class="card conv-col" style="padding:10px">${people.size?[...people.values()].map(p=>`<div class="conv ${p.id===selected?'active':''}" data-chat-open="${p.id}">${avatar(p,'sm')}<div class="meta"><b>${esc(p.pseudo||'Membre')}</b><small>Ouvrir la discussion</small></div>${unreadOf(p.id)?`<span class="badge">${unreadOf(p.id)}</span>`:''}</div>`).join(''):empty('Aucun ami disponible','Accepte une invitation pour pouvoir commencer une discussion.')}</div><div class="card chat" style="margin:0"><div class="chat-head">${isMobile&&selected?'<button type="button" class="icon-btn" id="chat-back" aria-label="Retour aux conversations">←</button>':''}<div style="min-width:0"><b>${selected?esc(people.get(selected)?.pseudo||'Membre'):'Choisis un ami'}</b>${selected?`<span class="pstat${state.online.has(selected)?' on':''}" data-presence="${esc(selected)}">${state.online.has(selected)?'● En ligne':'● Hors ligne'}</span>`:''}</div></div><div class="chat-body" id="chat-body">${selected?(thread.map((m,i)=>`${opDaySep(thread[i-1],m)}<div class="bubble ${m.de===state.user.id?'out':'in'}" data-message-bubble="${m.id}">
       ${(()=>{const media=postTextAndImage(m.texte);const parts=splitReplyMessage(media.text);return `${parts.author?`<div class="reply-context">↪ Réponse à ${esc(parts.author)}</div>`:''}${esc(parts.body).replace(/\n/g,'<br>')}${media.url?(media.kind==='video'?`<div class="chat-media-box"><video src="${esc(media.url)}" controls playsinline preload="metadata"></video><div class="chat-media-actions"><button type="button" title="Voir en grand" aria-label="Voir la vidéo" data-chat-view="${esc(media.url)}" data-kind="video" data-name="otakulink-video.mp4">⛶</button><button type="button" title="Télécharger" aria-label="Télécharger la vidéo" data-chat-download="${esc(media.url)}" data-kind="video" data-name="otakulink-video.mp4">⬇</button></div></div>`:`<div class="chat-media-box"><img src="${esc(media.url)}" alt="Image envoyée" loading="lazy"><div class="chat-media-actions"><button type="button" title="Voir en grand" aria-label="Voir l’image" data-chat-view="${esc(media.url)}" data-kind="image" data-name="otakulink-image.jpg">⛶</button><button type="button" title="Télécharger" aria-label="Télécharger l’image" data-chat-download="${esc(media.url)}" data-kind="image" data-name="otakulink-image.jpg">⬇</button></div></div>`):''}`})()}
-      <small>${opChatTime(m.created_at)}</small>
+      <small>${opChatTime(m.created_at)}${m.de===state.user.id?tickHTML(m):''}</small>
       <div class="message-tools">
         <button type="button" data-message-reply="${m.id}">↩ Répondre</button>
         <button type="button" data-message-copy="${m.id}">Copier</button>
@@ -868,7 +912,7 @@ render.messages=async()=>{
       </div>
     </div>`).join('')||'<p style="color:var(--muted);text-align:center">Aucun message pour le moment. Envoie le premier !</p>'):'<p style="color:var(--muted);text-align:center">Sélectionne un ami dans la liste pour commencer.</p>'}</div>${selected?`<form class="chat-composer" id="chat-form"><div id="reply-preview" class="reply-preview" ${state.replyTo?'':'hidden'}>${state.replyTo?`<span>↩ Réponse à <b>${esc(state.replyTo.pseudo)}</b><small>${esc(state.replyTo.text.slice(0,90))}</small></span><button type="button" id="cancel-reply" aria-label="Annuler la réponse">✕</button>`:''}</div><input id="chat-media" type="file" accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/quicktime" hidden><div class="chat-compose-row"><button class="chat-attach-icon" type="button" id="chat-attach-btn" aria-label="Joindre une photo ou une vidéo" title="Photo ou vidéo">＋</button><input id="chat-input" maxlength="2000" placeholder="Écrire un message…" autocomplete="off"><button class="send" type="submit" aria-label="Envoyer le message">➤</button></div><small id="chat-file-name" hidden></small></form>`:''}</div></div>`;
   const body=$('#chat-body');if(body)body.scrollTop=body.scrollHeight;
-  // Pas de mise à jour du statut lu : la colonne « lu » n'existe pas dans la base actuelle.
+  if(selected&&state.hasLu&&thread.some(m=>m.de===selected&&!m.lu_at))markRead(selected);
   // Répondre/annuler une réponse met à jour uniquement l'aperçu local :
   // aucun nouvel appel à render.messages(), donc aucun rechargement Supabase.
   const updateReplyPreview=()=>{
@@ -949,7 +993,8 @@ render.messages=async()=>{
       // colonne facultative (ex. lu) ni d'une autorisation SELECT après INSERT.
       const {error:sendError}=await state.client.from('messages').insert({de:state.user.id,a:selected,texte:content});
       if(sendError)throw sendError;
-      stamp.textContent=opChatTime(new Date().toISOString());
+      stamp.textContent=opChatTime(new Date().toISOString());stamp.insertAdjacentHTML('beforeend',tickHTML(null));
+      (async()=>{try{const {data:last}=await state.client.from('messages').select('id,created_at').eq('de',state.user.id).eq('a',selected).order('created_at',{ascending:false}).limit(1);const r=last&&last[0];if(r){bubble.dataset.messageBubble=r.id;const c=(state.messagesCache?.data||[]).find(x=>x.id===tempId);if(c)c.id=r.id;}}catch(_){}})();
       if(state.messagesCache)state.messagesCache.data.push({id:tempId,de:state.user.id,a:selected,texte:content,created_at:new Date().toISOString()});
       const msgTools=document.createElement('div');msgTools.className='message-tools';
       const copyBtn=document.createElement('button');copyBtn.type='button';copyBtn.textContent='Copier';
