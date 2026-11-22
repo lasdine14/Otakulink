@@ -1,0 +1,28 @@
+OTAKULINK — pack PWA avec TON image choisie
+================================================
+
+Les icônes 192x192 et 512x512 sont des redimensionnements de l'image que tu as fournie.
+Aucun autre dessin ni texte n'a été ajouté.
+
+À téléverser dans le dépôt GitHub Otakulink (branche main) :
+- manifest.json à la racine
+- service-worker.js à la racine
+- le dossier icons/ contenant icon-192.png et icon-512.png
+
+Ne remplace pas index.html avec ce pack.
+
+Dans <head> de index.html, ajoute :
+<link rel="manifest" href="/Otakulink/manifest.json">
+<meta name="theme-color" content="#11102b">
+
+Juste avant </body>, ajoute :
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/Otakulink/service-worker.js")
+      .catch((error) => console.error("Service worker:", error));
+  });
+}
+</script>
+
+Site : https://lasdine14.github.io/Otakulink/
