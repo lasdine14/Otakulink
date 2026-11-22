@@ -3160,6 +3160,24 @@ let tries=0;const t=setInterval(async()=>{
 },1000);
 })();
 
+
+/* Raccourcis de l'icône (appui long) : ouvre directement l'écran demandé, ex. ?go=messages */
+(function(){
+  const ok=['decouvrir','rencontres','communaute','messages','connexions','profil','otakuplus','parametres'];
+  let target='';
+  try{target=new URLSearchParams(location.search).get('go')||'';}catch(_){}
+  if(!ok.includes(target))return;
+  let tries=0;
+  const t=setInterval(()=>{
+    if(++tries>60){clearInterval(t);return;}
+    const app=document.querySelector('#app');
+    if(!state.user||!state.client||!app||app.classList.contains('hidden'))return;
+    clearInterval(t);
+    go(target);
+    try{history.replaceState(history.state,'',location.pathname);}catch(_){}
+  },300);
+})();
+
 </script>
 
 <style id="otaku-messaging-advanced">
