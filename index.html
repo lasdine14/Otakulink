@@ -1799,7 +1799,7 @@ async function openGlobalNotifications(){
   $('#quick-notif-all-read').onclick=async()=>{const {error}=await state.client.from('notifications').update({lu:true}).eq('lu',false);if(error){toast('Impossible de mettre à jour les notifications.');return;}toast('Toutes les notifications sont marquées comme lues.');await refreshGlobalNotificationCount();await openGlobalNotifications();};
   const host=$('#quick-notif-list');
   const {data,error}=await state.client.from('notifications').select('id,acteur,type,post_id,story_id,lu,created_at').order('created_at',{ascending:false}).limit(40);
-  if(error){host.textContent='Notifications indisponibles. Vérifie la table notifications et ses règles SQL.';return;}
+  if(error){host.textContent='Notifications indisponibles. Vérifie la table notifications et ses règles SQL.'+(error&&error.message?' ('+error.message+')':'');return;}
   const rows=data||[];
   await fetchProfiles(rows.map(x=>x.acteur));
   const unread=rows.filter(x=>!x.lu).length;
