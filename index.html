@@ -3497,7 +3497,7 @@ decorate();
 <script id="ol-push">
 /* Notifications push : abonnement de l'appareil + enregistrement dans Supabase */
 (function(){
-const VAPID_PUBLIC_KEY='REMPLACE_PAR_TA_CLE_PUBLIQUE_VAPID';
+const VAPID_PUBLIC_KEY='BB951ZUSqtiBpDZ_vc769TnzEhF0INCF2z31zdWIkkVrRG26e4eOFd5F5H_jAfL3tSmtgCjIlVG2_yZszVh-lb0';
 const key=s=>{const r=(s+'='.repeat((4-s.length%4)%4)).replace(/-/g,'+').replace(/_/g,'/'),raw=atob(r),u=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)u[i]=raw.charCodeAt(i);return u;};
 const supported=()=>('serviceWorker' in navigator)&&('PushManager' in window)&&('Notification' in window);
 async function reg(){if(!('serviceWorker' in navigator))return null;try{await navigator.serviceWorker.register('sw.js');return await navigator.serviceWorker.ready;}catch(e){console.warn('SW',e);return null;}}
