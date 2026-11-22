@@ -546,6 +546,20 @@ html[data-mybubble] .bubble.out{background:var(--mybubble)!important}
 .pp-bg{width:64px;height:92px;border-radius:12px;border:2px solid rgba(255,255,255,.2);background-size:cover;background-position:center;font-size:10px;font-weight:700;display:flex;align-items:flex-end;justify-content:center;padding:4px;text-shadow:0 1px 3px #000;color:#fff}
 .pp-bg.on{border-color:#fbbf24;box-shadow:0 0 0 2px #fbbf24}
 .pro-liked-btn{margin:0 0 12px;width:100%}
+.ptitle{display:inline-block;margin-left:6px;font-size:11px;font-style:italic;color:#fbbf24;vertical-align:middle}
+.btn.on{outline:2px solid #fbbf24;outline-offset:1px}
+.av.pro.fr-sakura{box-shadow:0 0 0 2px #f9a8d4,0 0 14px rgba(236,72,153,.75)!important}
+.av.pro.fr-ice{box-shadow:0 0 0 2px #bae6fd,0 0 14px #38bdf8!important}
+.av.pro.fr-neon{box-shadow:0 0 0 2px #22d3ee,0 0 16px #a855f7!important;animation:frNeon 2.4s ease-in-out infinite alternate}
+.av.pro.fr-flame{box-shadow:0 0 0 2px #fb923c,0 0 14px #ef4444!important;animation:frFlame 1.4s ease-in-out infinite alternate}
+@keyframes frNeon{to{box-shadow:0 0 0 2px #a855f7,0 0 22px #22d3ee}}
+@keyframes frFlame{to{box-shadow:0 0 0 2px #fde047,0 0 22px #f97316}}
+.fav-star{margin-left:auto;background:none;border:0;color:var(--muted);font-size:18px;cursor:pointer;padding:0 4px}.fav-star.on{color:#fbbf24}
+.pin-bar{display:flex;flex-direction:column;gap:4px;padding:6px 2px;border-bottom:1px solid var(--line)}
+.pin-bar button{background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.35);color:inherit;border-radius:10px;padding:6px 10px;font-size:12px;text-align:left;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pin-flash{outline:2px solid #fbbf24;outline-offset:2px}
+.compat{font-size:12px;font-weight:700;color:#fbbf24;margin-bottom:4px}
+#dating-filters{margin:0 0 12px}
 </style>
 </head>
 <body>
@@ -634,17 +648,20 @@ const isPro=()=>state.proIds.has(state.user?.id);
 const isDiscreet=()=>isPro()&&state.discreet.has(state.user?.id);
 async function loadProFlags(){
   try{
-    let r=await state.client.from('profiles').select('id,masquer_discret,pro_until').eq('pro',true);
+    let r=await state.client.from('profiles').select('id,masquer_discret,pro_until,pro_since,titre_premium,cadre_premium').eq('pro',true);
+    if(r.error)r=await state.client.from('profiles').select('id,masquer_discret,pro_until').eq('pro',true);
     if(r.error)r=await state.client.from('profiles').select('id,masquer_discret').eq('pro',true);
     if(r.error)throw r.error;
     const now=Date.now(),act=(r.data||[]).filter(x=>!x.pro_until||new Date(x.pro_until).getTime()>now);
     state.proIds=new Set(act.map(x=>x.id));state.discreet=new Set(act.filter(x=>x.masquer_discret).map(x=>x.id));
+    state.proMeta=Object.fromEntries(act.map(x=>[x.id,{t:x.titre_premium||'',f:x.cadre_premium||'',s:x.pro_since||''}]));
+    {const mm=act.find(x=>x.id===state.user?.id);if(mm&&('pro_since' in mm)&&!mm.pro_since){const now=new Date().toISOString();state.client.from('profiles').update({pro_since:now}).eq('id',mm.id).then(()=>{});state.proMeta[mm.id].s=now;}}
     state.proUntil=(r.data||[]).find(x=>x.id===state.user?.id)?.pro_until||null;state.proReady=true;paintPro();applyPremiumPrefs();
   }catch(e){state.proReady=false;}
   try{const r=await state.client.rpc('is_admin');state.isAdmin=r.data===true;state.adminError=r.error?(r.error.message||'erreur'):(state.isAdmin?'':'Ton compte n’est pas dans la liste des administrateurs.');}catch(e){state.isAdmin=false;state.adminError=String(e?.message||e);}
   if(state.route==='parametres'&&typeof render.parametres==='function')render.parametres();
 }
-function paintPro(){$$('.av').forEach(av=>{const d=av.querySelector(':scope>.pdot[data-presence]');if(d&&state.proIds.has(d.dataset.presence)){av.classList.add('pro');if(!av.querySelector('.probadge'))av.insertAdjacentHTML('beforeend','<i class="probadge">👑</i>');}});}
+function paintPro(){$$('.av').forEach(av=>{const d=av.querySelector(':scope>.pdot[data-presence]');if(d&&state.proIds.has(d.dataset.presence)){av.classList.add('pro');{const f=state.proMeta?.[d.dataset.presence]?.f;if(f)av.classList.add('fr-'+f);}if(!av.querySelector('.probadge'))av.insertAdjacentHTML('beforeend','<i class="probadge">👑</i>');}});}
 async function openProModal(){
   const pro=isPro(),root=$('#modal-root');
   let pending=null;try{const {data}=await state.client.from('pro_requests').select('id').eq('user_id',state.user.id).eq('statut','attente').limit(1);pending=data&&data[0];}catch(_){}
@@ -652,12 +669,13 @@ async function openProModal(){
   root.innerHTML=`<div class="modal" id="modal"><div class="sheet" style="max-width:460px;max-height:90vh;overflow-y:auto"><div class="row"><b style="font-size:19px">👑 OtakuLink Premium</b><span class="sp"></span><button class="icon-btn" id="pro-close" aria-label="Fermer">✕</button></div>
     ${pro?`<p style="color:#fbbf24;font-weight:700;margin:6px 0">Tu es membre Premium${until?` jusqu’au ${until}`:''} 👑</p>`:`<p class="sub" style="margin:6px 0">Plus de style, plus de discrétion.</p>`}
     <ul class="pro-list"><li>👑 <b>Couronne Premium</b> et cadre doré autour de ta photo, partout dans l’app</li><li>🕶️ <b>Mode discret</b> : masque tes coches « lu » et ton statut « en ligne »</li><li style="list-style:none">🖼️ <b>Fonds d’écran au choix</b>, couleur d’accent et couleur de tes bulles</li><li style="list-style:none">💘 <b>Rencontres</b> : voir qui t’a liké</li><li style="list-style:none">🌟 <b>Pseudo doré</b> et badge Premium sur ton profil et ta carte Otaku</li></ul>
-    <p style="font-size:12px;color:var(--muted);margin:10px 0 2px">Bientôt :</p>
-    <ul class="pro-list pro-soon-list"><li>🚀 Boost de ton profil dans Rencontres</li><li>👀 Voir qui a visité ton profil</li></ul>
+    <ul class="pro-list" style="margin-top:0"><li style="list-style:none">🚀 <b>Boost</b> : ton profil passe en tête de Rencontres pendant 1 heure</li><li style="list-style:none">👀 <b>Visiteurs</b> : vois qui a visité ton profil</li><li style="list-style:none">👻 <b>Mode fantôme</b> : visite sans laisser de trace</li><li style="list-style:none">💬 <b>Messages</b> : conversations favorites, messages épinglés et programmés</li><li style="list-style:none">🔥 <b>Rencontres</b> : filtres, % de compatibilité, Super like, annuler un « Passer »</li><li style="list-style:none">✨ <b>Style</b> : cadres d’avatar, titre perso, thèmes de carte Otaku</li><li style="list-style:none">📊 <b>Statistiques</b> de tes publications</li></ul>
+    ${pro?`<div class="row" style="gap:8px;margin:8px 0;flex-wrap:wrap"><button class="btn sm" id="pro-boost">🚀 Booster mon profil</button><button class="btn sm ghost" id="pro-visits">👀 Mes visiteurs</button></div>`:''}
     ${pro?`<div class="card" style="margin:10px 0"><b>🎨 Personnalisation</b>
       <p style="font-size:12px;color:var(--muted);margin:8px 0 2px">Fond d’écran</p><div class="pp-row" id="pp-bgs">${PP_BGS.map(([k,n])=>`<button type="button" class="pp-bg" data-pp-bg="${k}" style="${k==='auto'?'background:#101d3d':`background-image:var(--bgv-${k})`}">${n}</button>`).join('')}</div>
       <p style="font-size:12px;color:var(--muted);margin:0 0 2px">Couleur d’accent</p><div class="pp-row" id="pp-accents">${PP_ACCENTS.map(([v,n,c])=>`<button type="button" class="pp-sw" title="${n}" data-pp-accent="${v}" style="background:${c}"></button>`).join('')}</div>
       <p style="font-size:12px;color:var(--muted);margin:0 0 2px">Couleur de mes bulles (visible chez toi)</p><div class="pp-row" id="pp-bubbles">${PP_BUBBLES.map(([v,n,c])=>`<button type="button" class="pp-sw" title="${n}" data-pp-bubble="${v}" style="background:${c}"></button>`).join('')}</div></div>`:''}
+    ${pro?proExtraHTML():''}
     ${pro?`<button class="btn block ghost" id="pro-discret" style="margin-bottom:12px">Mode discret : ${isDiscreet()?'Activé':'Désactivé'}</button>`:''}
     ${pending?`<div class="card" style="margin:8px 0"><b>⏳ Demande en attente</b><small style="display:block;color:var(--muted);margin-top:4px">Ton paiement est en cours de vérification. Ton compte sera activé dès la confirmation.</small></div>`
       :`<div class="card" style="margin:8px 0"><b>${PRO_PRIX}</b><small style="display:block;color:var(--muted);margin:6px 0">1. Envoie <b>${PRO_MONTANT.toLocaleString('fr-FR')} FCFA</b> par Mobile Money au <b>${PRO_NUM_AFFICHE}</b>.<br>2. Écris ci-dessous le numéro avec lequel tu as payé.</small><input id="pro-payeur" inputmode="tel" placeholder="Numéro utilisé pour payer" maxlength="20" style="width:100%;margin:6px 0;padding:12px;border-radius:12px;border:1px solid var(--line);background:rgba(15,27,66,.85)"><button class="btn block gold" id="pro-ask">${pro?'J’ai payé · Prolonger de 30 jours':'J’ai payé · Activer Pro'} 👑</button></div>`}
@@ -676,6 +694,20 @@ async function openProModal(){
     const {error}=await state.client.from('pro_requests').insert({user_id:state.user.id,pseudo:state.profile?.pseudo||null,payeur,montant:PRO_MONTANT});
     if(error){ask.disabled=false;return toast('Demande impossible : '+error.message);}
     toast('Demande envoyée. Elle sera vérifiée rapidement 👑');openProModal();};
+  const vis=$('#pro-visits');if(vis)vis.onclick=()=>openVisitorsModal();
+  if(pro)proExtraBind();
+  const bo=$('#pro-boost');if(bo)bo.onclick=async()=>{
+    bo.disabled=true;
+    try{
+      const now=Date.now(),cur=await state.client.from('profile_boosts').select('boost_until').eq('user_id',state.user.id).maybeSingle();
+      if(cur.error)throw cur.error;
+      const end=cur.data?.boost_until?new Date(cur.data.boost_until).getTime():0;
+      if(end>now){toast('Ton boost est déjà actif jusqu’à '+new Date(end).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})+' 🚀');return;}
+      const {error}=await state.client.from('profile_boosts').upsert({user_id:state.user.id,boost_until:new Date(now+3600000).toISOString()},{onConflict:'user_id'});
+      if(error)throw error;
+      toast('Boost activé pour 1 heure 🚀 (visible si ton profil Rencontres est activé)');
+    }catch(e){toast('Boost impossible : '+(e.message||e));}
+    finally{bo.disabled=false;}};
   const dis=$('#pro-discret');if(dis)dis.onclick=async()=>{
     const next=!isDiscreet();dis.disabled=true;
     const {error}=await state.client.from('profiles').update({masquer_discret:next}).eq('id',state.user.id);
@@ -729,7 +761,8 @@ async function openAdminModal(tab='paiements'){
 }
 
 /* ===== Premium : personnalisation + extras ===== */
-const proTag=id=>state.proIds.has(id)?'<span class="protag">👑 Premium</span>':'';
+function proSince(id){const s=state.proMeta?.[id]?.s;if(!s)return '';const m=Math.floor((Date.now()-new Date(s).getTime())/2629800000);return m>=24?Math.floor(m/12)+' ans':m>=12?'1 an':m>=1?m+' mois':'';}
+const proTag=id=>state.proIds.has(id)?`<span class="protag">👑 Premium${proSince(id)?' · '+proSince(id):''}</span>${state.proMeta?.[id]?.t?`<span class="ptitle">${esc(state.proMeta[id].t)}</span>`:''}`:'';
 const proName=id=>state.proIds.has(id)?'pro-name':'';
 const PP_BGS=[['auto','Auto'],['decouvrir','Torii'],['rencontres','Lune'],['communaute','Sanctuaire'],['messages','Ruelle'],['profil','Samouraï'],['otakuplus','Akatsuki'],['connexions','Nuit']];
 const PP_ACCENTS=[['','Défaut','#22d3ee'],['#fbbf24','Or','#fbbf24'],['#ff5fa8','Rose','#ff5fa8'],['#a78bfa','Violet','#a78bfa'],['#34d399','Vert','#34d399'],['#ff6b6b','Rouge','#ff6b6b']];
@@ -758,6 +791,32 @@ async function openLikedModal(){
     const {data:us}=await db.from('profiles').select('id,pseudo,pays,avatar_url').in('id',ids);
     body.innerHTML=(us||[]).map(u=>`<div class="card row" style="margin:10px 0;gap:10px;align-items:center">${avatar(u)}<div style="flex:1;min-width:0"><b class="${proName(u.id)}">${esc(u.pseudo||'Membre')}</b>${proTag(u.id)}<small style="display:block;color:var(--muted)">${esc(u.pays||'')}</small></div><button class="btn sm ghost" data-profile="${u.id}">Profil</button><button class="btn sm" data-dating-like="${u.id}">💗</button></div>`).join('');
   }catch(e){body.innerHTML=`<div class="err">Indisponible : ${esc(e.message||e)}</div>`;}
+}
+async function recordVisit(id){
+  try{
+    if(!state.client||!state.user||!id||id===state.user.id||(isPro()&&ppGet().ghost))return;
+    state.visited=state.visited||new Set();if(state.visited.has(id))return;state.visited.add(id);
+    const {error}=await state.client.from('profile_visits').upsert({visiteur:state.user.id,visite:id,visited_at:new Date().toISOString()},{onConflict:'visiteur,visite'});
+    if(error)console.warn('Visite non enregistrée :',error.message);
+  }catch(e){console.warn('Visite non enregistrée :',e.message||e);}
+}
+async function openVisitorsModal(){
+  if(!isPro()){openProModal();return;}
+  const root=$('#modal-root'),db=state.client,me=state.user.id;
+  root.innerHTML=`<div class="modal" id="modal"><div class="sheet" style="max-width:480px;max-height:90vh;overflow-y:auto"><div class="row"><b style="font-size:19px">👀 Ils ont visité ton profil</b><span class="sp"></span><button class="icon-btn" id="vs-close" aria-label="Fermer">✕</button></div><div id="vs-body"><small style="color:var(--muted)">Chargement…</small></div></div></div>`;
+  $('#vs-close').onclick=()=>root.innerHTML='';$('#modal').onclick=e=>{if(e.target.id==='modal')root.innerHTML='';};
+  $('#modal').addEventListener('click',e=>{if(e.target.closest('[data-profile]'))setTimeout(()=>{root.innerHTML='';},0);});
+  const body=$('#vs-body');
+  try{
+    const {data:rows,error}=await db.from('profile_visits').select('visiteur,visited_at').eq('visite',me).order('visited_at',{ascending:false}).limit(50);
+    if(error)throw error;
+    const list=(rows||[]).filter(r=>!state.blocked.has(r.visiteur));
+    if(!list.length){body.innerHTML='<div class="card" style="text-align:center;color:var(--muted);margin:10px 0">Personne n’a encore visité ton profil.</div>';return;}
+    const {data:us}=await db.from('profiles').select('id,pseudo,pays,avatar_url').in('id',list.map(r=>r.visiteur));
+    const byId=Object.fromEntries((us||[]).map(u=>[u.id,u]));
+    body.innerHTML=list.filter(r=>byId[r.visiteur]).map(r=>{const u=byId[r.visiteur],d=new Date(r.visited_at).toLocaleString('fr-FR',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+      return `<div class="card row" style="margin:10px 0;gap:10px;align-items:center">${avatar(u)}<div style="flex:1;min-width:0"><b class="${proName(u.id)}">${esc(u.pseudo||'Membre')}</b>${proTag(u.id)}<small style="display:block;color:var(--muted)">${esc(u.pays||'')} · ${esc(d)}</small></div><button class="btn sm ghost" data-profile="${u.id}">Profil</button></div>`;}).join('');
+  }catch(e){body.innerHTML=`<div class="err">Indisponible : ${esc(e.message||e)} (la table profile_visits est-elle créée ?)</div>`;}
 }
 (function watchRencontres(){
   const el=document.getElementById('s-rencontres');if(!el)return;
@@ -959,7 +1018,7 @@ function go(route){
 const topbar=(title,sub='')=>`<div class="topbar"><div><h1>${title}</h1><p>${esc(sub)}</p></div><div class="sp"></div><button class="av sm g4" data-go="profil">👤</button></div>`;
 const render={};
 function empty(title,desc='Aucun élément pour le moment.') {return `<div class="card" style="text-align:center;padding:30px"><div style="font-size:36px;margin-bottom:8px">🌱</div><b>${esc(title)}</b><p style="color:var(--muted);margin-top:8px">${esc(desc)}</p></div>`;}
-function avatar(profile,cls='') {const letter=(profile?.pseudo||'?').trim().charAt(0).toUpperCase();return `<div class="av ${cls} g4${profile?.id&&state.proIds.has(profile.id)?' pro':''}">${profile?.avatar_url?`<img src="${esc(profile.avatar_url)}" alt="" referrerpolicy="no-referrer" onerror="this.remove()" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`:esc(letter)}${profile?.id?presenceDot(profile.id):''}${profile?.id&&state.proIds.has(profile.id)?'<i class="probadge">👑</i>':''}</div>`;}
+function avatar(profile,cls='') {const letter=(profile?.pseudo||'?').trim().charAt(0).toUpperCase();return `<div class="av ${cls} g4${profile?.id&&state.proIds.has(profile.id)?' pro'+frameCls(profile.id):''}">${profile?.avatar_url?`<img src="${esc(profile.avatar_url)}" alt="" referrerpolicy="no-referrer" onerror="this.remove()" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`:esc(letter)}${profile?.id?presenceDot(profile.id):''}${profile?.id&&state.proIds.has(profile.id)?'<i class="probadge">👑</i>':''}</div>`;}
 async function loadDiscover(){
   if(!requireClient()) return;
   let q=state.client.from('profiles').select('id,pseudo,bio,pays,avatar_url').neq('id',state.user.id).order('created_at',{ascending:false}).limit(50);
@@ -999,8 +1058,9 @@ render.rencontres=async()=>{
   const {data:likes, error:likeErr}=await state.client.from('rencontres_actions').select('a,de,action').or(`de.eq.${state.user.id},a.eq.${state.user.id}`);
   if(likeErr){$('#dating-cards').innerHTML=empty('Interactions à configurer','La table des intérêts Rencontres doit être créée avec le script SQL fourni.');return;}
   const seen=new Set((likes||[]).filter(x=>x.de===state.user.id).map(x=>x.a));
-  const available=(people||[]).filter(u=>!seen.has(u.id)&&!state.blocked.has(u.id));
-  $('#dating-cards').innerHTML=available.length?`<div class="grid">${available.map(u=>`<article class="pcard"><div class="cover g4" style="height:190px">${avatar(u,'lg')}</div><div class="body"><b class="${proName(u.id)}">${esc(u.pseudo||'Membre')}</b>${proTag(u.id)}<small>${esc(u.pays||'Pays non renseigné')}</small><p style="font-size:13px;min-height:38px;margin:8px 0;color:var(--muted)">${esc(u.bio||'Ce membre souhaite faire de nouvelles rencontres.')}</p><div class="row"><button class="btn sm ghost" data-dating-pass="${u.id}">Passer</button><button class="btn sm" data-dating-like="${u.id}">💗 Intéressé</button></div></div></article>`).join('')}</div>`:empty('Plus de profils pour le moment','Reviens plus tard : de nouveaux membres pourront activer Rencontres.');
+  let boosted=new Set();try{const {data:bs}=await state.client.from('profile_boosts').select('user_id').gt('boost_until',new Date().toISOString());boosted=new Set((bs||[]).map(x=>x.user_id));}catch(_){}
+  const available=(people||[]).filter(u=>!seen.has(u.id)&&!state.blocked.has(u.id)).sort((x,y)=>(boosted.has(y.id)?1:0)-(boosted.has(x.id)?1:0));
+  $('#dating-cards').innerHTML=available.length?`<div class="grid">${available.map(u=>`<article class="pcard"><div class="cover g4" style="height:190px">${avatar(u,'lg')}</div><div class="body"><b class="${proName(u.id)}">${esc(u.pseudo||'Membre')}</b>${proTag(u.id)}${boosted.has(u.id)?'<span class="protag">🚀 Boosté</span>':''}<small>${esc(u.pays||'Pays non renseigné')}</small><p style="font-size:13px;min-height:38px;margin:8px 0;color:var(--muted)">${esc(u.bio||'Ce membre souhaite faire de nouvelles rencontres.')}</p><div class="row"><button class="btn sm ghost" data-dating-pass="${u.id}">Passer</button><button class="btn sm" data-dating-like="${u.id}">💗 Intéressé</button></div></div></article>`).join('')}</div>`:empty('Plus de profils pour le moment','Reviens plus tard : de nouveaux membres pourront activer Rencontres.');
 };
 render.discoverList=()=>{
   const el=$('#member-results');if(!el)return;
@@ -1386,7 +1446,7 @@ document.addEventListener('click',async e=>{
       if(!data){toast('Profil introuvable ou accès refusé. Vérifie les autorisations Supabase.');return;}
       u=data;state.users=[...state.users.filter(x=>x.id!==u.id),u];
     }
-    state.viewedProfile=u;go('profil');return;
+    recordVisit(profileId);state.viewedProfile=u;go('profil');return;
   }
 });
 document.addEventListener('submit',async e=>{
@@ -1557,7 +1617,7 @@ async function renderNotifications(){
  const {data,error}=await state.client.from('notifications').select('id,acteur,type,post_id,story_id,lu,created_at').order('created_at',{ascending:false}).limit(40);
  if(error){host.innerHTML='<small style="color:var(--muted)">Notifications indisponibles. Exécute le SQL inclus dans Paramètres.</small>';return;}
  const rows=data||[];await fetchProfiles(rows.map(x=>x.acteur));
- host.innerHTML=rows.length?rows.map(n=>`<button class="friend" data-notif-read="${n.id}" data-notif-post="${n.post_id||''}" style="width:100%;text-align:left;background:${n.lu?'transparent':'rgba(0,210,255,.08)'};border:0"><span>${n.type==='like'?'❤️':n.type==='comment'?'💬':n.type==='match'?'🎉':n.type==='follow'?'➕':n.type==='story_reaction'?'✨':'🔔'}</span><span class="meta"><b>${esc(state.users.find(u=>u.id===n.acteur)?.pseudo||'Un membre')}</b><small>${n.type==='match'?'— 🎉 Félicitations ! C’est réciproque, vous pouvez discuter.':n.type==='like'?'a aimé ta publication':n.type==='comment'?'a commenté ta publication':n.type==='follow'?'a commencé à te suivre':n.type==='story_reaction'?'a réagi à ta Story':'a interagi avec toi'} · ${fmtDate(n.created_at)}</small></span>${n.lu?'':'<span class="badge">Nouveau</span>'}</button>`).join(''):'<small style="color:var(--muted)">Tu n’as pas encore de notification.</small>';
+ host.innerHTML=rows.length?rows.map(n=>`<button class="friend" data-notif-read="${n.id}" data-notif-post="${n.post_id||''}" style="width:100%;text-align:left;background:${n.lu?'transparent':'rgba(0,210,255,.08)'};border:0"><span>${n.type==='like'?'❤️':n.type==='comment'?'💬':n.type==='match'?'🎉':n.type==='follow'?'➕':n.type==='story_reaction'?'✨':n.type==='super_like'?'⭐':'🔔'}</span><span class="meta"><b>${esc(state.users.find(u=>u.id===n.acteur)?.pseudo||'Un membre')}</b><small>${n.type==='match'?'— 🎉 Félicitations ! C’est réciproque, vous pouvez discuter.':n.type==='like'?'a aimé ta publication':n.type==='comment'?'a commenté ta publication':n.type==='follow'?'a commencé à te suivre':n.type==='story_reaction'?'a réagi à ta Story':n.type==='super_like'?'t’a envoyé un Super like ⭐':'a interagi avec toi'} · ${fmtDate(n.created_at)}</small></span>${n.lu?'':'<span class="badge">Nouveau</span>'}</button>`).join(''):'<small style="color:var(--muted)">Tu n’as pas encore de notification.</small>';
 }
 // Extend the community screen with Stories and an inbox for activity notifications.
 const _renderCommunity=render.communaute;
@@ -1679,8 +1739,8 @@ async function openGlobalNotifications(){
   const badge=$('#global-notif-count');if(badge){badge.hidden=!unread;badge.textContent=unread>9?'9+':String(unread);}
   host.innerHTML=rows.length?rows.map(n=>{
     const u=state.users.find(x=>x.id===n.acteur);
-    const icon=n.type==='like'?'❤️':n.type==='comment'?'💬':n.type==='match'?'🎉':n.type==='follow'?'➕':n.type==='story_reaction'?'✨':'🔔';
-    const label=n.type==='match'?'— 🎉 Félicitations ! C’est réciproque, vous pouvez discuter.':n.type==='like'?'a aimé ta publication':n.type==='comment'?'a commenté ta publication':n.type==='follow'?'a commencé à te suivre':n.type==='story_reaction'?'a réagi à ta Story':'a interagi avec toi';
+    const icon=n.type==='like'?'❤️':n.type==='comment'?'💬':n.type==='match'?'🎉':n.type==='follow'?'➕':n.type==='story_reaction'?'✨':n.type==='super_like'?'⭐':'🔔';
+    const label=n.type==='match'?'— 🎉 Félicitations ! C’est réciproque, vous pouvez discuter.':n.type==='like'?'a aimé ta publication':n.type==='comment'?'a commenté ta publication':n.type==='follow'?'a commencé à te suivre':n.type==='story_reaction'?'a réagi à ta Story':n.type==='super_like'?'t’a envoyé un Super like ⭐':'a interagi avec toi';
     return `<button class="quick-result" data-global-notif-read="${n.id}" style="width:100%;text-align:left;background:${n.lu?'transparent':'rgba(0,210,255,.09)'}">
       <span style="font-size:22px">${icon}</span><span class="meta"><b>${esc(u?.pseudo||'Un membre')}</b><small>${label} · ${fmtDate(n.created_at)}</small></span>${n.lu?'':'<span class="badge">Nouveau</span>'}
     </button>`;
@@ -2583,11 +2643,11 @@ document.addEventListener('click',e=>{if(e.target.closest&&e.target.closest('#op
 #op-quiz-area .op-quiz-result p{font-size:18px}
 #op-quiz-area .op-quiz-result .btn{padding:15px 24px;font-size:16px;margin-top:6px}
 `;document.head.appendChild(s);})();
-const OC_THEMES={blue:{n:'Nuit bleue',c:['#0b1d4a','#1d4ed8','#22d3ee']},violet:{n:'Violet',c:['#1e1b4b','#5b21b6','#a78bfa']},red:{n:'Flamme',c:['#3b0a1c','#be123c','#fb923c']},gold:{n:'Or',c:['#2b1a05','#b45309','#facc15']}};
+const OC_THEMES={blue:{n:'Nuit bleue',c:['#0b1d4a','#1d4ed8','#22d3ee']},violet:{n:'Violet',c:['#1e1b4b','#5b21b6','#a78bfa']},red:{n:'Flamme',c:['#3b0a1c','#be123c','#fb923c']},gold:{n:'Or',c:['#2b1a05','#b45309','#facc15']},sakura:{n:'Sakura',p:1,c:['#4a0d2e','#be185d','#f9a8d4']},neon:{n:'Néon',p:1,c:['#020617','#7c3aed','#22d3ee']},manga:{n:'Manga',p:1,c:['#0a0a0a','#3f3f46','#f5f5f5']},galaxy:{n:'Galaxie',p:1,c:['#0f0a2e','#3b0764','#c084fc']},jade:{n:'Jade',p:1,c:['#022c22','#047857','#6ee7b7']}};
 const OC_FRAMES={white:['Blanc','#ffffff'],cyan:['Cyan','#22d3ee'],gold:['Or','#facc15'],violet:['Violet','#a78bfa']};
 function opCardMeta(){
  const d=otPlusData(),l=otPlusLevel(d.xp||0),p=state.profile||{};
- const t=(OC_THEMES[d.theme]||OC_THEMES.blue),fr=(OC_FRAMES[d.frame]||OC_FRAMES.white);
+ let t=(OC_THEMES[d.theme]||OC_THEMES.blue);if(t.p&&!isPro())t=OC_THEMES.blue;const fr=(OC_FRAMES[d.frame]||OC_FRAMES.white);
  const since=state.user?.created_at?new Date(state.user.created_at).toLocaleDateString('fr-FR',{month:'long',year:'numeric'}):'';
  return {d,l,name:p.pseudo||'Membre Otaku',avatar:p.avatar_url||'',country:p.pays||'',since,t:t.c,ring:fr[1],stars:Math.max(1,Math.min(5,Math.ceil(l.level/2))),fav:(d.favorites||[]).length,url:location.host+location.pathname.replace(/\/index\.html$/,'').replace(/\/$/,'')};
 }
@@ -2598,12 +2658,12 @@ function opRenderCard(panel){
  <div class="oc-card" style="--c0:${m.t[0]};--c1:${m.t[1]};--c2:${m.t[2]}"><div class="oc-brand">⛩️ Otaku<span>Link</span></div>
  <div class="oc-main"><div class="oc-av" style="border-color:${m.ring}">${m.avatar?`<img src="${esc(m.avatar)}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">`:esc(m.name.slice(0,1).toUpperCase())}</div><div class="oc-txt"><h2>${esc(m.name)}</h2><div class="oc-stars"><b>${'★'.repeat(m.stars)}${'☆'.repeat(5-m.stars)}</b> Niveau ${m.l.level} · ${esc(m.l.title)}</div></div></div>
  <div><div class="oc-line">${lines[0]}</div><div class="oc-line">${lines[1]}</div></div><div class="oc-url">${esc(m.url)}</div></div>
- <p class="op-label">Couleurs</p><div class="op-chips">${Object.entries(OC_THEMES).map(([k,v])=>`<button type="button" class="op-chip ${(d.theme||'blue')===k?'on':''}" data-oc-theme="${k}">${v.n}</button>`).join('')}</div>
+ <p class="op-label">Couleurs</p><div class="op-chips">${Object.entries(OC_THEMES).map(([k,v])=>`<button type="button" class="op-chip ${(d.theme||'blue')===k?'on':''}" data-oc-theme="${k}">${v.p?(isPro()?'👑 ':'🔒 '):''}${v.n}</button>`).join('')}</div>
  <p class="op-label">Cadre de la photo</p><div class="op-chips">${Object.entries(OC_FRAMES).map(([k,v])=>`<button type="button" class="op-chip ${(d.frame&&OC_FRAMES[d.frame]?d.frame:'white')===k?'on':''}" data-oc-frame="${k}">${v[0]}</button>`).join('')}</div>
  <div class="row" style="margin-top:14px"><button type="button" class="btn" data-oc-dl>⬇ Télécharger l’image</button><span class="sp"></span><button type="button" class="btn ghost" data-oc-share>Partager</button></div></div>`;
  panel.onclick=async e=>{
   const th=e.target.closest('[data-oc-theme]'),fr=e.target.closest('[data-oc-frame]'),dl=e.target.closest('[data-oc-dl]'),sh=e.target.closest('[data-oc-share]');
-  if(th){const x=otPlusData();x.theme=th.dataset.ocTheme;otPlusSet(x);opRenderCard(panel);return;}
+  if(th){if(OC_THEMES[th.dataset.ocTheme]?.p&&!isPro()){openProModal();return;}const x=otPlusData();x.theme=th.dataset.ocTheme;otPlusSet(x);opRenderCard(panel);return;}
   if(fr){const x=otPlusData();x.frame=fr.dataset.ocFrame;otPlusSet(x);opRenderCard(panel);return;}
   if(sh){const k=opCardMeta();opShare(`⛩️ ${k.name} · ${k.l.title} niveau ${k.l.level} · ${k.d.xp||0} XP sur OtakuLink !`);return;}
   if(dl){dl.disabled=true;try{await opDownloadCard();}catch(err){toast('Image impossible : '+String(err?.message||err).slice(0,80));}dl.disabled=false;}
@@ -2652,6 +2712,200 @@ document.addEventListener('click',e=>{
  const f=e.target.closest&&e.target.closest('#op-search');
  if(f&&document.activeElement!==f)f.focus();
 },true);
+
+/* ===== Premium+ : fantôme, messages, Rencontres, cadres, titre, statistiques ===== */
+const PP_FRAMES=[['','Or'],['sakura','Sakura'],['neon','Néon'],['flame','Flamme'],['ice','Glace']];
+function frameCls(id){const f=state.proMeta?.[id]?.f;return f?' fr-'+f:'';}
+function refreshFrames(){$$('.av.pro').forEach(av=>{const d=av.querySelector(':scope>.pdot[data-presence]');if(!d)return;[...av.classList].filter(c=>c.startsWith('fr-')).forEach(c=>av.classList.remove(c));const f=state.proMeta?.[d.dataset.presence]?.f;if(f)av.classList.add('fr-'+f);});}
+const modalShell=(title,id)=>`<div class="modal" id="modal"><div class="sheet" style="max-width:480px;max-height:90vh;overflow-y:auto"><div class="row"><b style="font-size:19px">${title}</b><span class="sp"></span><button class="icon-btn" id="${id}-close" aria-label="Fermer">✕</button></div><div id="${id}-body"></div></div></div>`;
+function openShell(title,id){const root=$('#modal-root');root.innerHTML=modalShell(title,id);$('#'+id+'-close').onclick=()=>root.innerHTML='';$('#modal').onclick=e=>{if(e.target.id==='modal')root.innerHTML='';};return $('#'+id+'-body');}
+
+/* --- Bloc « Style & confidentialité » dans la fenêtre Premium --- */
+function proExtraHTML(){
+  const pr=ppGet(),me=state.proMeta?.[state.user.id]||{},since=proSince(state.user.id);
+  return `<div class="card" style="margin:10px 0"><b>✨ Style & confidentialité</b>
+    <p style="font-size:12px;color:var(--muted);margin:8px 0 2px">Cadre de ta photo (visible par tous)</p><div class="pp-row" id="pf-frames">${PP_FRAMES.map(([k,n])=>`<button type="button" class="btn sm ghost${(me.f||'')===k?' on':''}" data-pf-frame="${k}">${n}</button>`).join('')}</div>
+    <p style="font-size:12px;color:var(--muted);margin:0 0 2px">Ton titre sous ton pseudo (visible par tous)</p><div class="row" style="gap:8px;margin-bottom:10px"><input id="pf-title" maxlength="24" placeholder="Ex : Hokage du dimanche" value="${esc(me.t||'')}" style="flex:1;min-width:0;padding:10px;border-radius:12px;border:1px solid var(--line);background:rgba(15,27,66,.85)"><button type="button" class="btn sm" id="pf-title-save">OK</button></div>
+    <button type="button" class="btn block ghost" id="pf-ghost">👻 Mode fantôme : ${pr.ghost?'Activé':'Désactivé'}</button><small style="display:block;color:var(--muted);margin:4px 0 8px">Visite des profils sans apparaître dans leur liste de visiteurs.</small>
+    <button type="button" class="btn block ghost" id="pf-stats">📊 Mes statistiques de publications</button>${since?`<small style="display:block;color:var(--muted);margin-top:8px">👑 Premium depuis ${since}</small>`:''}</div>`;
+}
+function proExtraBind(){
+  const root=$('#modal-root'),db=state.client,me=state.user.id;
+  root.querySelectorAll('[data-pf-frame]').forEach(b=>b.onclick=async()=>{
+    const f=b.dataset.pfFrame;
+    const {error}=await db.from('profiles').update({cadre_premium:f||null}).eq('id',me);
+    if(error)return toast('Cadre impossible : '+error.message+' (le SQL Premium a-t-il été exécuté ?)');
+    state.proMeta[me]={...(state.proMeta[me]||{}),f};
+    root.querySelectorAll('[data-pf-frame]').forEach(x=>x.classList.toggle('on',x===b));refreshFrames();toast('Cadre mis à jour ✨');
+  });
+  const ts=$('#pf-title-save');if(ts)ts.onclick=async()=>{
+    const t=($('#pf-title').value||'').replace(/[<>]/g,'').trim().slice(0,24);
+    const {error}=await db.from('profiles').update({titre_premium:t||null}).eq('id',me);
+    if(error)return toast('Titre impossible : '+error.message+' (le SQL Premium a-t-il été exécuté ?)');
+    state.proMeta[me]={...(state.proMeta[me]||{}),t};toast(t?'Titre enregistré ✨':'Titre retiré.');
+  };
+  const gh=$('#pf-ghost');if(gh)gh.onclick=()=>{const next=!ppGet().ghost;ppSet({ghost:next});gh.textContent='👻 Mode fantôme : '+(next?'Activé':'Désactivé');toast(next?'Mode fantôme activé : tes visites ne laissent plus de trace.':'Mode fantôme désactivé.');};
+  const st=$('#pf-stats');if(st)st.onclick=()=>openStatsModal();
+}
+
+/* --- Statistiques de publications --- */
+async function openStatsModal(){
+  if(!isPro()){openProModal();return;}
+  const body=openShell('📊 Mes statistiques','st'),db=state.client,me=state.user.id;
+  body.innerHTML='<small style="color:var(--muted)">Calcul en cours…</small>';
+  try{
+    const {data:posts,error}=await db.from('posts').select('id,texte,created_at').eq('auteur',me).order('created_at',{ascending:false}).limit(200);
+    if(error)throw error;
+    if(!posts||!posts.length){body.innerHTML='<div class="card" style="text-align:center;color:var(--muted);margin:10px 0">Aucune publication pour le moment.</div>';return;}
+    const ids=posts.map(p=>p.id);
+    const [l,c]=await Promise.all([db.from('likes').select('post_id,user_id').in('post_id',ids),db.from('commentaires').select('post_id,auteur').in('post_id',ids)]);
+    const likes=(l.data||[]).filter(x=>x.user_id!==me),coms=(c.data||[]).filter(x=>x.auteur!==me);
+    const score={};posts.forEach(p=>score[p.id]=0);likes.forEach(x=>score[x.post_id]=(score[x.post_id]||0)+1);coms.forEach(x=>score[x.post_id]=(score[x.post_id]||0)+1);
+    const byH={},byD={};posts.forEach(p=>{const d=new Date(p.created_at),h=d.getHours(),w=d.getDay();(byH[h]=byH[h]||[]).push(score[p.id]);(byD[w]=byD[w]||[]).push(score[p.id]);});
+    const best=o=>{let k=null,v=-1;Object.entries(o).forEach(([a,arr])=>{const m=arr.reduce((s,x)=>s+x,0)/arr.length;if(m>v){v=m;k=a;}});return k;};
+    const bh=best(byH),bd=best(byD),days=['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
+    const top=posts.slice().sort((a,b)=>score[b.id]-score[a.id])[0];
+    const tile=(n,t)=>`<div class="card" style="text-align:center;margin:0"><b style="font-size:24px">${n}</b><small style="display:block;color:var(--muted)">${t}</small></div>`;
+    body.innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0">${tile(posts.length,'Publications')}${tile(likes.length,'❤️ Likes reçus')}${tile(coms.length,'💬 Commentaires reçus')}${tile((likes.length/posts.length).toFixed(1),'Likes / publication')}</div>
+      <div class="card" style="margin:10px 0"><b>⏰ Meilleur moment pour poster</b><small style="display:block;color:var(--muted);margin-top:6px">${days[bd]}s, vers ${bh}h–${(+bh+1)%24}h (d’après l’engagement de tes ${posts.length} dernières publications)</small></div>
+      <div class="card" style="margin:10px 0"><b>🏆 Ta meilleure publication</b><small style="display:block;color:var(--muted);margin-top:6px">${esc(String(postTextAndImage(top.texte).text||'(média)').slice(0,140))}</small><small style="color:#fbbf24">${score[top.id]} interaction${score[top.id]>1?'s':''}</small></div>`;
+  }catch(e){body.innerHTML=`<div class="err">Indisponible : ${esc(e.message||e)}</div>`;}
+}
+
+/* --- Messages : favoris, épinglés, programmés (Premium) --- */
+const schedKey=()=>'otakulink_sched_'+(state.user?.id||'');
+const schedGet=()=>{try{return JSON.parse(localStorage.getItem(schedKey())||'[]')}catch(_){return []}};
+const schedSet=a=>{try{localStorage.setItem(schedKey(),JSON.stringify(a))}catch(_){}};
+async function schedTick(){
+  if(!state.client||!state.user||state.schedBusy)return;
+  const due=schedGet().filter(x=>x.at<=Date.now());if(!due.length)return;
+  state.schedBusy=true;let sent=0;
+  try{
+    for(const it of due){const {error}=await state.client.from('messages').insert({de:state.user.id,a:it.to,texte:it.text});if(!error){schedSet(schedGet().filter(x=>x.id!==it.id));sent++;}}
+    if(sent){state.messagesCache=null;toast(`⏰ ${sent} message${sent>1?'s':''} programmé${sent>1?'s':''} envoyé${sent>1?'s':''}.`);if(state.route==='messages'&&!($('#chat-input')?.value))render.messages();}
+  }catch(_){}finally{state.schedBusy=false;}
+}
+setInterval(schedTick,15000);setTimeout(schedTick,4000);
+function openSchedModal(to,draft){
+  const body=openShell('⏰ Message programmé','sc');
+  const pad=n=>String(n).padStart(2,'0'),d0=new Date(Date.now()+3600000),def=`${d0.getFullYear()}-${pad(d0.getMonth()+1)}-${pad(d0.getDate())}T${pad(d0.getHours())}:${pad(d0.getMinutes())}`;
+  const list=()=>schedGet().filter(x=>x.to===to).sort((a,b)=>a.at-b.at);
+  const paint=()=>{
+    body.innerHTML=`<textarea id="sc-text" maxlength="2000" rows="3" placeholder="Ton message…" style="width:100%;margin:10px 0 6px;padding:12px;border-radius:12px;border:1px solid var(--line);background:rgba(15,27,66,.85);color:inherit">${esc(draft||'')}</textarea>
+      <input id="sc-at" type="datetime-local" value="${def}" style="width:100%;padding:12px;border-radius:12px;border:1px solid var(--line);background:rgba(15,27,66,.85);color:inherit"><button class="btn block gold" id="sc-ok" style="margin-top:10px">Programmer l’envoi ⏰</button>
+      <small style="display:block;color:var(--muted);margin-top:8px">Le message part quand OtakuLink est ouvert à l’heure prévue (sur cet appareil). S’il est fermé, il part à la prochaine ouverture.</small>
+      ${list().length?`<b style="display:block;margin:14px 0 4px">En attente</b>${list().map(x=>`<div class="card row" style="margin:6px 0;gap:8px"><div style="flex:1;min-width:0"><small style="color:#fbbf24">${new Date(x.at).toLocaleString('fr-FR',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</small><div style="font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(x.text)}</div></div><button class="btn sm ghost" data-sc-del="${x.id}">Annuler</button></div>`).join('')}`:''}`;
+    $('#sc-ok').onclick=()=>{
+      const text=($('#sc-text').value||'').trim(),at=new Date($('#sc-at').value).getTime();
+      if(!text)return toast('Écris un message.');if(!at||at<Date.now()+30000)return toast('Choisis une heure dans le futur.');
+      schedSet([...schedGet(),{id:'s'+Date.now()+Math.random().toString(36).slice(2,6),to,text,at}]);
+      const i=$('#chat-input');if(i&&draft&&i.value.trim()===draft)i.value='';
+      toast('Message programmé ⏰');$('#modal-root').innerHTML='';
+    };
+    body.querySelectorAll('[data-sc-del]').forEach(b=>b.onclick=()=>{schedSet(schedGet().filter(x=>x.id!==b.dataset.scDel));paint();});
+  };
+  paint();
+}
+function enhanceMessages(){
+  const root=$('#messages-content');if(!root)return;
+  const pro=isPro(),chat=state.activeChat;
+  if(pro){
+    const favs=new Set(ppGet().favs||[]),col=root.querySelector('.conv-col');
+    if(col){
+      const convs=[...col.querySelectorAll('.conv[data-chat-open]')];
+      convs.forEach(c=>{const id=c.dataset.chatOpen;if(c.querySelector('.fav-star'))return;const b=document.createElement('button');b.type='button';b.className='fav-star'+(favs.has(id)?' on':'');b.textContent=favs.has(id)?'★':'☆';b.title='Conversation favorite';b.onclick=ev=>{ev.stopPropagation();ev.preventDefault();const s=new Set(ppGet().favs||[]);s.has(id)?s.delete(id):s.add(id);ppSet({favs:[...s]});render.messages();};c.appendChild(b);});
+      convs.filter(c=>favs.has(c.dataset.chatOpen)).reverse().forEach(c=>col.insertBefore(c,col.firstElementChild));
+    }
+    if(chat){
+      const pins=()=>new Set((ppGet().pins||{})[chat]||[]);
+      const textOf=b=>{const c=b.cloneNode(true);c.querySelectorAll('small,.message-tools,.reply-context,.chat-media-box').forEach(x=>x.remove());return (c.textContent||'').trim()||'📎 Média';};
+      const bar=()=>{
+        let el=$('#pin-bar');const body=$('#chat-body');if(!body)return;
+        const ps=pins(),items=[...body.querySelectorAll('.bubble[data-message-bubble]')].filter(b=>ps.has(b.dataset.messageBubble));
+        if(!items.length){el?.remove();return;}
+        if(!el){el=document.createElement('div');el.id='pin-bar';el.className='pin-bar';body.parentNode.insertBefore(el,body);}
+        el.innerHTML=items.slice(-3).map(b=>`<button type="button" data-pin-go="${b.dataset.messageBubble}">📌 ${esc(textOf(b).slice(0,70))}</button>`).join('');
+        el.querySelectorAll('[data-pin-go]').forEach(x=>x.onclick=()=>{const t=body.querySelector(`[data-message-bubble="${CSS.escape(x.dataset.pinGo)}"]`);t?.scrollIntoView({block:'center',behavior:'smooth'});t?.classList.add('pin-flash');setTimeout(()=>t?.classList.remove('pin-flash'),1400);});
+      };
+      root.querySelectorAll('.bubble[data-message-bubble]').forEach(bub=>{
+        const id=bub.dataset.messageBubble;if(!id||id.startsWith('pending-')||bub.querySelector('[data-pin-toggle]'))return;
+        const tools=bub.querySelector('.message-tools');if(!tools)return;
+        const b=document.createElement('button');b.type='button';b.dataset.pinToggle=id;b.textContent=pins().has(id)?'📌 Retirer':'📌 Épingler';
+        b.onclick=()=>{const all={...(ppGet().pins||{})},s=pins();s.has(id)?s.delete(id):s.add(id);all[chat]=[...s];ppSet({pins:all});b.textContent=s.has(id)?'📌 Retirer':'📌 Épingler';bar();};
+        tools.appendChild(b);
+      });
+      bar();
+    }
+  }
+  const row=root.querySelector('.chat-compose-row');
+  if(row&&chat&&!row.querySelector('#chat-sched-btn')){
+    const b=document.createElement('button');b.type='button';b.id='chat-sched-btn';b.className='chat-attach-icon';b.title=pro?'Programmer un message':'Message programmé (Premium)';b.textContent=pro?'⏰':'🔒';
+    b.onclick=()=>{if(!isPro())return openProModal();openSchedModal(chat,($('#chat-input')?.value||'').trim());};
+    row.insertBefore(b,row.querySelector('.send'));
+  }
+}
+(function(){const _m=render.messages;render.messages=async function(){const r=await _m.apply(this,arguments);try{enhanceMessages();}catch(e){console.warn(e);}return r;};})();
+
+/* --- Rencontres : filtres, compatibilité, Super like, annuler « Passer » --- */
+const tokens=s=>new Set(String(s||'').toLowerCase().split(/[,;\n/|]+/).map(x=>x.trim()).filter(x=>x.length>1));
+async function enhanceRencontres(){
+  const wrap=$('#dating-cards'),host=$('#s-rencontres');if(!wrap||!host)return;
+  const cards=[...wrap.querySelectorAll('.pcard')];$('#dating-filters')?.remove();
+  if(!cards.length)return;
+  const pro=isPro(),idOf=c=>c.querySelector('[data-dating-like]')?.dataset.datingLike;
+  cards.forEach(c=>{const row=c.querySelector('.row:last-child'),id=idOf(c);if(row&&id&&!row.querySelector('[data-super-like]')){const b=document.createElement('button');b.className='btn sm gold';b.dataset.superLike=id;b.title='Super like : la personne est prévenue (2 par jour)';b.textContent=pro?'⭐':'🔒⭐';row.appendChild(b);}});
+  const bar=document.createElement('div');bar.id='dating-filters';bar.className='card';
+  if(!pro){
+    bar.innerHTML='<button class="btn gold block" id="df-lock">🔒 Filtres, compatibilité et Super like (Premium)</button>';wrap.parentNode.insertBefore(bar,wrap);$('#df-lock').onclick=openProModal;return;
+  }
+  const ids=cards.map(idOf).filter(Boolean);let extra={};
+  try{const {data}=await state.client.from('profiles').select('id,pays,animes_favoris,centres_interet').in('id',ids);extra=Object.fromEntries((data||[]).map(x=>[x.id,x]));}catch(_){}
+  const mine=new Set([...tokens(state.profile?.animes_favoris),...tokens(state.profile?.centres_interet)]);
+  const pays=new Set();
+  cards.forEach(c=>{
+    const id=idOf(c),x=extra[id]||{},theirs=new Set([...tokens(x.animes_favoris),...tokens(x.centres_interet)]);
+    const common=[...theirs].filter(t=>mine.has(t));
+    const pct=mine.size&&theirs.size?Math.min(100,Math.round(100*common.length/Math.min(mine.size,theirs.size))):null;
+    c.dataset.pays=(x.pays||'').trim();c.dataset.common=common.length;c.dataset.compat=pct==null?-1:pct;if(x.pays)pays.add(x.pays.trim());
+    const body=c.querySelector('.body');
+    if(body&&!body.querySelector('.compat'))body.insertAdjacentHTML('afterbegin',`<div class="compat" title="${esc(common.slice(0,6).join(', '))}">${pct==null?'🎌 Compatibilité : profil incomplet':`🔥 ${pct}% compatible${common.length?` · ${common.length} en commun`:''}`}</div>`);
+  });
+  bar.innerHTML=`<b>🎛️ Filtres 👑</b><div class="row" style="gap:8px;flex-wrap:wrap;margin-top:8px"><select id="df-pays" style="padding:8px;border-radius:10px;border:1px solid var(--line);background:rgba(15,27,66,.85);color:inherit"><option value="">Tous les pays</option>${[...pays].sort().map(p=>`<option>${esc(p)}</option>`).join('')}</select><select id="df-min" style="padding:8px;border-radius:10px;border:1px solid var(--line);background:rgba(15,27,66,.85);color:inherit"><option value="0">Compat. : toutes</option><option value="30">≥ 30%</option><option value="50">≥ 50%</option><option value="70">≥ 70%</option></select><label style="font-size:13px"><input type="checkbox" id="df-common"> Animes en commun</label><label style="font-size:13px"><input type="checkbox" id="df-sort"> Trier par compatibilité</label></div><div class="row" style="gap:8px;margin-top:8px"><button class="btn sm ghost" id="df-undo">↩ Annuler mon dernier « Passer »</button></div><small id="df-count" style="color:var(--muted);display:block;margin-top:6px"></small>`;
+  wrap.parentNode.insertBefore(bar,wrap);
+  const apply=()=>{
+    const p=$('#df-pays').value,min=+$('#df-min').value,cm=$('#df-common').checked,grid=wrap.querySelector('.grid');
+    if($('#df-sort').checked&&grid)[...grid.children].sort((a,b)=>(+b.dataset.compat)-(+a.dataset.compat)).forEach(n=>grid.appendChild(n));
+    let n=0;cards.forEach(c=>{const ok=(!p||c.dataset.pays===p)&&(+c.dataset.compat>=min)&&(!cm||+c.dataset.common>0);c.style.display=ok?'':'none';if(ok)n++;});
+    $('#df-count').textContent=`${n} profil${n>1?'s':''} affiché${n>1?'s':''}`;
+  };
+  ['df-pays','df-min','df-common','df-sort'].forEach(i=>$('#'+i).onchange=apply);apply();
+  $('#df-undo').onclick=async()=>{
+    const db=state.client,me=state.user.id;
+    let r=await db.from('rencontres_actions').select('a,created_at').eq('de',me).eq('action','pass').order('created_at',{ascending:false}).limit(1);
+    if(r.error)r=await db.from('rencontres_actions').select('a').eq('de',me).eq('action','pass').limit(1);
+    const last=r.data&&r.data[0];if(!last)return toast('Aucun « Passer » à annuler.');
+    const del=await db.from('rencontres_actions').delete().eq('de',me).eq('a',last.a).eq('action','pass').select('a');
+    if(del.error||!(del.data&&del.data.length))return toast('Annulation impossible (SQL Premium à exécuter).');
+    toast('Profil restauré ↩');render.rencontres();
+  };
+}
+(function(){const _r=render.rencontres;render.rencontres=async function(){const r=await _r.apply(this,arguments);try{await enhanceRencontres();}catch(e){console.warn(e);}return r;};})();
+document.addEventListener('click',async e=>{
+  const b=e.target.closest('[data-super-like]');if(!b)return;
+  e.preventDefault();e.stopPropagation();
+  if(!isPro())return openProModal();
+  const id=b.dataset.superLike,day=new Date().toISOString().slice(0,10),k='otakulink_super_'+state.user.id;
+  let st={};try{st=JSON.parse(localStorage.getItem(k)||'{}');}catch(_){}
+  if(st.d!==day)st={d:day,n:0};
+  if(st.n>=2)return toast('Tu as utilisé tes 2 Super likes du jour ⭐');
+  b.disabled=true;st.n++;try{localStorage.setItem(k,JSON.stringify(st));}catch(_){}
+  try{await state.client.from('notifications').insert({destinataire:id,acteur:state.user.id,type:'super_like'});}catch(_){}
+  const like=b.closest('.pcard')?.querySelector('[data-dating-like]');
+  if(like)like.click();
+},true);
+
+paintPro();refreshFrames();
+
 </script>
 
 <style id="otaku-messaging-advanced">
