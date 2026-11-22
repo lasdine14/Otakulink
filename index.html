@@ -3113,6 +3113,53 @@ document.addEventListener('click',async e=>{
 
 paintPro();refreshFrames();
 
+
+/* Notifications push : abonnement de l'appareil + enregistrement dans Supabase */
+(function(){
+const VAPID_PUBLIC_KEY='BB951ZUSqtiBpDZ_vc769TnzEhF0INCF2z31zdWIkkVrRG26e4eOFd5F5H_jAfL3tSmtgCjIlVG2_yZszVh-lb0';
+const key=s=>{const r=(s+'='.repeat((4-s.length%4)%4)).replace(/-/g,'+').replace(/_/g,'/'),raw=atob(r),u=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)u[i]=raw.charCodeAt(i);return u;};
+const supported=()=>('serviceWorker' in navigator)&&('PushManager' in window)&&('Notification' in window);
+async function reg(){if(!('serviceWorker' in navigator))return null;try{await navigator.serviceWorker.register('sw.js');return await navigator.serviceWorker.ready;}catch(e){console.warn('SW',e);return null;}}
+async function subscribe(){
+  try{
+    if(!supported()||Notification.permission!=='granted'||VAPID_PUBLIC_KEY.startsWith('REMPLACE')){window.__olPushErr='Push non supporté ou autorisation non accordée';return false;}
+    if(!state.client||!state.user){window.__olPushErr='Pas de session connectée';return false;}
+    const r=await reg();if(!r)return false;
+    let sub=await r.pushManager.getSubscription();
+    if(!sub)sub=await r.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:key(VAPID_PUBLIC_KEY)});
+    const j=sub.toJSON();
+    const {error}=await state.client.from('push_subscriptions').upsert({user_id:state.user.id,endpoint:j.endpoint,p256dh:j.keys.p256dh,auth:j.keys.auth},{onConflict:'endpoint'});
+    if(error){console.warn('push_subscriptions',error.message);window.__olPushErr='Enregistrement refusé : '+error.message;return false;}
+    const chk=await state.client.from('push_subscriptions').select('id').eq('endpoint',j.endpoint).maybeSingle();
+    if(chk.error||!chk.data){window.__olPushErr='Abonnement non retrouvé après enregistrement'+(chk.error?' : '+chk.error.message:'');return false;}
+    window.__olPushOn=true;return true;
+  }catch(e){console.warn('push',e);window.__olPushErr='Erreur : '+(e&&e.message||e);return false;}
+}
+async function unsubscribe(){
+  try{
+    window.__olPushOn=false;
+    const r=await navigator.serviceWorker.getRegistration();const sub=r&&await r.pushManager.getSubscription();
+    if(sub){await state.client.from('push_subscriptions').delete().eq('endpoint',sub.endpoint);await sub.unsubscribe();}
+  }catch(e){console.warn('unsub',e);}
+}
+window.olPushSync=async function(on){
+  if(!on)return unsubscribe();
+  if(!supported()){toast(IS_IOS?'Sur iPhone : ajoute d’abord OtakuLink à l’écran d’accueil pour recevoir les notifications.':'Ce navigateur ne gère pas les notifications push.');return;}
+  if(Notification.permission!=='granted')return;
+  window.__olPushErr='';
+  const ok=await subscribe();
+  toast(ok?'Notifications activées et enregistrées ✅':(window.__olPushErr||'Clé VAPID manquante ou notifications non supportées.'));
+};
+/* Réabonnement automatique à chaque ouverture, une fois connecté */
+let tries=0;const t=setInterval(async()=>{
+  if(++tries>90){clearInterval(t);return;}
+  if(typeof state==='undefined'||!state.user||!state.client)return;
+  clearInterval(t);
+  await reg();
+  if(state.settings.notifications&&supported()&&Notification.permission==='granted')subscribe();
+},1000);
+})();
+
 </script>
 
 <style id="otaku-messaging-advanced">
@@ -3492,53 +3539,6 @@ decorate();
   document.querySelectorAll('#s-messages .bubble.show-tools').forEach(x=>x.classList.remove('show-tools'));
   if(!was)b.classList.add('show-tools');
  });
-})();
-</script>
-<script id="ol-push">
-/* Notifications push : abonnement de l'appareil + enregistrement dans Supabase */
-(function(){
-const VAPID_PUBLIC_KEY='BB951ZUSqtiBpDZ_vc769TnzEhF0INCF2z31zdWIkkVrRG26e4eOFd5F5H_jAfL3tSmtgCjIlVG2_yZszVh-lb0';
-const key=s=>{const r=(s+'='.repeat((4-s.length%4)%4)).replace(/-/g,'+').replace(/_/g,'/'),raw=atob(r),u=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)u[i]=raw.charCodeAt(i);return u;};
-const supported=()=>('serviceWorker' in navigator)&&('PushManager' in window)&&('Notification' in window);
-async function reg(){if(!('serviceWorker' in navigator))return null;try{await navigator.serviceWorker.register('sw.js');return await navigator.serviceWorker.ready;}catch(e){console.warn('SW',e);return null;}}
-async function subscribe(){
-  try{
-    if(!supported()||Notification.permission!=='granted'||VAPID_PUBLIC_KEY.startsWith('REMPLACE')){window.__olPushErr='Push non supporté ou autorisation non accordée';return false;}
-    if(!state.client||!state.user){window.__olPushErr='Pas de session connectée';return false;}
-    const r=await reg();if(!r)return false;
-    let sub=await r.pushManager.getSubscription();
-    if(!sub)sub=await r.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:key(VAPID_PUBLIC_KEY)});
-    const j=sub.toJSON();
-    const {error}=await state.client.from('push_subscriptions').upsert({user_id:state.user.id,endpoint:j.endpoint,p256dh:j.keys.p256dh,auth:j.keys.auth},{onConflict:'endpoint'});
-    if(error){console.warn('push_subscriptions',error.message);window.__olPushErr='Enregistrement refusé : '+error.message;return false;}
-    const chk=await state.client.from('push_subscriptions').select('id').eq('endpoint',j.endpoint).maybeSingle();
-    if(chk.error||!chk.data){window.__olPushErr='Abonnement non retrouvé après enregistrement'+(chk.error?' : '+chk.error.message:'');return false;}
-    window.__olPushOn=true;return true;
-  }catch(e){console.warn('push',e);window.__olPushErr='Erreur : '+(e&&e.message||e);return false;}
-}
-async function unsubscribe(){
-  try{
-    window.__olPushOn=false;
-    const r=await navigator.serviceWorker.getRegistration();const sub=r&&await r.pushManager.getSubscription();
-    if(sub){await state.client.from('push_subscriptions').delete().eq('endpoint',sub.endpoint);await sub.unsubscribe();}
-  }catch(e){console.warn('unsub',e);}
-}
-window.olPushSync=async function(on){
-  if(!on)return unsubscribe();
-  if(!supported()){toast(IS_IOS?'Sur iPhone : ajoute d’abord OtakuLink à l’écran d’accueil pour recevoir les notifications.':'Ce navigateur ne gère pas les notifications push.');return;}
-  if(Notification.permission!=='granted')return;
-  window.__olPushErr='';
-  const ok=await subscribe();
-  toast(ok?'Notifications activées et enregistrées ✅':(window.__olPushErr||'Clé VAPID manquante ou notifications non supportées.'));
-};
-/* Réabonnement automatique à chaque ouverture, une fois connecté */
-let tries=0;const t=setInterval(async()=>{
-  if(++tries>90){clearInterval(t);return;}
-  if(typeof state==='undefined'||!state.user||!state.client)return;
-  clearInterval(t);
-  await reg();
-  if(state.settings.notifications&&supported()&&Notification.permission==='granted')subscribe();
-},1000);
 })();
 </script>
 </body>
