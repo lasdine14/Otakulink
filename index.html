@@ -2497,21 +2497,57 @@ document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest
 /* ===== Où regarder / lire (sources officielles) ===== */
 function opOpenWhere(title,kind){
  const q=encodeURIComponent(title||''),isAnime=String(kind||'Anime')==='Anime';
- const rows=isAnime?[
-  ['🟠','Crunchyroll','Catalogue officiel d’anime en streaming','https://www.crunchyroll.com/search?q='+q],
-  ['🔴','Netflix','Séries et films d’animation','https://www.netflix.com/search?q='+q],
-  ['🇫🇷','ADN','Plateforme française dédiée à l’anime (VOSTFR et VF)','https://animationdigitalnetwork.com/'],
-  ['🔵','Prime Video','Séries et films d’animation','https://www.primevideo.com/search?phrase='+q],
-  ['▶️','YouTube (chaînes officielles)','Épisodes gratuits proposés par les studios','https://www.youtube.com/results?search_query='+q+'+episode+officiel']
+ const rows=(isAnime?[
+  ['▶️','youtube','YouTube (chaînes officielles)','Épisodes gratuits proposés par les studios','https://www.youtube.com/results?search_query='+q+'+episode+officiel',1],
+  ['🪐','animeplanet','Anime-Planet','Site légal avec des épisodes gratuits (pubs)','https://www.anime-planet.com/anime/all?name='+q,1],
+  ['📼','retrocrush','RetroCrush','Anime classiques gratuits avec pubs','https://www.retrocrush.tv/',1],
+  ['🟠','crunchyroll','Crunchyroll','Catalogue officiel (abonnement)','https://www.crunchyroll.com/search?q='+q,0],
+  ['🔴','netflix','Netflix','Séries et films d’animation (abonnement)','https://www.netflix.com/search?q='+q,0],
+  ['🇫🇷','adn','ADN','Plateforme française, VOSTFR et VF (abonnement)','https://animationdigitalnetwork.com/',0],
+  ['🔵','primevideo','Prime Video','Séries et films d’animation (abonnement)','https://www.primevideo.com/search?phrase='+q,0]
  ]:[
-  ['🟥','MANGA Plus','Chapitres officiels gratuits (Shueisha)','https://mangaplus.shueisha.co.jp/'],
-  ['🟩','WEBTOON','Lecture officielle, beaucoup de séries gratuites','https://www.webtoons.com/fr/search?keyword='+q],
-  ['📚','Acheter les tomes','Librairies et éditeurs officiels','https://www.google.com/search?q='+q+'+manga+acheter+tome+officiel']
- ];
- $('#modal-root').innerHTML=`<div class="modal" id="op-where-modal" style="align-items:center;padding:12px"><div class="sheet" style="max-width:560px;width:100%;border-radius:18px;padding:16px 16px 18px;background:linear-gradient(160deg,#071a3b,#030b20)"><div style="display:flex;align-items:center;gap:10px;padding-bottom:6px"><b style="font-size:17px;flex:1;min-width:0;overflow-wrap:anywhere">${isAnime?'📺 Où regarder':'📖 Où lire'} · ${esc(title||'')}</b><button type="button" class="icon-btn" id="op-where-x" aria-label="Fermer">✕</button></div><p class="op-note" style="margin:0 0 12px">Sources officielles uniquement.</p>${rows.map(r=>`<a href="${esc(r[3])}" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:14px;margin:0 0 10px;padding:14px;border:1.5px solid #1b9aff66;border-radius:16px;background:#0d1b3f;color:#fff;text-decoration:none"><span style="font-size:28px">${r[0]}</span><span style="flex:1"><b style="display:block;font-size:17px">${esc(r[1])}</b><small style="color:#9fb4d9">${esc(r[2])}</small></span><span>↗</span></a>`).join('')}<p class="op-note" style="margin-top:8px">La disponibilité change selon ton pays et ton abonnement.</p></div></div>`;
+  ['🟥','mangaplus','MANGA Plus','Chapitres officiels gratuits (Shueisha)','https://mangaplus.shueisha.co.jp/',1],
+  ['🟩','webtoon','WEBTOON','Lecture officielle, beaucoup de séries gratuites','https://www.webtoons.com/fr/search?keyword='+q,1],
+  ['📚','tomes','Acheter les tomes','Librairies et éditeurs officiels','https://www.google.com/search?q='+q+'+manga+acheter+tome+officiel',0]
+ ]);
+ const COUNTRIES=['Congo (RDC)','Congo-Brazzaville','France','Belgique','Canada','Autre'];
+ let country=COUNTRIES[0];try{const c=localStorage.getItem('op_country');if(COUNTRIES.includes(c))country=c;}catch(_){}
+ let stats={};
+ const paint=()=>{
+  const host=document.querySelector('#op-where-list');if(!host)return;
+  host.innerHTML=rows.map(r=>{
+   const st=stats[r[1]]||{works:0,broken:0};
+   const line=(st.works||st.broken)?`✅ ${st.works} · ❌ ${st.broken} (${esc(country)})`:`Pas encore de vote pour ${esc(country)}`;
+   const badge=r[5]?'<span style="background:#1c8f4a;color:#fff;border-radius:8px;padding:2px 8px;font-size:12px;font-weight:700;margin-left:8px">Gratuit</span>':'';
+   const vb='padding:8px 12px;border-radius:12px;border:1.5px solid #1b9aff88;background:#0d1b3f;color:#fff;font-size:14px;font-weight:700';
+   return `<div style="margin:0 0 10px;border:1.5px solid #1b9aff66;border-radius:16px;background:#0d1b3f;overflow:hidden"><a href="${esc(r[4])}" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:14px;padding:14px;color:#fff;text-decoration:none"><span style="font-size:28px">${r[0]}</span><span style="flex:1"><b style="display:block;font-size:17px">${esc(r[2])}${badge}</b><small style="color:#9fb4d9">${esc(r[3])}</small></span><span>↗</span></a><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:0 14px 12px"><small style="flex:1;min-width:140px;color:#9fb4d9">${line}</small><button type="button" data-src-vote="${esc(r[1])}" data-works="1" style="${vb}">👍 Ça marche</button><button type="button" data-src-vote="${esc(r[1])}" data-works="0" style="${vb}">👎 Non</button></div></div>`;
+  }).join('');
+ };
+ const loadStats=async()=>{
+  stats={};
+  try{
+   if(state.client){
+    const {data,error}=await state.client.rpc('otaku_source_stats',{p_country:country});
+    if(!error&&Array.isArray(data))data.forEach(x=>{stats[x.source]={works:Number(x.works)||0,broken:Number(x.broken)||0};});
+   }
+  }catch(_){/* le SQL otaku_sources.sql n’est peut-être pas installé */}
+  paint();
+ };
+ $('#modal-root').innerHTML=`<div class="modal" id="op-where-modal" style="align-items:center;padding:12px"><div class="sheet" style="max-width:560px;width:100%;max-height:92vh;overflow-y:auto;border-radius:18px;padding:16px 16px 18px;background:linear-gradient(160deg,#071a3b,#030b20)"><div style="display:flex;align-items:center;gap:10px;padding-bottom:6px"><b style="font-size:17px;flex:1;min-width:0;overflow-wrap:anywhere">${isAnime?'📺 Où regarder':'📖 Où lire'} · ${esc(title||'')}</b><button type="button" class="icon-btn" id="op-where-x" aria-label="Fermer">✕</button></div><p class="op-note" style="margin:0 0 10px">Sources officielles uniquement. Les sources gratuites sont en premier.</p><label style="display:block;margin:0 0 12px;font-size:14px;color:#9fb4d9">Mon pays<select id="op-where-country" style="display:block;width:100%;margin-top:6px;padding:10px;border-radius:12px;border:1.5px solid #1b9aff88;background:#0d1b3f;color:#fff;font-size:15px">${COUNTRIES.map(c=>`<option${c===country?' selected':''}>${esc(c)}</option>`).join('')}</select></label><div id="op-where-list"></div><p class="op-note" style="margin-top:8px">La disponibilité change selon ton pays. Vote pour aider les autres membres.</p></div></div>`;
+ paint();loadStats();
  const close=()=>{$('#modal-root').innerHTML='';};
  $('#op-where-x').onclick=close;
- $('#op-where-modal').onclick=e=>{if(e.target.id==='op-where-modal')close();};
+ $('#op-where-country').onchange=e=>{country=e.target.value;try{localStorage.setItem('op_country',country);}catch(_){}loadStats();};
+ $('#op-where-modal').onclick=async e=>{
+  if(e.target.id==='op-where-modal'){close();return;}
+  const v=e.target.closest&&e.target.closest('[data-src-vote]');if(!v)return;
+  if(!state.client||!state.user){toast('Connecte-toi pour voter.');return;}
+  try{
+   const {error}=await state.client.from('otaku_source_reports').upsert({user_id:state.user.id,source:v.dataset.srcVote,country:country,works:v.dataset.works==='1',updated_at:new Date().toISOString()},{onConflict:'user_id,source'});
+   if(error)throw error;
+   toast('Merci, ton vote est enregistré.');loadStats();
+  }catch(_){toast('Vote indisponible pour le moment.');}
+ };
 }
 
 /* ===== Suivi de progression ===== */
