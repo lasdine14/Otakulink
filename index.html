@@ -560,6 +560,10 @@ html[data-mybubble] .bubble.out{background:var(--mybubble)!important}
 .pin-flash{outline:2px solid #fbbf24;outline-offset:2px}
 .compat{font-size:12px;font-weight:700;color:#fbbf24;margin-bottom:4px}
 #dating-filters{margin:0 0 12px}
+.oc-card{max-width:100%;box-sizing:border-box}.oc-stars{overflow-wrap:anywhere}
+.oc-card.oc-pro{box-shadow:0 0 0 3px #facc15,0 10px 30px rgba(0,0,0,.4)}
+.oc-pro-tag{display:inline-block;margin-top:6px;padding:2px 10px;border-radius:99px;background:linear-gradient(135deg,#fde68a,#f59e0b);color:#3b2400;font-weight:800;font-size:clamp(10px,3vw,13px)}
+.ref-bar{height:10px;background:#ffffff22;border-radius:20px;overflow:hidden;margin:10px 0 6px}.ref-bar i{display:block;height:100%;background:linear-gradient(90deg,#fbbf24,#f59e0b);border-radius:20px}
 </style>
 </head>
 <body>
@@ -659,6 +663,7 @@ async function loadProFlags(){
     state.proUntil=(r.data||[]).find(x=>x.id===state.user?.id)?.pro_until||null;state.proReady=true;paintPro();applyPremiumPrefs();
   }catch(e){state.proReady=false;}
   try{const r=await state.client.rpc('is_admin');state.isAdmin=r.data===true;state.adminError=r.error?(r.error.message||'erreur'):(state.isAdmin?'':'Ton compte n’est pas dans la liste des administrateurs.');}catch(e){state.isAdmin=false;state.adminError=String(e?.message||e);}
+  if(state.isAdmin&&state.user){state.proIds.add(state.user.id);state.proMeta=state.proMeta||{};state.proMeta[state.user.id]=state.proMeta[state.user.id]||{t:'',f:'',s:''};paintPro();applyPremiumPrefs();}
   if(state.route==='parametres'&&typeof render.parametres==='function')render.parametres();
 }
 function paintPro(){$$('.av').forEach(av=>{const d=av.querySelector(':scope>.pdot[data-presence]');if(d&&state.proIds.has(d.dataset.presence)){av.classList.add('pro');{const f=state.proMeta?.[d.dataset.presence]?.f;if(f)av.classList.add('fr-'+f);}if(!av.querySelector('.probadge'))av.insertAdjacentHTML('beforeend','<i class="probadge">👑</i>');}});}
@@ -926,7 +931,7 @@ async function onSignedIn(user) {
     const {error:dobError}=await state.client.from('infos_privees').upsert({id:user.id,date_naissance:birthdate},{onConflict:'id',ignoreDuplicates:true});
     if(dobError)console.warn('Synchronisation de la date de naissance :',dobError.message);
   }
-  await loadBlocks(); if(!state.rt){state.rt=true;startRealtime();loadProFlags().finally(()=>startPresence());startReadReceipts();state.client.channel('notifications-'+state.user.id).on('postgres_changes',{event:'INSERT',schema:'public',table:'notifications',filter:`destinataire=eq.${state.user.id}`},async p=>{const actor=p.new.acteur;const {data}=actor?await state.client.from('profiles').select('pseudo').eq('id',actor).maybeSingle():{data:null};const who=data?.pseudo||'Un membre';const isMatch=p.new.type==='match';const msg=p.new.type==='story_reaction'?'a réagi à ta Story':p.new.type==='like'?'a aimé ta publication':p.new.type==='comment'?'a commenté ta publication':'a interagi avec toi';if(isMatch){const mt='🎉🎉 Félicitations ! C’est réciproque avec '+who+' ! Vous pouvez discuter.';if(window.__olMatchWith!==actor)toast(mt);notifyUser('OtakuLink',mt);}else{toast('🔔 '+who+' '+msg+'.');notifyUser('OtakuLink',who+' '+msg+'.');}refreshGlobalNotificationCount();}).subscribe();}
+  await loadBlocks(); if(!state.rt){state.rt=true;startRealtime();loadProFlags().finally(()=>startPresence());startReadReceipts();state.client.channel('notifications-'+state.user.id).on('postgres_changes',{event:'INSERT',schema:'public',table:'notifications',filter:`destinataire=eq.${state.user.id}`},async p=>{const actor=p.new.acteur;const {data}=actor?await state.client.from('profiles').select('pseudo').eq('id',actor).maybeSingle():{data:null};const who=data?.pseudo||'Un membre';const isMatch=p.new.type==='match';const msg=p.new.type==='story_reaction'?'a réagi à ta Story':p.new.type==='like'?'a aimé ta publication':p.new.type==='comment'?'a commenté ta publication':p.new.type==='super_like'?'t’a envoyé un Super like ⭐':p.new.type==='parrainage'?'a rejoint OtakuLink grâce à toi · +100 XP 🤝':'a interagi avec toi';if(isMatch){const mt='🎉🎉 Félicitations ! C’est réciproque avec '+who+' ! Vous pouvez discuter.';if(window.__olMatchWith!==actor)toast(mt);notifyUser('OtakuLink',mt);}else{toast('🔔 '+who+' '+msg+'.');notifyUser('OtakuLink',who+' '+msg+'.');}refreshGlobalNotificationCount();}).subscribe();}
   showApp();
 }
 document.addEventListener('click',async e=>{
@@ -1617,7 +1622,7 @@ async function renderNotifications(){
  const {data,error}=await state.client.from('notifications').select('id,acteur,type,post_id,story_id,lu,created_at').order('created_at',{ascending:false}).limit(40);
  if(error){host.innerHTML='<small style="color:var(--muted)">Notifications indisponibles. Exécute le SQL inclus dans Paramètres.</small>';return;}
  const rows=data||[];await fetchProfiles(rows.map(x=>x.acteur));
- host.innerHTML=rows.length?rows.map(n=>`<button class="friend" data-notif-read="${n.id}" data-notif-post="${n.post_id||''}" style="width:100%;text-align:left;background:${n.lu?'transparent':'rgba(0,210,255,.08)'};border:0"><span>${n.type==='like'?'❤️':n.type==='comment'?'💬':n.type==='match'?'🎉':n.type==='follow'?'➕':n.type==='story_reaction'?'✨':n.type==='super_like'?'⭐':'🔔'}</span><span class="meta"><b>${esc(state.users.find(u=>u.id===n.acteur)?.pseudo||'Un membre')}</b><small>${n.type==='match'?'— 🎉 Félicitations ! C’est réciproque, vous pouvez discuter.':n.type==='like'?'a aimé ta publication':n.type==='comment'?'a commenté ta publication':n.type==='follow'?'a commencé à te suivre':n.type==='story_reaction'?'a réagi à ta Story':n.type==='super_like'?'t’a envoyé un Super like ⭐':'a interagi avec toi'} · ${fmtDate(n.created_at)}</small></span>${n.lu?'':'<span class="badge">Nouveau</span>'}</button>`).join(''):'<small style="color:var(--muted)">Tu n’as pas encore de notification.</small>';
+ host.innerHTML=rows.length?rows.map(n=>`<button class="friend" data-notif-read="${n.id}" data-notif-post="${n.post_id||''}" style="width:100%;text-align:left;background:${n.lu?'transparent':'rgba(0,210,255,.08)'};border:0"><span>${n.type==='like'?'❤️':n.type==='comment'?'💬':n.type==='match'?'🎉':n.type==='follow'?'➕':n.type==='story_reaction'?'✨':n.type==='super_like'?'⭐':n.type==='parrainage'?'🤝':'🔔'}</span><span class="meta"><b>${esc(state.users.find(u=>u.id===n.acteur)?.pseudo||'Un membre')}</b><small>${n.type==='match'?'— 🎉 Félicitations ! C’est réciproque, vous pouvez discuter.':n.type==='like'?'a aimé ta publication':n.type==='comment'?'a commenté ta publication':n.type==='follow'?'a commencé à te suivre':n.type==='story_reaction'?'a réagi à ta Story':n.type==='super_like'?'t’a envoyé un Super like ⭐':n.type==='parrainage'?'a rejoint OtakuLink grâce à toi · +100 XP 🤝':'a interagi avec toi'} · ${fmtDate(n.created_at)}</small></span>${n.lu?'':'<span class="badge">Nouveau</span>'}</button>`).join(''):'<small style="color:var(--muted)">Tu n’as pas encore de notification.</small>';
 }
 // Extend the community screen with Stories and an inbox for activity notifications.
 const _renderCommunity=render.communaute;
@@ -1739,8 +1744,8 @@ async function openGlobalNotifications(){
   const badge=$('#global-notif-count');if(badge){badge.hidden=!unread;badge.textContent=unread>9?'9+':String(unread);}
   host.innerHTML=rows.length?rows.map(n=>{
     const u=state.users.find(x=>x.id===n.acteur);
-    const icon=n.type==='like'?'❤️':n.type==='comment'?'💬':n.type==='match'?'🎉':n.type==='follow'?'➕':n.type==='story_reaction'?'✨':n.type==='super_like'?'⭐':'🔔';
-    const label=n.type==='match'?'— 🎉 Félicitations ! C’est réciproque, vous pouvez discuter.':n.type==='like'?'a aimé ta publication':n.type==='comment'?'a commenté ta publication':n.type==='follow'?'a commencé à te suivre':n.type==='story_reaction'?'a réagi à ta Story':n.type==='super_like'?'t’a envoyé un Super like ⭐':'a interagi avec toi';
+    const icon=n.type==='like'?'❤️':n.type==='comment'?'💬':n.type==='match'?'🎉':n.type==='follow'?'➕':n.type==='story_reaction'?'✨':n.type==='super_like'?'⭐':n.type==='parrainage'?'🤝':'🔔';
+    const label=n.type==='match'?'— 🎉 Félicitations ! C’est réciproque, vous pouvez discuter.':n.type==='like'?'a aimé ta publication':n.type==='comment'?'a commenté ta publication':n.type==='follow'?'a commencé à te suivre':n.type==='story_reaction'?'a réagi à ta Story':n.type==='super_like'?'t’a envoyé un Super like ⭐':n.type==='parrainage'?'a rejoint OtakuLink grâce à toi · +100 XP 🤝':'a interagi avec toi';
     return `<button class="quick-result" data-global-notif-read="${n.id}" style="width:100%;text-align:left;background:${n.lu?'transparent':'rgba(0,210,255,.09)'}">
       <span style="font-size:22px">${icon}</span><span class="meta"><b>${esc(u?.pseudo||'Un membre')}</b><small>${label} · ${fmtDate(n.created_at)}</small></span>${n.lu?'':'<span class="badge">Nouveau</span>'}
     </button>`;
@@ -2358,7 +2363,8 @@ async function opRenderRanking(panel){
   let profiles=[];const profileResult=await state.client.from('profiles').select('id,pseudo,avatar_url').in('id',(xpRows||[]).map(x=>x.user_id));
   if(!profileResult.error)profiles=profileResult.data||[];else console.warn('Otaku+ profils classement:',profileResult.error.message);
   const profileMap=new Map(profiles.map(x=>[x.id,x]));
-  $('#op-ranking-list').innerHTML=xpRows?.length?xpRows.map((x,i)=>{const u=profileMap.get(x.user_id)||{},me=x.user_id===state.user.id;return `<div class="op-rank-row ${me?'is-me':''}"><b class="op-rank-number">${i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1}</b>${u.avatar_url?`<img class="op-rank-avatar" src="${esc(u.avatar_url)}" alt="" onerror="this.style.display='none'">`:`<span class="op-rank-avatar">${esc((u.pseudo||'O').slice(0,1).toUpperCase())}</span>`}<span class="op-rank-name">${esc(u.pseudo||'Membre')}${me?' · Toi':''}</span><b class="op-rank-xp">${Number(x.xp)||0} XP</b></div>`}).join(''):'<div class="op-empty">Le classement est vide. Gagne les premiers XP !</div>';
+  const rankRows=(xpRows||[]).map(x=>state.isAdmin&&x.user_id===state.user.id&&Number(x.xp)<850?{...x,xp:850}:x).sort((a,b)=>(Number(b.xp)||0)-(Number(a.xp)||0));
+  $('#op-ranking-list').innerHTML=rankRows.length?rankRows.map((x,i)=>{const u=profileMap.get(x.user_id)||{},me=x.user_id===state.user.id;return `<div class="op-rank-row ${me?'is-me':''}"><b class="op-rank-number">${i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1}</b>${u.avatar_url?`<img class="op-rank-avatar" src="${esc(u.avatar_url)}" alt="" onerror="this.style.display='none'">`:`<span class="op-rank-avatar">${esc((u.pseudo||'O').slice(0,1).toUpperCase())}</span>`}<span class="op-rank-name">${esc(u.pseudo||'Membre')}${me?' · Toi':''}</span><b class="op-rank-xp">${Number(x.xp)||0} XP</b></div>`}).join(''):'<div class="op-empty">Le classement est vide. Gagne les premiers XP !</div>';
   const ids=(challenges||[]).map(x=>x.id);let members=[];if(ids.length){const m=await state.client.from('otaku_plus_challenge_members').select('challenge_id,user_id').in('challenge_id',ids);if(m.error)throw m.error;members=m.data||[];}
   const claims=new Map((opChallengeClaims||[]).map(x=>[x.challenge_id,x]));
   $('#op-challenges-list').innerHTML=challenges?.length?challenges.map(c=>{
@@ -2649,14 +2655,14 @@ function opCardMeta(){
  const d=otPlusData(),l=otPlusLevel(d.xp||0),p=state.profile||{};
  let t=(OC_THEMES[d.theme]||OC_THEMES.blue);if(t.p&&!isPro())t=OC_THEMES.blue;const fr=(OC_FRAMES[d.frame]||OC_FRAMES.white);
  const since=state.user?.created_at?new Date(state.user.created_at).toLocaleDateString('fr-FR',{month:'long',year:'numeric'}):'';
- return {d,l,name:p.pseudo||'Membre Otaku',avatar:p.avatar_url||'',country:p.pays||'',since,t:t.c,ring:fr[1],stars:Math.max(1,Math.min(5,Math.ceil(l.level/2))),fav:(d.favorites||[]).length,url:location.host+location.pathname.replace(/\/index\.html$/,'').replace(/\/$/,'')};
+ return {pro:isPro(),d,l,name:p.pseudo||'Membre Otaku',avatar:p.avatar_url||'',country:p.pays||'',since,t:t.c,ring:fr[1],stars:Math.max(1,Math.min(5,Math.ceil(l.level/2))),fav:(d.favorites||[]).length,url:location.host+location.pathname.replace(/\/index\.html$/,'').replace(/\/$/,'')};
 }
 function opRenderCard(panel){
  const m=opCardMeta(),d=m.d;
  const lines=[`⚡ ${d.xp||0} XP · 🎌 ${m.fav} œuvre${m.fav>1?'s':''}`,`${m.country?'📍 '+esc(m.country)+' · ':''}${m.since?'Membre depuis '+esc(m.since):'Membre OtakuLink'}`];
  panel.innerHTML=`<div class="card"><h3>🪪 Ta carte Otaku</h3><p class="op-note">Une carte à partager, avec son propre style. Choisis les couleurs et le cadre de la photo.</p>
- <div class="oc-card" style="--c0:${m.t[0]};--c1:${m.t[1]};--c2:${m.t[2]}"><div class="oc-brand">⛩️ Otaku<span>Link</span></div>
- <div class="oc-main"><div class="oc-av" style="border-color:${m.ring}">${m.avatar?`<img src="${esc(m.avatar)}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">`:esc(m.name.slice(0,1).toUpperCase())}</div><div class="oc-txt"><h2>${esc(m.name)}</h2><div class="oc-stars"><b>${'★'.repeat(m.stars)}${'☆'.repeat(5-m.stars)}</b> Niveau ${m.l.level} · ${esc(m.l.title)}</div></div></div>
+ <div class="oc-card${m.pro?' oc-pro':''}" style="--c0:${m.t[0]};--c1:${m.t[1]};--c2:${m.t[2]}"><div class="oc-brand">⛩️ Otaku<span>Link</span></div>
+ <div class="oc-main"><div class="oc-av" style="border-color:${m.ring}">${m.avatar?`<img src="${esc(m.avatar)}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">`:esc(m.name.slice(0,1).toUpperCase())}</div><div class="oc-txt"><h2>${esc(m.name)}${m.pro?' 👑':''}</h2><div class="oc-stars"><b>${'★'.repeat(m.stars)}${'☆'.repeat(5-m.stars)}</b> Niveau ${m.l.level} · ${esc(m.l.title)}</div>${m.pro?'<span class="oc-pro-tag">👑 Premium</span>':''}</div></div>
  <div><div class="oc-line">${lines[0]}</div><div class="oc-line">${lines[1]}</div></div><div class="oc-url">${esc(m.url)}</div></div>
  <p class="op-label">Couleurs</p><div class="op-chips">${Object.entries(OC_THEMES).map(([k,v])=>`<button type="button" class="op-chip ${(d.theme||'blue')===k?'on':''}" data-oc-theme="${k}">${v.p?(isPro()?'👑 ':'🔒 '):''}${v.n}</button>`).join('')}</div>
  <p class="op-label">Cadre de la photo</p><div class="op-chips">${Object.entries(OC_FRAMES).map(([k,v])=>`<button type="button" class="op-chip ${(d.frame&&OC_FRAMES[d.frame]?d.frame:'white')===k?'on':''}" data-oc-frame="${k}">${v[0]}</button>`).join('')}</div>
@@ -2680,11 +2686,12 @@ async function opDownloadCard(){
   const cx=130,cy=215,r=72;x.save();x.beginPath();x.arc(cx,cy,r,0,7);x.closePath();x.clip();
   if(im){x.drawImage(im,cx-r,cy-r,r*2,r*2);}else{x.fillStyle='rgba(255,255,255,.2)';x.fillRect(cx-r,cy-r,r*2,r*2);x.fillStyle='#fff';x.font='800 64px system-ui,sans-serif';x.textAlign='center';x.fillText(m.name.slice(0,1).toUpperCase(),cx,cy+22);x.textAlign='left';}
   x.restore();x.lineWidth=8;x.strokeStyle=m.ring;x.beginPath();x.arc(cx,cy,r,0,7);x.stroke();
-  x.fillStyle='#fff';x.font='800 46px system-ui,sans-serif';x.fillText(m.name.slice(0,18),240,205);
+  x.fillStyle='#fff';x.font='800 46px system-ui,sans-serif';x.fillText(m.name.slice(0,18)+(m.pro?' 👑':''),240,205);
   x.fillStyle='#fbbf24';x.font='28px system-ui,sans-serif';const st='★'.repeat(m.stars)+'☆'.repeat(5-m.stars);x.fillText(st,240,248);const sw=x.measureText(st).width;
   x.fillStyle='#fff';x.font='24px system-ui,sans-serif';x.fillText('  Niveau '+m.l.level+' · '+m.l.title,240+sw,248);
   x.font='26px system-ui,sans-serif';x.fillText('⚡ '+(m.d.xp||0)+' XP · 🎌 '+m.fav+' œuvre'+(m.fav>1?'s':''),48,340);
   x.fillText((m.country?'📍 '+m.country+' · ':'')+(m.since?'Membre depuis '+m.since:'Membre OtakuLink'),48,380);
+  if(m.pro){x.strokeStyle='#facc15';x.lineWidth=6;x.strokeRect(3,3,794,444);x.fillStyle='#fbbf24';x.font='800 24px system-ui,sans-serif';x.fillText('👑 Premium',240,292);}
   x.globalAlpha=.7;x.font='20px system-ui,sans-serif';x.textAlign='right';x.fillText(m.url,760,425);
   return c;
  };
@@ -2903,6 +2910,38 @@ document.addEventListener('click',async e=>{
   const like=b.closest('.pcard')?.querySelector('[data-dating-like]');
   if(like)like.click();
 },true);
+
+/* ===== Parrainage ===== */
+try{const r=new URLSearchParams(location.search).get('ref');if(r&&/^[A-Za-z0-9]{4,16}$/.test(r))localStorage.setItem('otakulink_ref',r.toUpperCase());}catch(_){}
+async function parrainageSync(){
+  if(!state.client||!state.user||state.refBusy)return;
+  state.refBusy=true;
+  try{
+    const ref=localStorage.getItem('otakulink_ref');
+    if(ref){const {data,error}=await state.client.rpc('parrainage_enregistrer',{p_code:ref});if(!error){try{localStorage.removeItem('otakulink_ref');}catch(_){}if(data&&data.ok)toast('🎉 Bienvenue ! Complète ton profil (bio + animes favoris) pour valider le parrainage de ton ami.');}}
+    const p=state.profile||{};
+    if(String(p.bio||'').trim()&&String(p.animes_favoris||'').trim())await state.client.rpc('parrainage_valider');
+  }catch(_){}finally{state.refBusy=false;}
+}
+{const _o=loadProFlags;loadProFlags=async function(){const r=await _o.apply(this,arguments);parrainageSync().catch(()=>{});return r;};}
+async function enhanceParametres(){
+  const col=$('#s-parametres .two-col>div');if(!col||$('#parrain-card')||!state.client||!state.user)return;
+  const card=document.createElement('div');card.className='card';card.id='parrain-card';card.innerHTML='<h3>🤝 Parrainage</h3><small style="color:var(--muted)">Chargement…</small>';
+  if(col.firstElementChild)col.firstElementChild.after(card);else col.appendChild(card);
+  const {data,error}=await state.client.rpc('parrainage_stats');
+  if(error||!data||!data.code){card.innerHTML='<h3>🤝 Parrainage</h3><p class="op-note">Pas encore disponible. Le script SQL de parrainage doit être exécuté dans Supabase.</p>';return;}
+  const link=location.origin+location.pathname.replace(/index\.html$/,'')+'?ref='+data.code,v=Number(data.valides)||0,w=Number(data.attente)||0,fl=data.filleuls||[];
+  const msg='Rejoins-moi sur OtakuLink, la communauté des fans d’anime ! '+link;
+  card.innerHTML=`<h3>🤝 Parrainage</h3><p class="op-note" style="line-height:1.5">Invite tes amis : tu gagnes <b>+100 XP</b> pour chaque ami qui s’inscrit avec ton lien et complète son profil. À <b>10 amis</b>, tu reçois <b>1 semaine de Premium</b> 👑.</p>
+    <div class="row" style="gap:8px;margin-top:8px"><input readonly id="ref-link" value="${esc(link)}" style="flex:1;min-width:0;padding:10px;border-radius:12px;border:1px solid var(--line);background:rgba(15,27,66,.85);color:inherit;font-size:12px"><button class="btn sm" id="ref-copy">Copier</button></div>
+    <div class="row" style="gap:8px;margin-top:8px"><button class="btn sm gold" id="ref-share">📤 Partager</button><small style="color:var(--muted)">Ton code : <b>${esc(data.code)}</b></small></div>
+    <div class="ref-bar"><i style="width:${Math.min(100,v*10)}%"></i></div>
+    <b>${Math.min(v,10)}/10</b> amis validés${w?` · ⏳ ${w} en attente de profil complet`:''}${data.premium_donne?'<br><span style="color:#fbbf24">✅ Semaine Premium déjà offerte</span>':''}
+    ${fl.length?`<div style="margin-top:8px">${fl.slice(0,15).map(f=>`<div class="row" style="gap:8px;padding:4px 0"><span style="flex:1;min-width:0">${esc(f.pseudo||'Membre')}</span><small style="color:${f.statut==='valide'?'#34d399':'var(--muted)'}">${f.statut==='valide'?'✅ +100 XP':'⏳ profil à compléter'}</small></div>`).join('')}</div>`:''}`;
+  $('#ref-copy').onclick=async()=>{try{await navigator.clipboard.writeText(link);toast('Lien copié ✅');}catch(_){$('#ref-link').select();toast('Sélectionne et copie le lien.');}};
+  $('#ref-share').onclick=async()=>{try{if(navigator.share){await navigator.share({title:'OtakuLink',text:'Rejoins-moi sur OtakuLink !',url:link});return;}}catch(_){return;}window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank');};
+}
+(function(){const _p=render.parametres;render.parametres=async function(){const r=await _p.apply(this,arguments);try{await enhanceParametres();}catch(e){console.warn(e);}return r;};})();
 
 paintPro();refreshFrames();
 
