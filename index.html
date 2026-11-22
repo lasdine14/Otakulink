@@ -39,7 +39,9 @@ a{color:var(--cyan);text-decoration:none}
 }
 #main{flex:1;display:flex;flex-direction:column;min-width:0;height:100%}
 #screens{flex:1;overflow-y:auto;padding:14px 14px 96px;scroll-behavior:smooth}
-.screen{display:none;animation:fade .25s ease}
+.screen{display:none}
+.field select{flex:1;min-width:0;background:transparent;border:0;color:inherit;font:inherit;outline:0;padding:0}.field select option{color:#111}
+#profile-form select{width:100%;padding:12px;border-radius:12px;border:1px solid var(--line);background:rgba(15,27,66,.85);color:inherit}
 .screen.active{display:block}
 @keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 
@@ -648,6 +650,14 @@ async function fetchProfiles(ids){ids=[...new Set(ids)].filter(Boolean);if(!ids.
 const PRO_WHATSAPP='242067279904'; // numéro WhatsApp / Mobile Money qui reçoit les paiements Pro
 const PRO_NUM_AFFICHE='06 727 99 04';
 const PRO_PRIX='1 000 FCFA / mois',PRO_MONTANT=1000;
+const COUNTRIES=[['Congo','Congo (Brazzaville)'],['RD Congo','RD Congo (Kinshasa)'],['Cameroun'],['Gabon'],['Côte d’Ivoire'],['Sénégal'],['Mali'],['Burkina Faso'],['Bénin'],['Togo'],['Niger'],['Guinée'],['Tchad'],['Centrafrique'],['Burundi'],['Rwanda'],['Angola'],['Madagascar'],['Maroc'],['Algérie'],['Tunisie'],['Égypte'],['Nigéria'],['Ghana'],['Afrique du Sud'],['France'],['Belgique'],['Suisse'],['Canada'],['États-Unis'],['Royaume-Uni'],['Allemagne'],['Espagne'],['Italie'],['Portugal'],['Brésil'],['Haïti'],['Japon'],['Chine'],['Corée du Sud'],['Inde'],['Autre']];
+const countryOptions=cur=>{const c=String(cur||'').trim();const has=COUNTRIES.some(x=>x[0]===c);return '<option value="">Pays</option>'+(c&&!has?`<option value="${esc(c)}" selected>${esc(c)}</option>`:'')+COUNTRIES.map(x=>`<option value="${esc(x[0])}"${x[0]===c?' selected':''}>${esc(x[1]||x[0])}</option>`).join('');};
+const normPays=v=>String(v||'').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+const PAY_COUNTRIES=['congo','congo-brazzaville','congo brazzaville','republique du congo','brazzaville'];
+const payEligible=()=>PAY_COUNTRIES.includes(normPays(state.profile?.pays));
+const noPayHTML=()=>`<div class="card" style="margin:8px 0"><b>💳 Paiement Premium</b><small style="display:block;color:var(--muted);margin:6px 0;line-height:1.5">${state.profile?.pays?'Le paiement n’est <b>pas encore disponible</b> dans ton pays. Pour l’instant, il est réservé aux membres du Congo.':'Indique ton pays dans ton profil : le paiement Premium n’est pour l’instant disponible qu’au Congo.'}<br>Les autres options restent ouvertes pour toi : <b>🤝 Parrainage</b> (invite 10 amis et reçois 1 semaine de Premium 👑).</small><button class="btn block gold" data-pro-ref="1">🤝 Voir le parrainage</button></div>`;
+async function genderFilter(people){try{const mine=state.profile?.genre,want=mine==='homme'?'femme':'homme';const ids=(people||[]).map(x=>x.id);if(!ids.length)return people||[];const {data,error}=await state.client.from('profiles').select('id,genre').in('id',ids);if(error)return people||[];const g=Object.fromEntries((data||[]).map(x=>[x.id,x.genre]));return (people||[]).filter(x=>g[x.id]===want);}catch(_){return people||[];}}
+function genderGate(){const h=document.querySelector('#dating-cards');if(!h)return;h.innerHTML='<div class="card"><h3>⚧ Tu es…</h3><p class="op-note" style="line-height:1.5">Pour te proposer les bonnes personnes, indique si tu es un homme ou une femme. Tu verras uniquement le genre opposé.</p><div class="row" style="gap:10px"><button class="btn" data-set-genre="homme">👨 Homme</button><button class="btn" data-set-genre="femme">👩 Femme</button></div></div>';}
 state.proIds=state.proIds||new Set();state.discreet=state.discreet||new Set();
 const isPro=()=>state.proIds.has(state.user?.id);
 const isDiscreet=()=>isPro()&&state.discreet.has(state.user?.id);
@@ -669,7 +679,7 @@ async function loadProFlags(){
 }
 function paintPro(){$$('.av').forEach(av=>{const d=av.querySelector(':scope>.pdot[data-presence]');if(d&&state.proIds.has(d.dataset.presence)){av.classList.add('pro');{const f=state.proMeta?.[d.dataset.presence]?.f;if(f)av.classList.add('fr-'+f);}if(!av.querySelector('.probadge'))av.insertAdjacentHTML('beforeend','<i class="probadge">👑</i>');}});}
 async function openProModal(){
-  const pro=isPro(),root=$('#modal-root');
+  const pro=isPro(),root=$('#modal-root'),canPay=payEligible()||!!state.isAdmin;
   let pending=null;try{const {data}=await state.client.from('pro_requests').select('id').eq('user_id',state.user.id).eq('statut','attente').limit(1);pending=data&&data[0];}catch(_){}
   const until=pro&&state.proUntil?new Date(state.proUntil).toLocaleDateString('fr-FR'):'';
   root.innerHTML=`<div class="modal" id="modal"><div class="sheet" style="max-width:460px;max-height:90vh;overflow-y:auto"><div class="row"><b style="font-size:19px">👑 OtakuLink Premium</b><span class="sp"></span><button class="icon-btn" id="pro-close" aria-label="Fermer">✕</button></div>
@@ -683,16 +693,16 @@ async function openProModal(){
       <p style="font-size:12px;color:var(--muted);margin:0 0 2px">Couleur de mes bulles (visible chez toi)</p><div class="pp-row" id="pp-bubbles">${PP_BUBBLES.map(([v,n,c])=>`<button type="button" class="pp-sw" title="${n}" data-pp-bubble="${v}" style="background:${c}"></button>`).join('')}</div></div>`:''}
     ${pro?proExtraHTML():''}
     ${pro?`<button class="btn block ghost" id="pro-discret" style="margin-bottom:12px">Mode discret : ${isDiscreet()?'Activé':'Désactivé'}</button>`:''}
-    ${pending?`<div class="card" style="margin:8px 0"><b>⏳ Demande en attente</b><small style="display:block;color:var(--muted);margin-top:4px">Ton paiement est en cours de vérification. Ton compte sera activé dès la confirmation.</small></div>`
+    ${!canPay?noPayHTML():pending?`<div class="card" style="margin:8px 0"><b>⏳ Demande en attente</b><small style="display:block;color:var(--muted);margin-top:4px">Ton paiement est en cours de vérification. Ton compte sera activé dès la confirmation.</small></div>`
       :`<div class="card" style="margin:8px 0"><b>${PRO_PRIX}</b><small style="display:block;color:var(--muted);margin:6px 0">1. Envoie <b>${PRO_MONTANT.toLocaleString('fr-FR')} FCFA</b> par Mobile Money au <b>${PRO_NUM_AFFICHE}</b>.<br>2. Écris ci-dessous le numéro avec lequel tu as payé.</small><input id="pro-payeur" inputmode="tel" placeholder="Numéro utilisé pour payer" maxlength="20" style="width:100%;margin:6px 0;padding:12px;border-radius:12px;border:1px solid var(--line);background:rgba(15,27,66,.85)"><button class="btn block gold" id="pro-ask">${pro?'J’ai payé · Prolonger de 30 jours':'J’ai payé · Activer Pro'} 👑</button></div>`}
-    <button class="btn block ghost" id="pro-wa" style="margin-top:6px">💬 Écrire sur WhatsApp</button>
+    ${canPay?'<button class="btn block ghost" id="pro-wa" style="margin-top:6px">💬 Écrire sur WhatsApp</button>':''}
   </div></div>`;
   $('#pro-close').onclick=()=>root.innerHTML='';
   $('#modal').onclick=e=>{if(e.target.id==='modal')root.innerHTML='';};
   if(pro){const pr=ppGet(),mark=()=>{const c=ppGet();root.querySelectorAll('[data-pp-bg]').forEach(b=>b.classList.toggle('on',(c.bg||'auto')===b.dataset.ppBg));root.querySelectorAll('[data-pp-accent]').forEach(b=>b.classList.toggle('on',(c.accent||'')===b.dataset.ppAccent));root.querySelectorAll('[data-pp-bubble]').forEach(b=>b.classList.toggle('on',(c.bubble||'')===b.dataset.ppBubble));};mark();
     $('#modal').addEventListener('click',e=>{const b=e.target.closest('[data-pp-bg],[data-pp-accent],[data-pp-bubble]');if(!b)return;
       if(b.dataset.ppBg!==undefined)ppSet({bg:b.dataset.ppBg});else if(b.dataset.ppAccent!==undefined)ppSet({accent:b.dataset.ppAccent});else ppSet({bubble:b.dataset.ppBubble});mark();});}
-  $('#pro-wa').onclick=()=>window.open(`https://wa.me/${PRO_WHATSAPP}?text=${encodeURIComponent(`Bonjour, je veux activer OtakuLink Pro. Mon pseudo : ${state.profile?.pseudo||''}`)}`,'_blank');
+  if($('#pro-wa'))$('#pro-wa').onclick=()=>window.open(`https://wa.me/${PRO_WHATSAPP}?text=${encodeURIComponent(`Bonjour, je veux activer OtakuLink Pro. Mon pseudo : ${state.profile?.pseudo||''}`)}`,'_blank');
   const ask=$('#pro-ask');if(ask)ask.onclick=async()=>{
     const payeur=($('#pro-payeur').value||'').trim();
     if(payeur.replace(/\D/g,'').length<8)return toast('Indique le numéro utilisé pour payer.');
@@ -886,6 +896,8 @@ function showAuth(view='welcome') {
       <label class="field">👤<input name="username" minlength="3" maxlength="24" placeholder="Nom d'utilisateur" autocomplete="username" required></label>
       <label class="field">✉️<input name="email" type="email" placeholder="Adresse e-mail" autocomplete="email" required></label>
       <label class="field">🎂<input name="birthdate" type="date" aria-label="Date de naissance" max="${new Date().toISOString().slice(0,10)}" required></label>
+      <label class="field">⚧<select name="genre" aria-label="Je suis" required><option value="">Je suis…</option><option value="homme">Un homme</option><option value="femme">Une femme</option></select></label>
+      <label class="field">🌍<select name="pays" aria-label="Pays" required>${countryOptions('')}</select></label>
       <label class="field">🔒<input name="password" type="password" minlength="8" placeholder="Mot de passe (8 caractères minimum)" autocomplete="new-password" required><span class="eye" data-eye>👁</span></label>
       <label class="check"><input type="checkbox" name="terms" required> J'accepte les conditions d'utilisation et la politique de confidentialité.</label>
       <div class="err" id="auth-error"></div><button class="btn block" type="submit">Créer mon compte →</button></form>
@@ -932,6 +944,8 @@ async function onSignedIn(user) {
     const {error:dobError}=await state.client.from('infos_privees').upsert({id:user.id,date_naissance:birthdate},{onConflict:'id',ignoreDuplicates:true});
     if(dobError)console.warn('Synchronisation de la date de naissance :',dobError.message);
   }
+  {const md=user.user_metadata||{},upd={};if(md.pays&&!state.profile?.pays)upd.pays=md.pays;if(md.genre&&!state.profile?.genre)upd.genre=md.genre;
+   if(Object.keys(upd).length){try{let r=await state.client.from('profiles').update(upd).eq('id',user.id);if(r.error&&upd.pays){r=await state.client.from('profiles').update({pays:upd.pays}).eq('id',user.id);delete upd.genre;}if(!r.error)Object.assign(state.profile,upd);}catch(_){}}}
   await loadBlocks(); if(!state.rt){state.rt=true;startRealtime();loadProFlags().finally(()=>startPresence());startReadReceipts();state.client.channel('notifications-'+state.user.id).on('postgres_changes',{event:'INSERT',schema:'public',table:'notifications',filter:`destinataire=eq.${state.user.id}`},async p=>{const actor=p.new.acteur;const {data}=actor?await state.client.from('profiles').select('pseudo').eq('id',actor).maybeSingle():{data:null};const who=data?.pseudo||'Un membre';const isMatch=p.new.type==='match';const msg=p.new.type==='story_reaction'?'a réagi à ta Story':p.new.type==='like'?'a aimé ta publication':p.new.type==='comment'?'a commenté ta publication':p.new.type==='super_like'?'t’a envoyé un Super like ⭐':p.new.type==='parrainage'?'a rejoint OtakuLink grâce à toi · +100 XP 🤝':'a interagi avec toi';if(isMatch){const mt='🎉🎉 Félicitations ! C’est réciproque avec '+who+' ! Vous pouvez discuter.';if(window.__olMatchWith!==actor)toast(mt);notifyUser('OtakuLink',mt);}else{toast('🔔 '+who+' '+msg+'.');notifyUser('OtakuLink',who+' '+msg+'.');}refreshGlobalNotificationCount();}).subscribe();}
   showApp();
 }
@@ -951,8 +965,10 @@ document.addEventListener('submit',async e=>{
     if(!d.terms) return authError('Tu dois accepter les conditions.');
     if((d.username||'').trim().length<3) return authError('Le pseudo doit contenir au moins 3 caractères.');
     if(!d.birthdate||ageOf(d.birthdate)<13) return authError('Tu dois avoir au moins 13 ans pour t’inscrire.');
+    if(!d.genre) return authError('Indique si tu es un homme ou une femme.');
+    if(!d.pays) return authError('Indique ton pays.');
     if((d.password||'').length<8) return authError('Le mot de passe doit contenir au moins 8 caractères.');
-    const {error}=await state.client.auth.signUp({email:d.email,password:d.password,options:{data:{pseudo:d.username.trim(),birthdate:d.birthdate}}});
+    const {error}=await state.client.auth.signUp({email:d.email,password:d.password,options:{data:{pseudo:d.username.trim(),birthdate:d.birthdate,genre:d.genre,pays:d.pays}}});
     if(error) return authError(error.message);
     toast('Inscription envoyée. Vérifie ta boîte e-mail pour confirmer ton compte.');
     showAuth('login');
@@ -975,7 +991,8 @@ document.addEventListener('click',e=>{
   const g=e.target.closest('[data-go]'); if(g){if(g.dataset.go==='profil')state.viewedProfile=null;go(g.dataset.go);return;}
   if(e.target.closest('#fab')) openComposer();
 });
-const BG_ROUTES=new Set(['communaute','decouvrir','connexions','messages']);
+const BG_ROUTES=new Set(['communaute','decouvrir','connexions','messages','rencontres','profil']);
+const KEEP_ROUTES=new Set(['otakuplus']);
 const INFLIGHT={};
 /* Préchargement discret (en arrière-plan) des écrans Amis et Communauté */
 let warmBusy=false;
@@ -983,11 +1000,13 @@ function warmScreens(){
   if(warmBusy||!state.client||!state.user)return;
   const work=async()=>{
     warmBusy=true;
-    for(const r of ['communaute','decouvrir']){
+    for(const r of ['communaute','decouvrir','rencontres','connexions','messages','profil','otakuplus','parametres']){
       const s=$('#s-'+r);
       if(state.route===r||!s||s.dataset.loaded==='true'||INFLIGHT[r])continue;
+      if(r==='messages'&&state.activeChat)continue;
+      if(r==='profil'&&state.viewedProfile)continue;
       INFLIGHT[r]=Date.now();
-      try{await render[r]?.();s.dataset.loaded='true';state.routeCache[r]=Date.now();}
+      try{await new Promise(x=>setTimeout(x,250));if(state.route===r)continue;await render[r]?.();s.dataset.loaded='true';s.dataset.key=r==='profil'?'me':'';state.routeCache[r]=Date.now();}
       catch(err){console.warn('Préchargement '+r,err);}
       finally{INFLIGHT[r]=0;}
     }
@@ -997,28 +1016,34 @@ function warmScreens(){
 }
 function setScreenBg(r){const m=document.getElementById('main');if(!m)return;let k=r;try{if(typeof isPro==='function'&&isPro()){const c=ppGet().bg;if(c&&c!=='auto')k=c;}}catch(_){}m.dataset.bg=k;}
 function go(route){
-  const previous=state.route;
+  const previous=state.route,sc=$('#screens');
+  // mémorise l'endroit où tu t'es arrêté sur l'écran que tu quittes
+  if(previous&&sc){state.scrollPos=state.scrollPos||{};state.scrollPos[previous]=sc.scrollTop;}
   state.route=route;setScreenBg(route);
   $$('.screen').forEach(s=>s.classList.toggle('active',s.id==='s-'+route));
   $$('[data-go]').forEach(b=>{if(b.classList.contains('nav-item')||b.classList.contains('bn'))b.classList.toggle('active',b.dataset.go===route)});
   const screen=$('#s-'+route), now=Date.now(), cached=state.routeCache?.[route]||0;
-  // Réutilise l'écran déjà affiché pendant 30 secondes : évite les requêtes et animations inutiles.
-  if(screen?.dataset.loaded==='true' && now-cached<30000){if(previous!==route)$('#screens').scrollTo({top:0});return;}
-  if(INFLIGHT[route]&&now-INFLIGHT[route]<15000){if(previous!==route)$('#screens').scrollTo({top:0});return;} // actualisation déjà en cours
-  // Écran déjà chargé : on garde son contenu affiché et on le rafraîchit en arrière-plan
-  // (plus de « Chargement… » qui efface tout à chaque changement d'onglet).
+  const key=route==='profil'?String(state.viewedProfile?.id||'me'):'';
+  const sameKey=!screen||(screen.dataset.key||'')===key;
+  const back=()=>{if(!sc||previous===route)return;const y=sameKey?((state.scrollPos||{})[route]||0):0;const jump=()=>sc.scrollTo({top:y,behavior:'instant'});jump();requestAnimationFrame(jump);};
+  const loaded=screen?.dataset.loaded==='true'&&sameKey;
+  // Écran déjà prêt : affichage immédiat, au même endroit.
+  if(loaded&&route==='parametres'){try{const t=render.parametres?.();back();if(t&&t.then)t.then(back,()=>{});}catch(_){}return;} // rendu local instantané
+  if(loaded&&(KEEP_ROUTES.has(route)||now-cached<30000)){back();return;}
+  if(INFLIGHT[route]&&now-INFLIGHT[route]<15000){back();return;}
+  // Écran plus ancien : on garde son contenu visible et on le rafraîchit en arrière-plan.
   let keep=null;
-  if(screen&&screen.dataset.loaded==='true'&&BG_ROUTES.has(route)){keep=document.createDocumentFragment();while(screen.firstChild)keep.appendChild(screen.firstChild);}
+  if(loaded&&BG_ROUTES.has(route)){keep=document.createDocumentFragment();while(screen.firstChild)keep.appendChild(screen.firstChild);}
   let task;
   try{task=render[route]?.();}catch(err){if(keep)screen.replaceChildren(keep);throw err;}
   const isAsync=!!task&&typeof task.then==='function';
   if(keep&&isAsync)screen.replaceChildren(keep);
   if(isAsync){
     INFLIGHT[route]=Date.now();
-    task.catch(err=>console.error(err)).finally(()=>{INFLIGHT[route]=0;if(screen){screen.dataset.loaded='true';state.routeCache[route]=Date.now();}});
+    task.catch(err=>console.error(err)).finally(()=>{INFLIGHT[route]=0;if(screen){screen.dataset.loaded='true';screen.dataset.key=key;state.routeCache[route]=Date.now();}});
   }
-  else if(screen){screen.dataset.loaded='true';state.routeCache[route]=now;}
-  if(previous!==route)$('#screens').scrollTo({top:0});
+  else if(screen){screen.dataset.loaded='true';screen.dataset.key=key;state.routeCache[route]=now;}
+  if(keep)back();else if(previous!==route&&sc)sc.scrollTo({top:0,behavior:'instant'});
   warmScreens();
 }
 const topbar=(title,sub='')=>`<div class="topbar"><div><h1>${title}</h1><p>${esc(sub)}</p></div><div class="sp"></div><button class="av sm g4" data-go="profil">👤</button></div>`;
@@ -1058,7 +1083,9 @@ render.rencontres=async()=>{
   toggle.dataset.enabled=me?.rencontres_actives?'true':'false';
   toggle.onclick=async()=>{const enabled=toggle.dataset.enabled!=='true';toggle.disabled=true;toggle.textContent='Mise à jour…';const {error}=await state.client.from('profiles').update({rencontres_actives:enabled}).eq('id',state.user.id);if(error){toast('Impossible de modifier ton profil : '+error.message);toggle.disabled=false;toggle.textContent=enabled?'Activer mon profil Rencontres':'Désactiver mon profil Rencontres';return;}if(state.profile)state.profile.rencontres_actives=enabled;toast(enabled?'Ton profil Rencontres est activé.':'Ton profil Rencontres est désactivé.');render.rencontres();};
   if(!me?.rencontres_actives){$('#dating-cards').innerHTML=empty('Active ton profil pour commencer','Tu pourras alors découvrir les membres qui souhaitent aussi faire des rencontres.');return;}
-  const {data:people,error}=await state.client.rpc('rencontres_profils');
+  if(!state.profile?.genre){genderGate();return;}
+  let {data:people,error}=await state.client.rpc('rencontres_profils');
+  if(!error)people=await genderFilter(people);
   if(error){$('#dating-cards').innerHTML=empty('Profils indisponibles','Vérifie la mise à jour SQL et les règles RLS de Supabase.');return;}
   state.users=people||[];
   const {data:likes, error:likeErr}=await state.client.from('rencontres_actions').select('a,de,action').or(`de.eq.${state.user.id},a.eq.${state.user.id}`);
@@ -1257,7 +1284,7 @@ render.messages=async()=>{
 render.profil=async()=>{
   const viewing=state.viewedProfile||null;const p=viewing||state.profile||{};
   $('#s-profil').innerHTML=`<div class="banner" style="${p.cover_url?`background-image:linear-gradient(180deg,rgba(3,10,30,.08),rgba(3,10,30,.6)),url('${esc(p.cover_url)}');background-size:cover;background-position:center`:''}"></div><div class="profile-top">${avatar(p,'lg')}<div style="flex:1;min-width:200px"><h2 class="${proName(p.id)}">${esc(p.pseudo||'Mon profil')}</h2>${state.proIds.has(p.id)?'<div style="margin:3px 0"><span class="protag" style="margin-left:0">👑 Premium</span></div>':''}<div style="color:var(--muted)">@${esc(p.pseudo||'')}</div><p style="margin-top:6px">${esc(p.bio||'Ajoute une biographie à ton profil.')}</p><small style="color:var(--muted)">${esc(p.pays||'Pays non renseigné')}</small>${p.centres_interet?`<p style="margin-top:8px;font-size:13px">✨ ${esc(p.centres_interet)}</p>`:''}${p.animes_favoris?`<p style="margin-top:5px;font-size:13px">🎌 ${esc(p.animes_favoris)}</p>`:''}</div>${!viewing?'<button class="btn sm" id="edit-profile">✏️ Modifier</button><button class="btn sm ghost" data-go="connexions">🤝 Connexions</button><button class="btn sm ghost" data-go="parametres">⚙️ Paramètres</button>':`<button class="btn sm ghost" data-report-user="${p.id}">🚩 Signaler</button><button class="btn sm danger" data-block="${p.id}">Bloquer</button>`}</div><div id="profile-editor"></div><div class="card"><h3>Mes publications</h3><div id="my-posts">${empty('Chargement…')}</div></div>`;
-  if($('#edit-profile'))$('#edit-profile').onclick=()=>{$('#profile-editor').innerHTML=`<div class="card"><h3>Modifier mon profil</h3><form id="profile-form"><label>Nom d'utilisateur<input name="username" maxlength="24" minlength="3" value="${esc(p.pseudo||'')}" required></label><label>Biographie<textarea name="bio" maxlength="240">${esc(p.bio||'')}</textarea></label><label>Pays<input name="country" maxlength="80" value="${esc(p.pays||'')}"></label><label>Centres d’intérêt<input name="interests" maxlength="300" value="${esc(p.centres_interet||'')}" placeholder="Cosplay, dessin, jeux vidéo…"></label><label>Animes préférés<input name="anime" maxlength="500" value="${esc(p.animes_favoris||'')}" placeholder="Naruto, One Piece, Frieren…"></label><label>Adresse de ton avatar (image HTTPS)<input name="avatar" type="url" maxlength="500" value="${esc(p.avatar_url||'')}" placeholder="https://…"></label><small style="color:var(--muted)">Colle le lien direct d’une image. Laisse vide pour revenir à ton initiale.</small><button class="btn block" style="margin-top:12px">Enregistrer</button></form></div>`;};
+  if($('#edit-profile'))$('#edit-profile').onclick=()=>{$('#profile-editor').innerHTML=`<div class="card"><h3>Modifier mon profil</h3><form id="profile-form"><label>Nom d'utilisateur<input name="username" maxlength="24" minlength="3" value="${esc(p.pseudo||'')}" required></label><label>Biographie<textarea name="bio" maxlength="240">${esc(p.bio||'')}</textarea></label><label>Pays<select name="country">${countryOptions(p.pays||'')}</select></label><label>Je suis<select name="genre"><option value="">—</option><option value="homme"${p.genre==='homme'?' selected':''}>Un homme</option><option value="femme"${p.genre==='femme'?' selected':''}>Une femme</option></select></label><label>Centres d’intérêt<input name="interests" maxlength="300" value="${esc(p.centres_interet||'')}" placeholder="Cosplay, dessin, jeux vidéo…"></label><label>Animes préférés<input name="anime" maxlength="500" value="${esc(p.animes_favoris||'')}" placeholder="Naruto, One Piece, Frieren…"></label><label>Adresse de ton avatar (image HTTPS)<input name="avatar" type="url" maxlength="500" value="${esc(p.avatar_url||'')}" placeholder="https://…"></label><small style="color:var(--muted)">Colle le lien direct d’une image. Laisse vide pour revenir à ton initiale.</small><button class="btn block" style="margin-top:12px">Enregistrer</button></form></div>`;};
   if(state.client){const {data,error}=await state.client.from('posts').select('id,texte,created_at').eq('auteur',viewing?.id||state.user.id).order('created_at',{ascending:false});$('#my-posts').innerHTML=error?empty('Impossible de charger les publications'):data?.length?data.map(x=>`<div class="comment">${esc(x.texte)}<small style="display:block;color:var(--muted)">${fmtDate(x.created_at)}</small>${!viewing?`<button class="btn sm danger" data-delete-post="${x.id}">Supprimer</button>`:''}</div>`).join(''):empty('Aucune publication pour le moment');}
 };
 render.parametres=async()=>{
@@ -1457,7 +1484,7 @@ document.addEventListener('click',async e=>{
 });
 document.addEventListener('submit',async e=>{
   const profileForm=e.target.closest('#profile-form');
-  if(profileForm){e.preventDefault();if(!state.client||!state.user)return toast('Session expirée. Reconnecte-toi.');const d=Object.fromEntries(new FormData(profileForm));const username=String(d.username||'').trim();if(username.length<3)return toast('Le pseudo doit contenir au moins 3 caractères.');let avatar=null;if(String(d.avatar||'').trim()){try{const u=new URL(String(d.avatar).trim());if(!['https:','http:'].includes(u.protocol))throw new Error();avatar=u.href;}catch(_){return toast('Lien d’avatar invalide. Utilise une adresse HTTP ou HTTPS.');}}const btn=profileForm.querySelector('button[type="submit"],button:not([type])');if(btn){btn.disabled=true;btn.textContent='Enregistrement…';}const avatarFile=profileForm.querySelector('input[name="avatar_file"]')?.files?.[0];const coverFile=profileForm.querySelector('input[name="cover_file"]')?.files?.[0];try{if(avatarFile)avatar=await uploadOtakuFile(avatarFile,'profiles');const coverUrl=coverFile?await uploadOtakuFile(coverFile,'covers'):(state.profile?.cover_url||null);const updates={pseudo:username,bio:String(d.bio||'').trim(),pays:String(d.country||'').trim(),avatar_url:avatar||state.profile?.avatar_url||null,cover_url:coverUrl,centres_interet:String(d.interests||'').trim(),animes_favoris:String(d.anime||'').trim()};const {data,error}=await state.client.from('profiles').upsert({id:state.user.id,...updates},{onConflict:'id'}).select('*').maybeSingle();if(error){if(btn){btn.disabled=false;btn.textContent='Enregistrer';}return toast('Enregistrement impossible : '+error.message);}state.profile={...(state.profile||{}),...updates,...(data||{})};state.viewedProfile=null;toast('Profil enregistré avec succès.');await render.profil();return;}catch(uploadErr){if(btn){btn.disabled=false;btn.textContent='Enregistrer';}return toast('Enregistrement du profil impossible : '+(uploadErr.message||uploadErr));}}
+  if(profileForm){e.preventDefault();if(!state.client||!state.user)return toast('Session expirée. Reconnecte-toi.');const d=Object.fromEntries(new FormData(profileForm));const username=String(d.username||'').trim();if(username.length<3)return toast('Le pseudo doit contenir au moins 3 caractères.');let avatar=null;if(String(d.avatar||'').trim()){try{const u=new URL(String(d.avatar).trim());if(!['https:','http:'].includes(u.protocol))throw new Error();avatar=u.href;}catch(_){return toast('Lien d’avatar invalide. Utilise une adresse HTTP ou HTTPS.');}}const btn=profileForm.querySelector('button[type="submit"],button:not([type])');if(btn){btn.disabled=true;btn.textContent='Enregistrement…';}const avatarFile=profileForm.querySelector('input[name="avatar_file"]')?.files?.[0];const coverFile=profileForm.querySelector('input[name="cover_file"]')?.files?.[0];try{if(avatarFile)avatar=await uploadOtakuFile(avatarFile,'profiles');const coverUrl=coverFile?await uploadOtakuFile(coverFile,'covers'):(state.profile?.cover_url||null);const updates={pseudo:username,bio:String(d.bio||'').trim(),pays:String(d.country||'').trim(),avatar_url:avatar||state.profile?.avatar_url||null,cover_url:coverUrl,centres_interet:String(d.interests||'').trim(),animes_favoris:String(d.anime||'').trim()};const {data,error}=await state.client.from('profiles').upsert({id:state.user.id,...updates},{onConflict:'id'}).select('*').maybeSingle();if(error){if(btn){btn.disabled=false;btn.textContent='Enregistrer';}return toast('Enregistrement impossible : '+error.message);}state.profile={...(state.profile||{}),...updates,...(data||{})};if(d.genre&&d.genre!==state.profile?.genre){const gg=d.genre;state.client.from('profiles').update({genre:gg}).eq('id',state.user.id).then(r=>{if(r.error)toast('Genre non enregistré : le SQL du genre doit être exécuté.');else if(state.profile)state.profile.genre=gg;});}state.viewedProfile=null;toast('Profil enregistré avec succès.');await render.profil();return;}catch(uploadErr){if(btn){btn.disabled=false;btn.textContent='Enregistrer';}return toast('Enregistrement du profil impossible : '+(uploadErr.message||uploadErr));}}
   const form=e.target.closest('[data-comment-form]');if(!form)return;e.preventDefault();
   if(!state.client||!state.user)return toast('Connecte-toi pour commenter.');
   const postId=form.dataset.commentForm,field=form.querySelector('input[name="texte"]'),texte=field?.value.trim();if(!texte)return;
@@ -2176,7 +2203,7 @@ let otPlusQuestions=[
  {q:'Dans Jujutsu Kaisen, qui partage son corps avec Yuji ?',o:['Sukuna','Gojo','Geto'],a:0,why:'Yuji devient le réceptacle de Ryomen Sukuna.'}
 ];
 function otPlusShell(){return `<div class="topbar"><div><h1>⛩️ Otaku+</h1><p>Découvre, progresse et participe à la communauté.</p></div><span class="sp"></span><span class="op-xp-pill">⚡ ${otPlusData().xp} XP</span></div><div class="op-tabs"><button class="op-tab active" data-op-tab="catalogue">🎌 Anime/Manga</button><button class="op-tab" data-op-tab="defi">📆 Défi du jour</button><button class="op-tab" data-op-tab="progression">🏆 Progression</button><button class="op-tab" data-op-tab="quiz">🧠 Quiz</button><button class="op-tab" data-op-tab="events">📅 Événements</button><button class="op-tab" data-op-tab="ranking">🏆 Classement</button><button class="op-tab" data-op-tab="card">🪪 Ma carte</button></div><div id="op-cloud-notice">${opSetupNotice()}</div><div id="op-panel"></div>`}
-function renderOtakuPlus(){const host=$('#s-otakuplus');if(!host||!state.user)return;const tab=host.dataset.opTab||'catalogue';host.innerHTML=otPlusShell();host.dataset.opTab=tab;host.querySelectorAll('[data-op-tab]').forEach(b=>b.classList.toggle('active',b.dataset.opTab===tab));const panel=$('#op-panel');if(tab==='catalogue')opRenderCatalog(panel);if(tab==='defi')opRenderDefi(panel);if(tab==='progression')opRenderProgress(panel);if(tab==='quiz')opRenderQuiz(panel);if(tab==='events')opRenderEvents(panel);if(tab==='ranking')opRenderRanking(panel);if(tab==='card')opRenderCard(panel);}
+function renderOtakuPlus(){{const K=window.__opKeep||(window.__opKeep={});for(const k in K)delete K[k];}const host=$('#s-otakuplus');if(!host||!state.user)return;const tab=host.dataset.opTab||'catalogue';host.innerHTML=otPlusShell();host.dataset.opTab=tab;host.querySelectorAll('[data-op-tab]').forEach(b=>b.classList.toggle('active',b.dataset.opTab===tab));const panel=$('#op-panel');if(tab==='catalogue')opRenderCatalog(panel);if(tab==='defi')opRenderDefi(panel);if(tab==='progression')opRenderProgress(panel);if(tab==='quiz')opRenderQuiz(panel);if(tab==='events')opRenderEvents(panel);if(tab==='ranking')opRenderRanking(panel);if(tab==='card')opRenderCard(panel);}
 /* ===== Nouveaux mangas : bande d'affiches (chargée en arrière-plan) ===== */
 let opNewMangaCache={t:0,fresh:[],soon:[]};
 const opMonthFmt=new Intl.DateTimeFormat('fr-FR',{month:'long',year:'numeric'});
@@ -2389,7 +2416,7 @@ panel.innerHTML=`<div class="card"><h3>🪪 Ta carte Otaku</h3><p class="op-note
 panel.onclick=e=>{const t=e.target.closest('[data-op-theme],[data-op-frame],[data-op-save],[data-op-cshare]');if(!t)return;if(t.dataset.opTheme){d.theme=t.dataset.opTheme;otPlusSet(d);opRenderCard(panel)}else if(t.dataset.opFrame){d.frame=t.dataset.opFrame;otPlusSet(d);opRenderCard(panel)}else if(t.hasAttribute('data-op-save')){otPlusSet(d);toast('Carte enregistrée ✅')}else opShare(`⛩️ ${name} · ${l.title} niveau ${l.level} · ${d.xp||0} XP sur OtakuLink !`)};}
 async function opShare(text){try{if(navigator.share)await navigator.share({title:'OtakuLink',text,url:location.href});else if(navigator.clipboard){await navigator.clipboard.writeText(text+'\n'+location.href);toast('Texte et lien copiés.');}else prompt('Copie ce texte :',text+' '+location.href);}catch(e){if(e.name!=='AbortError')toast('Partage indisponible.');}}
 render.otakuplus=async()=>{if(!state.user)return;const host=$('#s-otakuplus');if(!host)return;if(opCloudReadyUser!==state.user.id)await opCloudLoad();if(!host.dataset.opTab)host.dataset.opTab='catalogue';renderOtakuPlus()};
-document.addEventListener('click',async e=>{const sql=e.target.closest('#op-copy-sql');if(sql){if(navigator.clipboard?.writeText){navigator.clipboard.writeText(OT_PLUS_SQL).then(()=>toast('SQL copié. Colle-le dans Supabase → SQL Editor → Run.')).catch(()=>prompt('Copie ce SQL :',OT_PLUS_SQL));}else prompt('Copie ce SQL :',OT_PLUS_SQL);return;}const challenge=e.target.closest('[data-op-challenge]');if(challenge){const id=challenge.dataset.opChallenge,joined=challenge.dataset.joined==='true';(async()=>{const q=joined?state.client.from('otaku_plus_challenge_members').delete().eq('challenge_id',id).eq('user_id',state.user.id):state.client.from('otaku_plus_challenge_members').insert({challenge_id:id,user_id:state.user.id});const {error}=await q;if(error){toast('Impossible de rejoindre ce défi.');return;}toast(joined?'Tu as quitté le défi.':'Tu participes au défi communautaire !');opRenderRanking($('#op-panel'));})();return;}const join=e.target.closest('[data-op-event-join]');if(join){const eventId=join.dataset.opEventJoin,joined=join.dataset.joined==='true';(async()=>{const q=joined?state.client.from('otaku_plus_event_members').delete().eq('event_id',eventId).eq('user_id',state.user.id):state.client.from('otaku_plus_event_members').insert({event_id:eventId,user_id:state.user.id});const {error}=await q;if(error){toast('Action impossible : vérifie la migration SQL.');return;}toast(joined?'Tu as quitté cet événement.':'Inscription confirmée !');opRenderEvents($('#op-panel'));})();return;}const tab=e.target.closest('[data-op-tab]');if(tab){const host=$('#s-otakuplus');host.dataset.opTab=tab.dataset.opTab;renderOtakuPlus();return;}const fav=e.target.closest('[data-op-fav]');if(fav){const d=otPlusData(),id=fav.dataset.opFav,idx=(d.favorites||[]).findIndex(x=>x.id===id&&x.kind===fav.dataset.opKind);if(idx>=0){d.favorites.splice(idx,1);toast('Retiré de ta liste.');}else{d.favorites=[...(d.favorites||[]),{id,title:fav.dataset.opTitle,image:fav.dataset.opImage,kind:fav.dataset.opKind,year:fav.dataset.opYear,score:fav.dataset.opScore,synopsis:fav.dataset.opSynopsis}].slice(-50);d.favoriteXpIds=d.favoriteXpIds||[];if(!d.favoriteXpIds.includes(fav.dataset.opKind+':'+id)){d.favoriteXpIds.push(fav.dataset.opKind+':'+id);toast('Ajouté à ta liste.');opAwardServer('favorite_add','Ajout à ta collection');}else toast('Ajouté à ta liste.');}otPlusSet(d);const p=$('#op-panel');if(p)opRenderCatalog(p);return;}const mission=e.target.closest('[data-op-mission]');if(mission){const id=mission.dataset.opMission,d=otPlusData(),key=id==='profile'?'profile:once':id+':'+otPlusToday();d.claimed=d.claimed||[];if(d.claimed.includes(key))return;let amount={daily:10,profile:30,catalog:15,quiz:25}[id]||0;if(id==='profile'&&!(state.profile?.bio&&state.profile?.animes_favoris))return toast('Complète ta bio et renseigne tes animes favoris dans ton profil.');if(id==='catalog'&&!(d.favorites||[]).length)return toast('Ajoute d’abord une œuvre à ta liste.');if(id==='quiz'&&!(d.quizDays||[]).includes(otPlusToday()))return toast('Termine d’abord le quiz du jour.');d.claimed.push(key);otPlusSet(d);const reward={daily:'daily_mission',profile:'profile_mission',catalog:'catalog_mission',quiz:'quiz_mission'}[id];const earned=await opAwardServer(reward,'Mission accomplie');if(earned===null){d.claimed=d.claimed.filter(x=>x!==key);otPlusSet(d);renderOtakuPlus();}return;}});
+document.addEventListener('click',async e=>{const sql=e.target.closest('#op-copy-sql');if(sql){if(navigator.clipboard?.writeText){navigator.clipboard.writeText(OT_PLUS_SQL).then(()=>toast('SQL copié. Colle-le dans Supabase → SQL Editor → Run.')).catch(()=>prompt('Copie ce SQL :',OT_PLUS_SQL));}else prompt('Copie ce SQL :',OT_PLUS_SQL);return;}const challenge=e.target.closest('[data-op-challenge]');if(challenge){const id=challenge.dataset.opChallenge,joined=challenge.dataset.joined==='true';(async()=>{const q=joined?state.client.from('otaku_plus_challenge_members').delete().eq('challenge_id',id).eq('user_id',state.user.id):state.client.from('otaku_plus_challenge_members').insert({challenge_id:id,user_id:state.user.id});const {error}=await q;if(error){toast('Impossible de rejoindre ce défi.');return;}toast(joined?'Tu as quitté le défi.':'Tu participes au défi communautaire !');opRenderRanking($('#op-panel'));})();return;}const join=e.target.closest('[data-op-event-join]');if(join){const eventId=join.dataset.opEventJoin,joined=join.dataset.joined==='true';(async()=>{const q=joined?state.client.from('otaku_plus_event_members').delete().eq('event_id',eventId).eq('user_id',state.user.id):state.client.from('otaku_plus_event_members').insert({event_id:eventId,user_id:state.user.id});const {error}=await q;if(error){toast('Action impossible : vérifie la migration SQL.');return;}toast(joined?'Tu as quitté cet événement.':'Inscription confirmée !');opRenderEvents($('#op-panel'));})();return;}const tab=e.target.closest('[data-op-tab]');if(tab){opSwitchTab(tab.dataset.opTab);return;}const fav=e.target.closest('[data-op-fav]');if(fav){const d=otPlusData(),id=fav.dataset.opFav,idx=(d.favorites||[]).findIndex(x=>x.id===id&&x.kind===fav.dataset.opKind);if(idx>=0){d.favorites.splice(idx,1);toast('Retiré de ta liste.');}else{d.favorites=[...(d.favorites||[]),{id,title:fav.dataset.opTitle,image:fav.dataset.opImage,kind:fav.dataset.opKind,year:fav.dataset.opYear,score:fav.dataset.opScore,synopsis:fav.dataset.opSynopsis}].slice(-50);d.favoriteXpIds=d.favoriteXpIds||[];if(!d.favoriteXpIds.includes(fav.dataset.opKind+':'+id)){d.favoriteXpIds.push(fav.dataset.opKind+':'+id);toast('Ajouté à ta liste.');opAwardServer('favorite_add','Ajout à ta collection');}else toast('Ajouté à ta liste.');}otPlusSet(d);const p=$('#op-panel');if(p)opRenderCatalog(p);return;}const mission=e.target.closest('[data-op-mission]');if(mission){const id=mission.dataset.opMission,d=otPlusData(),key=id==='profile'?'profile:once':id+':'+otPlusToday();d.claimed=d.claimed||[];if(d.claimed.includes(key))return;let amount={daily:10,profile:30,catalog:15,quiz:25}[id]||0;if(id==='profile'&&!(state.profile?.bio&&state.profile?.animes_favoris))return toast('Complète ta bio et renseigne tes animes favoris dans ton profil.');if(id==='catalog'&&!(d.favorites||[]).length)return toast('Ajoute d’abord une œuvre à ta liste.');if(id==='quiz'&&!(d.quizDays||[]).includes(otPlusToday()))return toast('Termine d’abord le quiz du jour.');d.claimed.push(key);otPlusSet(d);const reward={daily:'daily_mission',profile:'profile_mission',catalog:'catalog_mission',quiz:'quiz_mission'}[id];const earned=await opAwardServer(reward,'Mission accomplie');if(earned===null){d.claimed=d.claimed.filter(x=>x!==key);otPlusSet(d);renderOtakuPlus();}return;}});
 document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('[data-op-claim]');if(b){e.preventDefault();opClaimChallenge(b.dataset.opClaim,b);}});
 const opStyle=document.createElement('style');opStyle.textContent=`
 #s-otakuplus .op-ranking-list{display:grid;gap:8px}#s-otakuplus .op-rank-row{display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--line);border-radius:13px;background:var(--bg2)}#s-otakuplus .op-rank-row.is-me{border-color:var(--cyan);background:rgba(0,210,255,.08)}#s-otakuplus .op-rank-number{width:28px;text-align:center}#s-otakuplus .op-rank-avatar{width:36px;height:36px;border-radius:50%;object-fit:cover;display:grid;place-items:center;background:var(--panel);font-weight:800}#s-otakuplus .op-rank-name{flex:1;min-width:0;font-size:13px;font-weight:700}#s-otakuplus .op-rank-xp{font-size:12px;color:var(--cyan);white-space:nowrap}#s-otakuplus .op-challenge{padding:12px 0;border-bottom:1px solid var(--line)}#s-otakuplus .op-challenge:last-child{border:0}
@@ -2933,8 +2960,10 @@ async function enhanceParametres(){
   const col=$('#s-parametres .two-col>div');if(!col||$('#parrain-card')||!state.client||!state.user)return;
   const card=document.createElement('div');card.className='card';card.id='parrain-card';card.innerHTML='<h3>🤝 Parrainage</h3><small style="color:var(--muted)">Chargement…</small>';
   if(col.firstElementChild)col.firstElementChild.after(card);else col.appendChild(card);
-  const {data,error}=await state.client.rpc('parrainage_stats');
+  let data=state.refStats,error=null;
+  if(!data){const r=await state.client.rpc('parrainage_stats');data=r.data;error=r.error;}
   if(error||!data||!data.code){card.innerHTML='<h3>🤝 Parrainage</h3><p class="op-note">Pas encore disponible. Le script SQL de parrainage doit être exécuté dans Supabase.</p>';return;}
+  state.refStats=data;state.client.rpc('parrainage_stats').then(r=>{if(r.data&&r.data.code)state.refStats=r.data;});
   const link=location.origin+location.pathname.replace(/index\.html$/,'')+'?ref='+data.code,v=Number(data.valides)||0,w=Number(data.attente)||0,fl=data.filleuls||[];
   const msg='Rejoins-moi sur OtakuLink, la communauté des fans d’anime ! '+link;
   card.innerHTML=`<h3>🤝 Parrainage</h3><p class="op-note" style="line-height:1.5">Invite tes amis : tu gagnes <b>+100 XP</b> pour chaque ami qui s’inscrit avec ton lien et complète son profil. À <b>10 amis</b>, tu reçois <b>1 semaine de Premium</b> 👑.</p>
@@ -2974,6 +3003,38 @@ function ogAddDel(art){
     document.querySelectorAll('#og-messages .group-message[data-mid]').forEach(ogAddDel);
   }catch(e){console.warn(e);}
 };}
+
+/* ===== Navigation rapide : onglets Otaku+ gardés en mémoire + cache du catalogue ===== */
+function opSwitchTab(next){
+  const host=$('#s-otakuplus'),panel=$('#op-panel'),sc=$('#screens');if(!host||!panel)return;
+  const K=window.__opKeep||(window.__opKeep={}),cur=host.dataset.opTab||'catalogue';
+  if(cur===next)return;
+  const frag=document.createDocumentFragment();while(panel.firstChild)frag.appendChild(panel.firstChild);
+  K[cur]={frag,onclick:panel.onclick,y:sc?sc.scrollTop:0,at:Date.now()};panel.onclick=null;
+  host.dataset.opTab=next;
+  host.querySelectorAll('[data-op-tab]').forEach(b=>b.classList.toggle('active',b.dataset.opTab===next));
+  const k=K[next],volatile=next==='ranking'||next==='events';
+  if(k&&!(volatile&&Date.now()-k.at>60000)){panel.replaceChildren(k.frag);panel.onclick=k.onclick;delete K[next];if(sc){const jump=()=>sc.scrollTo({top:k.y,behavior:'instant'});jump();requestAnimationFrame(jump);}return;}
+  if(sc)sc.scrollTo({top:0,behavior:'instant'});
+  const fn={catalogue:opRenderCatalog,defi:opRenderDefi,progression:opRenderProgress,quiz:opRenderQuiz,events:opRenderEvents,ranking:opRenderRanking,card:opRenderCard}[next];
+  if(fn)fn(panel);
+}
+{const _f=window.fetch.bind(window),cache=new Map();
+ window.fetch=function(input,init){
+  try{
+   const url=typeof input==='string'?input:(input&&input.url)||'',m=((init&&init.method)||(typeof input!=='string'&&input&&input.method)||'GET').toUpperCase();
+   if(m==='GET'&&/^https:\/\/api\.tenrai\.org\//.test(url)){
+    const c=cache.get(url);if(c&&Date.now()-c.at<600000)return Promise.resolve(new Response(c.body,{status:c.status,headers:{'content-type':'application/json'}}));
+    return _f(input,init).then(async r=>{if(r.ok){const body=await r.clone().text();if(cache.size>80)cache.clear();cache.set(url,{at:Date.now(),body,status:r.status});}return r;});
+   }
+  }catch(_){}
+  return _f(input,init);
+ };}
+document.addEventListener('click',async e=>{
+  const g=e.target.closest('[data-set-genre]');
+  if(g){const v=g.dataset.setGenre;g.disabled=true;const {error}=await state.client.from('profiles').update({genre:v}).eq('id',state.user.id);if(error){g.disabled=false;return toast('Impossible d’enregistrer : '+error.message+' (le SQL du genre doit être exécuté).');}if(state.profile)state.profile.genre=v;toast('Enregistré ✅');render.rencontres();return;}
+  if(e.target.closest('[data-pro-ref]')){$('#modal-root').innerHTML='';go('parametres');}
+});
 
 paintPro();refreshFrames();
 
