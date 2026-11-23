@@ -964,9 +964,14 @@ async function init() {
     state.client=createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
     const {data:{session}}=await state.client.auth.getSession();
     if(session) await onSignedIn(session.user);
-    state.client.auth.onAuthStateChange(async (_event,session)=>{
-      if(session && !state.user) await onSignedIn(session.user);
-      else if(!session && state.user){state.client.removeAllChannels();state.rt=false;state.user=null;state.profile=null;showAuth('welcome');}
+    state.client.auth.onAuthStateChange((_event,session)=>{
+      // Ne pas attendre les requêtes Supabase dans ce callback : cela peut
+      // bloquer le verrou interne d'authentification et retarder la connexion.
+      if(session && state.user?.id!==session.user.id){
+        queueMicrotask(()=>{if(state.client&&state.user?.id!==session.user.id)onSignedIn(session.user).catch(err=>console.error('Initialisation du compte :',err));});
+      }else if(!session && state.user){
+        state.client.removeAllChannels();state.rt=false;state.user=null;state.profile=null;showAuth('welcome');
+      }
     });
   } catch(err) { console.error(err); toast('Impossible de charger Supabase. Vérifie la configuration.'); }
 }
@@ -1011,8 +1016,15 @@ document.addEventListener('submit',async e=>{
     toast('Inscription envoyée. Vérifie ta boîte e-mail pour confirmer ton compte.');
     showAuth('login');
   } else if(f.id==='f-login'){
-    const {error}=await state.client.auth.signInWithPassword({email:d.email,password:d.password});
-    if(error) authError(error.message);
+    const submit=f.querySelector('[type="submit"]');if(submit)submit.disabled=true;
+    try{
+      const {data,error}=await state.client.auth.signInWithPassword({email:d.email,password:d.password});
+      if(error){authError(error.message);return;}
+      // L'événement auth peut arriver juste après la réponse : on initialise
+      // aussi directement la session pour que l'écran s'ouvre sans attendre.
+      if(data?.session&&data?.user&&state.user?.id!==data.user.id)await onSignedIn(data.user);
+    }catch(err){console.error('Connexion :',err);authError('Connexion impossible pour le moment. Réessaie.');}
+    finally{if(submit)submit.disabled=false;}
   } else {
     const {error}=await state.client.auth.resetPasswordForEmail(d.email,{redirectTo:location.href});
     if(error) authError(error.message); else {toast('Si cette adresse existe, un lien de réinitialisation a été envoyé.');showAuth('login');}
@@ -1211,11 +1223,22 @@ render.messages=async()=>{
     const other=state.users.find(u=>u.id===otherId);
     if(other&&!state.blocked.has(other.id))people.set(other.id,other);
   });
+  // Classe les conversations selon la date du dernier message, le plus récent en premier.
+  const latestByPerson=new Map();
+  msgs.forEach(m=>{
+    const otherId=m.de===state.user.id?m.a:m.de;
+    const stamp=Date.parse(m.created_at||'')||0;
+    if(!latestByPerson.has(otherId)||stamp>latestByPerson.get(otherId))latestByPerson.set(otherId,stamp);
+  });
+  const orderedPeople=[...people.values()].sort((a,b)=>{
+    const diff=(latestByPerson.get(b.id)||0)-(latestByPerson.get(a.id)||0);
+    return diff||String(a.pseudo||'').localeCompare(String(b.pseudo||''),'fr');
+  });
   const selected=state.activeChat&&people.has(state.activeChat)?state.activeChat:null;
   if(state.activeChat&&!selected)state.activeChat=null;
   const thread=selected?msgs.filter(m=>(m.de===state.user.id&&m.a===selected)||(m.de===selected&&m.a===state.user.id)):[];
   const isMobile=window.matchMedia('(max-width:899px)').matches;
-  $('#messages-content').innerHTML=`<div class="msg-wrap ${selected?'chat-open':''}"><div class="card conv-col" style="padding:10px">${people.size?[...people.values()].map(p=>`<div class="conv ${p.id===selected?'active':''}" data-chat-open="${p.id}">${avatar(p,'sm')}<div class="meta"><b>${esc(p.pseudo||'Membre')}</b><small>Ouvrir la discussion</small></div>${unreadOf(p.id)?`<span class="badge">${unreadOf(p.id)}</span>`:''}</div>`).join(''):empty('Aucun ami disponible','Accepte une invitation pour pouvoir commencer une discussion.')}</div><div class="card chat" style="margin:0"><div class="chat-head">${isMobile&&selected?'<button type="button" class="icon-btn" id="chat-back" aria-label="Retour aux conversations">←</button>':''}<div style="min-width:0"><b>${selected?esc(people.get(selected)?.pseudo||'Membre'):'Choisis un ami'}</b>${selected?`<span class="pstat${state.online.has(selected)?' on':''}" data-presence="${esc(selected)}">${state.online.has(selected)?'● En ligne':'● Hors ligne'}</span>`:''}</div></div><div class="chat-body" id="chat-body">${selected?(thread.map((m,i)=>`${opDaySep(thread[i-1],m)}<div class="bubble ${m.de===state.user.id?'out':'in'}" data-message-bubble="${m.id}">
+  $('#messages-content').innerHTML=`<div class="msg-wrap ${selected?'chat-open':''}"><div class="card conv-col" style="padding:10px">${people.size?orderedPeople.map(p=>`<div class="conv ${p.id===selected?'active':''}" data-chat-open="${p.id}">${avatar(p,'sm')}<div class="meta"><b>${esc(p.pseudo||'Membre')}</b><small>Ouvrir la discussion</small></div>${unreadOf(p.id)?`<span class="badge">${unreadOf(p.id)}</span>`:''}</div>`).join(''):empty('Aucun ami disponible','Accepte une invitation pour pouvoir commencer une discussion.')}</div><div class="card chat" style="margin:0"><div class="chat-head">${isMobile&&selected?'<button type="button" class="icon-btn" id="chat-back" aria-label="Retour aux conversations">←</button>':''}<div style="min-width:0"><b>${selected?esc(people.get(selected)?.pseudo||'Membre'):'Choisis un ami'}</b>${selected?`<span class="pstat${state.online.has(selected)?' on':''}" data-presence="${esc(selected)}">${state.online.has(selected)?'● En ligne':'● Hors ligne'}</span>`:''}</div></div><div class="chat-body" id="chat-body">${selected?(thread.map((m,i)=>`${opDaySep(thread[i-1],m)}<div class="bubble ${m.de===state.user.id?'out':'in'}" data-message-bubble="${m.id}">
       ${(()=>{const media=postTextAndImage(m.texte);const parts=splitReplyMessage(media.text);return `${parts.author?`<div class="reply-context">↪ Réponse à ${esc(parts.author)}</div>`:''}${esc(parts.body).replace(/\n/g,'<br>')}${media.url?(media.kind==='video'?`<div class="chat-media-box"><video src="${esc(media.url)}" controls playsinline preload="metadata"></video><div class="chat-media-actions"><button type="button" title="Voir en grand" aria-label="Voir la vidéo" data-chat-view="${esc(media.url)}" data-kind="video" data-name="otakulink-video.mp4">⛶</button><button type="button" title="Télécharger" aria-label="Télécharger la vidéo" data-chat-download="${esc(media.url)}" data-kind="video" data-name="otakulink-video.mp4">⬇</button></div></div>`:`<div class="chat-media-box"><img src="${esc(media.url)}" alt="Image envoyée" loading="lazy"><div class="chat-media-actions"><button type="button" title="Voir en grand" aria-label="Voir l’image" data-chat-view="${esc(media.url)}" data-kind="image" data-name="otakulink-image.jpg">⛶</button><button type="button" title="Télécharger" aria-label="Télécharger l’image" data-chat-download="${esc(media.url)}" data-kind="image" data-name="otakulink-image.jpg">⬇</button></div></div>`):''}`})()}
       <small>${opChatTime(m.created_at)}${m.de===state.user.id?tickHTML(m):''}</small>
       <div class="message-tools">
@@ -3158,24 +3181,6 @@ let tries=0;const t=setInterval(async()=>{
   await reg();
   if(state.settings.notifications&&supported()&&Notification.permission==='granted')subscribe();
 },1000);
-})();
-
-
-/* Raccourcis de l'icône (appui long) : ouvre directement l'écran demandé, ex. ?go=messages */
-(function(){
-  const ok=['decouvrir','rencontres','communaute','messages','connexions','profil','otakuplus','parametres'];
-  let target='';
-  try{target=new URLSearchParams(location.search).get('go')||'';}catch(_){}
-  if(!ok.includes(target))return;
-  let tries=0;
-  const t=setInterval(()=>{
-    if(++tries>60){clearInterval(t);return;}
-    const app=document.querySelector('#app');
-    if(!state.user||!state.client||!app||app.classList.contains('hidden'))return;
-    clearInterval(t);
-    go(target);
-    try{history.replaceState(history.state,'',location.pathname);}catch(_){}
-  },300);
 })();
 
 </script>
