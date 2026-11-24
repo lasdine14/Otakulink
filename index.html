@@ -2278,7 +2278,7 @@ function opPaintNewManga(){
   const host=$('#op-new-manga');if(!host)return;
   const fav=otPlusData().favorites||[];
   const sec=(title,rows,tag)=>rows.length?`<h3 class="op-section-title">${title}</h3><div class="op-strip">${rows.map(x=>opPoster(x,tag,fav.some(f=>f.id===x.id&&f.kind==='Manga'))).join('')}</div>`:'';
-  const html=sec('🆕 Nouveaux mangas',opNewMangaCache.fresh,'new')+sec('🔜 Bientôt en rayon',opNewMangaCache.soon,'soon');
+  const html=sec('🆕 Nouveaux mangas',olPick(opNewMangaCache.fresh,12),'new')+sec('🔜 Bientôt en rayon',olPick(opNewMangaCache.soon,12),'soon');
   host.innerHTML=html?`<div class="op-new">${html}</div>`:'<small style="display:block;color:var(--muted);margin:8px 0">Les nouveautés manga sont indisponibles pour le moment.</small>';
 }
 async function opLoadNewManga(){
@@ -2289,14 +2289,14 @@ async function opLoadNewManga(){
   const norm=x=>({id:String(x.mal_id),title:x.title||x.title_english||'Sans titre',image:x.images?.jpg?.large_image_url||x.images?.jpg?.image_url||'',year:x.published?.from?.slice(0,4)||'',score:x.score||'—',synopsis:x.synopsis||'',from:x.published?.from||''});
   const usable=r=>r.image&&!/questionmark/i.test(r.image);
   const iso=days=>new Date(Date.now()-days*864e5).toISOString().slice(0,10);
-  const recent=days=>get(`https://api.tenrai.org/v1/manga?status=publishing&type=manga&start_date=${iso(days)}&order_by=members&sort=desc&limit=20&sfw=true`);
-  const upcoming=get('https://api.tenrai.org/v1/top/manga?filter=upcoming&limit=15&sfw=true');
+  const recent=days=>get(`https://api.tenrai.org/v1/manga?status=publishing&type=manga&start_date=${iso(days)}&order_by=members&sort=desc&limit=20&page=${1+olRand(3)}&sfw=true`);
+  const upcoming=get('https://api.tenrai.org/v1/top/manga?filter=upcoming&limit=15&page=${1+olRand(2)}&sfw=true');
   let [a,soon]=await Promise.all([recent(120),upcoming]);
   const seen=new Set(),now=Date.now();
   const clean=(arr,future)=>arr.map(norm).filter(r=>usable(r)&&!seen.has(r.id)&&(future||!r.from||new Date(r.from)<=now)&&seen.add(r.id));
   let fresh=clean(a,false);
   if(fresh.length<5){const b=await recent(365);seen.clear();fresh=clean(a.concat(b),false);}
-  opNewMangaCache={t:Date.now(),fresh:fresh.slice(0,12),soon:clean(soon,true).slice(0,12)};
+  opNewMangaCache={t:Date.now(),fresh:fresh.slice(0,24),soon:clean(soon,true).slice(0,24)};
   opPaintNewManga();
 }
 
@@ -2306,7 +2306,7 @@ function opPaintNewAnime(){
   const host=$('#op-new-anime');if(!host)return;
   const fav=otPlusData().favorites||[];
   const sec=(title,rows,tag)=>rows.length?`<h3 class="op-section-title">${title}</h3><div class="op-strip">${rows.map(x=>opPoster(x,tag,fav.some(f=>f.id===x.id&&f.kind==='Anime'),'Anime')).join('')}</div>`:'';
-  const html=sec('🆕 Nouveaux animes',opNewAnimeCache.fresh,'new')+sec('🔜 Bientôt à l’écran',opNewAnimeCache.soon,'soon');
+  const html=sec('🆕 Nouveaux animes',olPick(opNewAnimeCache.fresh,12),'new')+sec('🔜 Bientôt à l’écran',olPick(opNewAnimeCache.soon,12),'soon');
   host.innerHTML=html?`<div class="op-new">${html}</div>`:'<small style="display:block;color:var(--muted);margin:8px 0">Les nouveautés anime sont indisponibles pour le moment.</small>';
 }
 async function opLoadNewAnime(){
@@ -2317,14 +2317,14 @@ async function opLoadNewAnime(){
   const norm=x=>({id:String(x.mal_id),title:x.title||x.title_english||'Sans titre',image:x.images?.jpg?.large_image_url||x.images?.jpg?.image_url||'',year:x.year||x.aired?.from?.slice(0,4)||'',score:x.score||'—',synopsis:x.synopsis||'',from:x.aired?.from||''});
   const usable=r=>r.image&&!/questionmark/i.test(r.image);
   const iso=days=>new Date(Date.now()-days*864e5).toISOString().slice(0,10);
-  const recent=days=>get(`https://api.tenrai.org/v1/anime?status=airing&type=tv&start_date=${iso(days)}&order_by=members&sort=desc&limit=20&sfw=true`);
-  const upcoming=get('https://api.tenrai.org/v1/top/anime?filter=upcoming&limit=15&sfw=true');
+  const recent=days=>get(`https://api.tenrai.org/v1/anime?status=airing&type=tv&start_date=${iso(days)}&order_by=members&sort=desc&limit=20&page=${1+olRand(3)}&sfw=true`);
+  const upcoming=get('https://api.tenrai.org/v1/top/anime?filter=upcoming&limit=15&page=${1+olRand(2)}&sfw=true');
   let [a,soon]=await Promise.all([recent(120),upcoming]);
   const seen=new Set(),now=Date.now();
   const clean=(arr,future)=>arr.map(norm).filter(r=>usable(r)&&!seen.has(r.id)&&(future||!r.from||new Date(r.from)<=now)&&seen.add(r.id));
   let fresh=clean(a,false);
   if(fresh.length<5){const b=await recent(365);seen.clear();fresh=clean(a.concat(b),false);}
-  opNewAnimeCache={t:Date.now(),fresh:fresh.slice(0,12),soon:clean(soon,true).slice(0,12)};
+  opNewAnimeCache={t:Date.now(),fresh:fresh.slice(0,24),soon:clean(soon,true).slice(0,24)};
   opPaintNewAnime();
 }
 async function opRenderCatalog(panel){
@@ -2338,7 +2338,7 @@ async function opRenderCatalog(panel){
  // Show useful catalogue content immediately, even before the user types.
  {
    const host=panel.querySelector('#op-catalog-results');
-   if(window.__opPop){window.__opView={title:'🔥 Anime populaires',rows:window.__opPop};opPaintResults();return;}
+   opSuggest(($('#op-kind')?.value)||'anime');return;
    host.innerHTML='<div class="card">Chargement des anime populaires…</div>';
    try{
      const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),12000);const res=await fetch('https://api.tenrai.org/v1/top/anime?limit=12&sfw=true',{signal:controller.signal});clearTimeout(timer);
@@ -3111,7 +3111,7 @@ function opSwitchTab(next){
   K[cur]={frag,onclick:panel.onclick,y:sc?sc.scrollTop:0,at:Date.now()};panel.onclick=null;
   host.dataset.opTab=next;
   host.querySelectorAll('[data-op-tab]').forEach(b=>b.classList.toggle('active',b.dataset.opTab===next));
-  const k=K[next],volatile=next==='ranking'||next==='events';
+  const k=K[next],volatile=next==='ranking'||next==='events'||next==='catalogue';
   if(k&&!(volatile&&Date.now()-k.at>60000)){panel.replaceChildren(k.frag);panel.onclick=k.onclick;delete K[next];if(sc){const jump=()=>sc.scrollTo({top:k.y,behavior:'instant'});jump();requestAnimationFrame(jump);}return;}
   if(sc)sc.scrollTo({top:0,behavior:'instant'});
   const fn={catalogue:opRenderCatalog,defi:opRenderDefi,progression:opRenderProgress,quiz:opRenderQuiz,events:opRenderEvents,ranking:opRenderRanking,card:opRenderCard}[next];
@@ -3183,6 +3183,147 @@ let tries=0;const t=setInterval(async()=>{
 },1000);
 })();
 
+
+/* ===== OtakuLink – mise à jour : suggestions variées, série de connexion, groupes (photo + épinglé), sondages et modération ===== */
+const olRand=n=>Math.floor(Math.random()*n);
+const olShuffle=a=>{a=(a||[]).slice();for(let i=a.length-1;i>0;i--){const j=olRand(i+1);[a[i],a[j]]=[a[j],a[i]];}return a;};
+const olPick=(a,n)=>olShuffle(a).slice(0,n);
+const olDay=t=>{t=new Date(t);return t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0');};
+
+/* 1. Catalogue Anime/Manga : suggestions différentes à chaque visite */
+async function opSuggest(kind){
+  kind=kind==='manga'?'manga':'anime';const host=$('#op-catalog-results');if(!host)return;
+  const K=kind==='manga'?'Manga':'Anime',title=kind==='manga'?'📚 Manga à découvrir':'🔥 Anime à découvrir';
+  const pools=window.__opPool||(window.__opPool={}),show=rows=>{window.__opView={title,rows:olPick(rows,12),suggest:kind};opPaintResults();};
+  if(pools[kind]&&Date.now()-pools[kind].at<600000){show(pools[kind]);return;}
+  host.innerHTML='<div class="card">Chargement des suggestions…</div>';
+  try{
+    const c=new AbortController(),t=setTimeout(()=>c.abort(),12000);
+    const r=await fetch(`https://api.tenrai.org/v1/top/${kind}?limit=25&page=${1+olRand(8)}&sfw=true`,{signal:c.signal});clearTimeout(t);
+    if(!r.ok)throw new Error('Catalogue temporairement indisponible. Vérifie ta connexion puis réessaie.');
+    const j=await r.json();
+    const rows=(j.data||[]).map(x=>({id:String(x.mal_id),title:x.title||x.title_english||'Sans titre',image:x.images?.jpg?.image_url||'',kind:K,year:x.year||'',score:x.score||'—',synopsis:x.synopsis||'',url:x.url||'',trailer:kind==='anime'?opYtId(x):''}));
+    if(!rows.length)throw new Error('Aucun résultat disponible pour le moment.');
+    rows.at=Date.now();pools[kind]=rows;show(rows);
+  }catch(err){host.innerHTML='<div class="card">'+esc(err.name==='AbortError'?'Le catalogue met trop de temps à répondre. Appuie sur Rechercher après avoir saisi un titre.':(err.message||'Impossible de charger le catalogue.'))+'</div>';}
+}
+{const _pr=opPaintResults;opPaintResults=function(){_pr();const v=window.__opView,h=document.querySelector('#op-catalog-results');if(v&&v.suggest&&h){const b=document.createElement('button');b.type='button';b.className='btn sm ghost';b.dataset.opShuffle=v.suggest;b.style.cssText='display:block;margin:12px auto';b.textContent='🔄 Voir d’autres suggestions';h.appendChild(b);}};}
+document.addEventListener('click',e=>{
+  const s=e.target.closest&&e.target.closest('[data-op-shuffle]');
+  if(s){const k=s.dataset.opShuffle;if(window.__opPool)delete window.__opPool[k];opSuggest(k);return;}
+  const kb=e.target.closest&&e.target.closest('[data-op-kind-btn]');
+  if(kb)setTimeout(()=>{if(!($('#op-search')?.value||'').trim())opSuggest(kb.dataset.opKindBtn);},0);
+},true);
+
+/* 2. Fidélisation : série de connexion quotidienne avec badges */
+function olStreakTick(){
+  const uid=state.user?.id;if(!uid)return null;const key='ol_streak_'+uid;let s=null;
+  try{s=JSON.parse(localStorage.getItem(key)||'null');}catch(_){}
+  s=s||{last:'',n:0,best:0,days:[]};const today=olDay(Date.now()),yest=olDay(Date.now()-864e5);let fresh=false;
+  if(s.last!==today){s.n=s.last===yest?(s.n||0)+1:1;s.best=Math.max(s.best||0,s.n);s.last=today;s.days=[...(s.days||[]),today].slice(-14);fresh=true;try{localStorage.setItem(key,JSON.stringify(s));}catch(_){}}
+  return {...s,fresh};
+}
+function olStreakCard(){
+  const s=olStreakTick();if(!s)return;document.getElementById('ol-streak')?.remove();
+  const ms=[[3,'🥉','Initié'],[7,'🥈','Fidèle'],[14,'🥇','Habitué'],[30,'👑','Légende']],next=ms.find(m=>m[0]>s.n),got=ms.filter(m=>m[0]<=s.n);
+  const days=[...Array(7)].map((_,i)=>{const t=new Date(Date.now()-(6-i)*864e5);return {l:['D','L','M','M','J','V','S'][t.getDay()],on:(s.days||[]).includes(olDay(t)),now:i===6};});
+  const el=document.createElement('section');el.id='ol-streak';el.className='card community-section';
+  el.innerHTML=`<div class="row"><h3>🔥 Série de connexion</h3><span class="sp"></span><b style="color:var(--cyan)">${s.n} jour${s.n>1?'s':''}</b></div><div style="display:flex;gap:6px;justify-content:space-between;margin:10px 0">${days.map(d=>`<div style="flex:1;text-align:center;font-size:11px;color:var(--muted)">${d.l}<div style="margin-top:4px;height:34px;border-radius:50%;max-width:34px;margin-inline:auto;display:flex;align-items:center;justify-content:center;font-weight:800;${d.on?'background:linear-gradient(135deg,#19c2ff,#7a5cff);color:#fff':'border:1px dashed var(--line)'}${d.now?';box-shadow:0 0 0 2px var(--cyan)':''}">${d.on?'✓':''}</div></div>`).join('')}</div><p class="section-hint">${next?`Reviens chaque jour : encore ${next[0]-s.n} jour(s) pour le badge ${next[1]} ${next[2]}.`:'Tu as débloqué tous les badges de fidélité. Bravo, légende !'}</p>${got.length?`<div style="margin:6px 0">${got.map(m=>`<span class="chip">${m[1]} ${m[2]}</span>`).join(' ')}</div>`:''}<small style="color:var(--muted)">Record : ${s.best} jour(s)</small>`;
+  const ref=$('#otaku-community-tools')||$('#feed');if(ref)ref.insertAdjacentElement('beforebegin',el);
+  if(s.fresh)toast(s.n>1?`🔥 Jour ${s.n} de suite ! Reviens demain.`:'🔥 Bienvenue ! Reviens demain pour lancer ta série.');
+}
+{const _rc=render.communaute;render.communaute=async function(){await _rc.apply(this,arguments);try{olStreakCard();}catch(e){console.warn(e);}};}
+
+/* 3. Groupes : photo de profil, groupe OtakuLink épinglé en premier */
+const ogPinned=g=>g.epingle===true||/^\s*otakulink\s*$/i.test(g.nom||'');
+const ogAvatar=(g,z=46)=>{const b=ogPinned(g)?'#ffc83d':'var(--line)',c=`width:${z}px;height:${z}px;border-radius:14px;flex:none;border:2px solid ${b}`;return g.avatar_url?`<img src="${esc(g.avatar_url)}" alt="" loading="lazy" style="${c};object-fit:cover">`:`<div style="${c};display:flex;align-items:center;justify-content:center;font-weight:800;background:var(--g)">${esc((g.nom||'?').trim().charAt(0).toUpperCase())}</div>`;};
+const olSqlHint=' (exécute le fichier SQL de mise à jour dans Supabase)';
+loadOtakuGroups=async function(){
+  const host=$('#og-list');if(!host)return;
+  const {data,error}=await state.client.from('otaku_groups').select('*').order('created_at',{ascending:false}).limit(60);
+  if(error){host.textContent='Groupes indisponibles. Exécute le SQL des nouvelles fonctions dans Paramètres.';return;}
+  if(!data?.length){host.textContent='Aucun groupe pour le moment. Crée le premier !';return;}
+  const {data:members}=await state.client.from('otaku_group_members').select('group_id,membre'),me=state.user.id;
+  host.innerHTML=[...data].sort((a,b)=>Number(ogPinned(b))-Number(ogPinned(a))).map(g=>{
+    const joined=(members||[]).some(m=>m.group_id===g.id&&m.membre===me),count=(members||[]).filter(m=>m.group_id===g.id).length,mine=g.createur===me||state.isAdmin;
+    return `<div class="friend">${ogAvatar(g)}<div class="meta"><b>${ogPinned(g)?'📌 ':''}${esc(g.nom)}</b><small>${esc(g.description||'Communauté Otaku')} · ${count} membre(s)</small></div>${mine?`<button class="btn sm ghost" data-og-photo="${g.id}" aria-label="Changer la photo du groupe" title="Changer la photo">📷</button>`:''}${state.isAdmin&&!ogPinned(g)?`<button class="btn sm danger" data-og-del="${g.id}" aria-label="Supprimer le groupe" title="Supprimer le groupe">🗑</button>`:''}${joined?`<button class="btn sm ghost" data-og-open="${g.id}" data-og-name="${esc(g.nom)}">Ouvrir</button>`:`<button class="btn sm" data-og-join="${g.id}">Rejoindre</button>`}</div>`;
+  }).join('');
+};
+createOtakuGroup=function(){
+  const root=$('#modal-root');if(!root)return;
+  root.innerHTML=`<div class="modal" style="display:flex;align-items:center;justify-content:center;padding:16px"><section class="card" style="width:100%;max-width:420px"><h3>＋ Nouveau groupe</h3><form id="og-new"><label>Nom du groupe<input name="nom" minlength="3" maxlength="60" required></label><label>Description (facultatif)<input name="desc" maxlength="200"></label><label>Photo du groupe (facultatif)<input name="photo" type="file" accept="image/jpeg,image/png,image/webp,image/gif"></label><div style="display:flex;gap:8px;margin-top:12px"><button class="btn block">Créer le groupe</button><button type="button" class="btn ghost block" id="og-new-x">Annuler</button></div></form></section></div>`;
+  $('#og-new-x').onclick=()=>{root.innerHTML='';};
+  $('#og-new').onsubmit=async e=>{e.preventDefault();const f=e.target,btn=f.querySelector('button:not([type])');btn.disabled=true;btn.textContent='Création…';
+    try{
+      const file=f.photo.files[0],url=file?await uploadOtakuFile(file,'groups'):null,row={nom:f.nom.value.trim(),description:f.desc.value.trim(),createur:state.user.id};
+      let r=await state.client.from('otaku_groups').insert(url?{...row,avatar_url:url}:row).select('id').single();
+      if(r.error&&url&&/avatar_url/i.test(r.error.message)){r=await state.client.from('otaku_groups').insert(row).select('id').single();toast('Groupe créé sans photo'+olSqlHint+'.');}
+      if(r.error)throw r.error;
+      await state.client.from('otaku_group_members').insert({group_id:r.data.id,membre:state.user.id,role:'admin'});
+      root.innerHTML='';toast('Groupe créé !');loadOtakuGroups();
+    }catch(err){btn.disabled=false;btn.textContent='Créer le groupe';toast('Création impossible : '+(err.message||err));}
+  };
+};
+function ogPickPhoto(id){
+  const inp=document.createElement('input');inp.type='file';inp.accept='image/jpeg,image/png,image/webp,image/gif';
+  inp.onchange=async()=>{const file=inp.files[0];if(!file)return;
+    try{const url=await uploadOtakuFile(file,'groups');const {data,error}=await state.client.from('otaku_groups').update({avatar_url:url}).eq('id',id).select('id');
+      if(error||!(data&&data.length))return toast('Photo non enregistrée'+(error?' : '+error.message:'')+olSqlHint+'.');
+      toast('Photo du groupe mise à jour.');loadOtakuGroups();}catch(err){toast(err.message||String(err));}};
+  inp.click();
+}
+{const _og3=openOtakuGroup;openOtakuGroup=async function(id){
+  await _og3.apply(this,arguments);
+  try{
+    const {data:g}=await state.client.from('otaku_groups').select('*').eq('id',id).maybeSingle();
+    if(state.isAdmin){state.ogOwner=true;document.querySelectorAll('#og-messages .group-message[data-mid]').forEach(ogAddDel);}
+    const head=document.querySelector('.group-chat-head');if(head&&g&&!head.querySelector('[data-og-av]')){
+      const av=document.createElement('span');av.dataset.ogAv='1';av.innerHTML=ogAvatar(g,36);head.querySelector('.icon-btn')?.after(av);
+      if(g.createur===state.user.id||state.isAdmin){const b=document.createElement('button');b.type='button';b.className='icon-btn';b.dataset.ogPhoto=id;b.title='Changer la photo du groupe';b.textContent='📷';head.querySelector('#og-close')?.before(b);}
+    }
+  }catch(e){console.warn(e);}
+};}
+
+/* 4. Sondages supprimables (auteur ou administrateur) */
+loadOtakuPolls=async function(){
+  const host=$('#poll-list');if(!host)return;
+  const {data:polls,error}=await state.client.from('otaku_polls').select('id,auteur,question,created_at').order('created_at',{ascending:false}).limit(20);
+  if(error){host.textContent='Sondages indisponibles. Vérifie le SQL des nouvelles fonctions.';return;}
+  if(!polls?.length){host.textContent='Aucun sondage publié.';return;}
+  const ids=polls.map(p=>p.id);
+  const [{data:opts},{data:votes}]=await Promise.all([state.client.from('otaku_poll_options').select('id,poll_id,texte').in('poll_id',ids),state.client.from('otaku_poll_votes').select('poll_id,option_id,votant').in('poll_id',ids)]);
+  host.innerHTML=polls.map(p=>{const oo=(opts||[]).filter(o=>o.poll_id===p.id),vv=(votes||[]).filter(v=>v.poll_id===p.id),mine=vv.find(v=>v.votant===state.user.id),can=p.auteur===state.user.id||state.isAdmin;
+    return `<div class="card" style="margin-top:10px">${can?`<button type="button" class="btn sm danger" data-poll-del="${p.id}" style="float:right;padding:4px 10px" aria-label="Supprimer le sondage" title="${p.auteur===state.user.id?'Supprimer mon sondage':'Supprimer (modération)'}">🗑</button>`:''}<b>${esc(p.question)}</b>${oo.map(o=>{const n=vv.filter(v=>v.option_id===o.id).length;return `<button class="btn sm ${mine?.option_id===o.id?'':'ghost'}" data-poll-vote="${o.id}" data-poll-id="${p.id}" style="display:flex;width:100%;justify-content:space-between;margin-top:7px" ${mine?'disabled':''}><span>${esc(o.texte)}</span><span>${n} vote(s)</span></button>`;}).join('')}<small style="color:var(--muted)">${vv.length} vote(s) au total</small></div>`;}).join('');
+};
+
+/* 5. Modération par l'administrateur : publications du fil, messages de groupe (voir ogAddDel), sondages, groupes */
+function olAdminMark(){
+  if(!state.isAdmin)return;
+  document.querySelectorAll('[data-report-post]').forEach(b=>{if(b.dataset.adm)return;b.dataset.adm='1';const d=document.createElement('button');d.type='button';d.dataset.adminDelPost=b.dataset.reportPost;d.title='Supprimer (administrateur)';d.setAttribute('aria-label','Supprimer cette publication (administrateur)');d.textContent='🗑️';b.after(d);});
+}
+setInterval(olAdminMark,1500);
+document.addEventListener('click',async e=>{
+  const t=e.target.closest&&e.target.closest('[data-admin-del-post],[data-poll-del],[data-og-del],[data-og-photo]');if(!t)return;
+  if(t.dataset.ogPhoto){ogPickPhoto(t.dataset.ogPhoto);return;}
+  if(t.dataset.adminDelPost){
+    if(!confirm('Supprimer cette publication (modération) ?'))return;t.disabled=true;
+    const {data,error}=await state.client.from('posts').delete().eq('id',t.dataset.adminDelPost).select('id');
+    if(error||!(data&&data.length)){t.disabled=false;return toast('Suppression impossible'+(error?' : '+error.message:olSqlHint+'.'));}
+    t.closest('.card')?.remove();toast('Publication supprimée.');return;
+  }
+  if(t.dataset.pollDel){
+    if(!confirm('Supprimer ce sondage et ses votes ?'))return;t.disabled=true;
+    const {data,error}=await state.client.from('otaku_polls').delete().eq('id',t.dataset.pollDel).select('id');
+    if(error||!(data&&data.length)){t.disabled=false;return toast('Suppression impossible'+(error?' : '+error.message:olSqlHint+'.'));}
+    toast('Sondage supprimé.');loadOtakuPolls();return;
+  }
+  if(t.dataset.ogDel){
+    if(!confirm('Supprimer ce groupe et tous ses messages ? Action définitive.'))return;t.disabled=true;
+    const {data,error}=await state.client.from('otaku_groups').delete().eq('id',t.dataset.ogDel).select('id');
+    if(error||!(data&&data.length)){t.disabled=false;return toast('Suppression impossible'+(error?' : '+error.message:olSqlHint+'.'));}
+    toast('Groupe supprimé.');loadOtakuGroups();
+  }
+});
 </script>
 
 <style id="otaku-messaging-advanced">
