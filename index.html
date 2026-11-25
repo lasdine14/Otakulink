@@ -612,6 +612,7 @@ html[data-mybubble] .bubble.out{background:var(--mybubble)!important}
 
 <div id="modal-root"></div>
 
+<script>window.__olRec=/type=recovery/.test(location.hash+location.search);</script>
 <script type="module">
 /* OtakuLink — version préparée pour Supabase.
    Aucune donnée de démonstration : les listes proviennent uniquement de la base.
@@ -965,6 +966,7 @@ async function init() {
     const {data:{session}}=await state.client.auth.getSession();
     if(session) await onSignedIn(session.user);
     state.client.auth.onAuthStateChange((_event,session)=>{
+      olMaybeRecovery(_event);
       // Ne pas attendre les requêtes Supabase dans ce callback : cela peut
       // bloquer le verrou interne d'authentification et retarder la connexion.
       if(session && state.user?.id!==session.user.id){
@@ -1011,7 +1013,7 @@ document.addEventListener('submit',async e=>{
     if(!d.genre) return authError('Indique si tu es un homme ou une femme.');
     if(!d.pays) return authError('Indique ton pays.');
     if((d.password||'').length<8) return authError('Le mot de passe doit contenir au moins 8 caractères.');
-    const {error}=await state.client.auth.signUp({email:d.email,password:d.password,options:{data:{pseudo:d.username.trim(),birthdate:d.birthdate,genre:d.genre,pays:d.pays}}});
+    const {error}=await state.client.auth.signUp({email:d.email,password:d.password,options:{emailRedirectTo:olSiteUrl(),data:{pseudo:d.username.trim(),birthdate:d.birthdate,genre:d.genre,pays:d.pays}}});
     if(error) return authError(error.message);
     toast('Inscription envoyée. Vérifie ta boîte e-mail pour confirmer ton compte.');
     showAuth('login');
@@ -1026,7 +1028,7 @@ document.addEventListener('submit',async e=>{
     }catch(err){console.error('Connexion :',err);authError('Connexion impossible pour le moment. Réessaie.');}
     finally{if(submit)submit.disabled=false;}
   } else {
-    const {error}=await state.client.auth.resetPasswordForEmail(d.email,{redirectTo:location.href});
+    const {error}=await state.client.auth.resetPasswordForEmail(d.email,{redirectTo:olSiteUrl()});
     if(error) authError(error.message); else {toast('Si cette adresse existe, un lien de réinitialisation a été envoyé.');showAuth('login');}
   }
 });
@@ -1379,7 +1381,7 @@ render.parametres=async()=>{
   };
   $('#delete-account').onclick=async()=>{if(prompt('Action définitive. Tape SUPPRIMER pour confirmer :')!=='SUPPRIMER')return;const {error}=await state.client.rpc('supprimer_mon_compte');if(error)return toast(error.message);state.client.removeAllChannels();state.rt=false;await state.client.auth.signOut();state.user=null;state.profile=null;showAuth('welcome');toast('Compte supprimé.');};
   $('#logout').onclick=async()=>{state.client.removeAllChannels();state.rt=false;await state.client.auth.signOut();state.user=null;state.profile=null;showAuth('welcome');};
-  $('#reset-password').onclick=async()=>{const {error}=await state.client.auth.resetPasswordForEmail(state.user.email,{redirectTo:location.href});toast(error?error.message:'Si ton adresse est valide, un lien sera envoyé.');};
+  $('#reset-password').onclick=async()=>{const {error}=await state.client.auth.resetPasswordForEmail(state.user.email,{redirectTo:olSiteUrl()});toast(error?error.message:'Si ton adresse est valide, un lien sera envoyé.');};
 };
 function applyTheme(){document.body.style.filter='';document.documentElement.dataset.theme=state.settings.dark?'dark':'light';}
 function openComposer(){
@@ -3246,8 +3248,8 @@ loadOtakuGroups=async function(){
   const {data:members}=await state.client.from('otaku_group_members').select('group_id,membre'),me=state.user.id;
   host.innerHTML=[...data].sort((a,b)=>Number(ogPinned(b))-Number(ogPinned(a))).map(g=>{
     const joined=(members||[]).some(m=>m.group_id===g.id&&m.membre===me),count=(members||[]).filter(m=>m.group_id===g.id).length,mine=g.createur===me||state.isAdmin;
-    return `<div class="friend">${ogAvatar(g)}<div class="meta"><b>${ogPinned(g)?'📌 ':''}${esc(g.nom)}</b><small>${esc(g.description||'Communauté Otaku')} · ${count} membre(s)</small></div>${mine?`<button class="btn sm ghost" data-og-photo="${g.id}" aria-label="Changer la photo du groupe" title="Changer la photo">📷</button>`:''}${state.isAdmin&&!ogPinned(g)?`<button class="btn sm danger" data-og-del="${g.id}" aria-label="Supprimer le groupe" title="Supprimer le groupe">🗑</button>`:''}${joined?`<button class="btn sm ghost" data-og-open="${g.id}" data-og-name="${esc(g.nom)}">Ouvrir</button>`:`<button class="btn sm" data-og-join="${g.id}">Rejoindre</button>`}</div>`;
-  }).join('');
+    return `<div class="friend"${mine&&!ogPinned(g)?` data-og-row="${g.id}" data-og-rname="${esc(g.nom)}" style="-webkit-touch-callout:none;user-select:none"`:''}>${ogAvatar(g)}<div class="meta"><b>${ogPinned(g)?'📌 ':''}${esc(g.nom)}</b><small>${esc(g.description||'Communauté Otaku')} · ${count} membre(s)</small></div>${mine?`<button class="btn sm ghost" data-og-photo="${g.id}" aria-label="Changer la photo du groupe" title="Changer la photo">📷</button>`:''}${joined?`<button class="btn sm ghost" data-og-open="${g.id}" data-og-name="${esc(g.nom)}">Ouvrir</button>`:`<button class="btn sm" data-og-join="${g.id}">Rejoindre</button>`}</div>`;
+  }).join('')+(data.some(g=>(g.createur===me||state.isAdmin)&&!ogPinned(g))?'<small style="display:block;color:var(--muted);margin-top:8px">Astuce : maintiens un de tes groupes appuyé pour ouvrir ses options.</small>':'');
 };
 createOtakuGroup=function(){
   const root=$('#modal-root');if(!root)return;
@@ -3303,7 +3305,7 @@ function olAdminMark(){
 }
 setInterval(olAdminMark,1500);
 document.addEventListener('click',async e=>{
-  const t=e.target.closest&&e.target.closest('[data-admin-del-post],[data-poll-del],[data-og-del],[data-og-photo]');if(!t)return;
+  const t=e.target.closest&&e.target.closest('[data-admin-del-post],[data-poll-del],[data-og-photo]');if(!t)return;
   if(t.dataset.ogPhoto){ogPickPhoto(t.dataset.ogPhoto);return;}
   if(t.dataset.adminDelPost){
     if(!confirm('Supprimer cette publication (modération) ?'))return;t.disabled=true;
@@ -3317,13 +3319,80 @@ document.addEventListener('click',async e=>{
     if(error||!(data&&data.length)){t.disabled=false;return toast('Suppression impossible'+(error?' : '+error.message:olSqlHint+'.'));}
     toast('Sondage supprimé.');loadOtakuPolls();return;
   }
-  if(t.dataset.ogDel){
-    if(!confirm('Supprimer ce groupe et tous ses messages ? Action définitive.'))return;t.disabled=true;
-    const {data,error}=await state.client.from('otaku_groups').delete().eq('id',t.dataset.ogDel).select('id');
-    if(error||!(data&&data.length)){t.disabled=false;return toast('Suppression impossible'+(error?' : '+error.message:olSqlHint+'.'));}
-    toast('Groupe supprimé.');loadOtakuGroups();
-  }
+
 });
+
+/* 6. Groupes : suppression par appui long (options cachées + confirmation en tapant le nom) */
+let olLP=null;
+function olGroupMenu(id,name){
+  const root=$('#modal-root');if(!root)return;const shell=h=>`<div class="modal" style="display:flex;align-items:center;justify-content:center;padding:16px"><section class="card" style="width:100%;max-width:380px">${h}</section></div>`;
+  root.innerHTML=shell(`<h3>${esc(name)}</h3><p class="section-hint">Options du groupe</p><button type="button" class="btn ghost block" id="ogm-photo">📷 Changer la photo</button><button type="button" class="btn danger block" id="ogm-del" style="margin-top:10px">🗑 Supprimer le groupe…</button><button type="button" class="btn ghost block" id="ogm-x" style="margin-top:10px">Fermer</button>`);
+  $('#ogm-x').onclick=()=>{root.innerHTML='';};
+  $('#ogm-photo').onclick=()=>{root.innerHTML='';ogPickPhoto(id);};
+  $('#ogm-del').onclick=()=>{
+    root.innerHTML=shell(`<h3>Supprimer « ${esc(name)} » ?</h3><p class="section-hint">Tous les messages et les membres du groupe seront perdus. Action définitive. Tape le nom du groupe pour confirmer.</p><input id="ogd-name" autocomplete="off" autocapitalize="off" placeholder="${esc(name)}"><button type="button" class="btn danger block" id="ogd-go" disabled style="margin-top:10px">Supprimer définitivement</button><button type="button" class="btn ghost block" id="ogd-x" style="margin-top:10px">Annuler</button>`);
+    const inp=$('#ogd-name'),go=$('#ogd-go');
+    inp.oninput=()=>{go.disabled=inp.value.trim().toLowerCase()!==name.trim().toLowerCase();};
+    $('#ogd-x').onclick=()=>{root.innerHTML='';};
+    go.onclick=async()=>{go.disabled=true;const {data,error}=await state.client.from('otaku_groups').delete().eq('id',id).select('id');
+      if(error||!(data&&data.length)){go.disabled=false;return toast('Suppression impossible'+(error?' : '+error.message:olSqlHint+'.'));}
+      root.innerHTML='';toast('Groupe supprimé.');loadOtakuGroups();};
+  };
+}
+document.addEventListener('pointerdown',e=>{
+  const r=e.target.closest&&e.target.closest('[data-og-row]');if(!r||e.target.closest('button'))return;
+  clearTimeout(olLP);r._lp={x:e.clientX,y:e.clientY};
+  olLP=setTimeout(()=>{if(navigator.vibrate)navigator.vibrate(30);olGroupMenu(r.dataset.ogRow,r.dataset.ogRname);},650);
+});
+['pointerup','pointercancel'].forEach(t=>document.addEventListener(t,()=>clearTimeout(olLP),true));
+document.addEventListener('pointermove',e=>{const r=e.target.closest&&e.target.closest('[data-og-row]');if(olLP&&r&&r._lp&&Math.hypot(e.clientX-r._lp.x,e.clientY-r._lp.y)>12)clearTimeout(olLP);});
+document.addEventListener('contextmenu',e=>{if(e.target.closest&&e.target.closest('[data-og-row]'))e.preventDefault();});
+
+/* 7. Notifications : supprimer une notification ou tout supprimer */
+function olNotifDeco(){
+  const wrap=(sel,attr)=>document.querySelectorAll(sel).forEach(b=>{if(b.dataset.nd)return;b.dataset.nd='1';const id=b.getAttribute(attr),box=document.createElement('div');box.style.cssText='display:flex;align-items:center;gap:6px';b.replaceWith(box);b.style.flex='1';box.appendChild(b);const x=document.createElement('button');x.type='button';x.className='icon-btn';x.dataset.notifDel=id;x.title='Supprimer cette notification';x.setAttribute('aria-label','Supprimer cette notification');x.textContent='✕';box.appendChild(x);});
+  wrap('#quick-notif-list [data-global-notif-read]','data-global-notif-read');
+  wrap('#notifications-panel [data-notif-read]','data-notif-read');
+  const mk=()=>{const c=document.createElement('button');c.type='button';c.className='btn sm danger';c.dataset.notifClear='1';c.textContent='🗑 Tout supprimer';return c;};
+  const ar=document.getElementById('quick-notif-all-read');if(ar&&!ar.dataset.nd){ar.dataset.nd='1';ar.before(mk());}
+  const p=document.getElementById('notifications-panel');if(p&&!p.hidden&&p.querySelector('[data-notif-del]')&&!p.querySelector('[data-notif-clear]'))p.prepend(mk());
+}
+document.addEventListener('click',async e=>{
+  const d=e.target.closest&&e.target.closest('[data-notif-del],[data-notif-clear]');if(!d)return;
+  if(d.dataset.notifClear){
+    if(!confirm('Supprimer toutes tes notifications ?'))return;
+    const {error}=await state.client.from('notifications').delete().eq('destinataire',state.user.id);
+    if(error)return toast('Suppression impossible : '+error.message+olSqlHint+'.');
+    toast('Notifications supprimées.');
+    if(document.getElementById('quick-notif-list'))await openGlobalNotifications();
+    if(document.getElementById('notifications-panel')&&!document.getElementById('notifications-panel').hidden)await renderNotifications();
+    refreshGlobalNotificationCount();return;
+  }
+  d.disabled=true;const {data,error}=await state.client.from('notifications').delete().eq('id',d.dataset.notifDel).select('id');
+  if(error||!(data&&data.length)){d.disabled=false;return toast('Suppression impossible'+(error?' : '+error.message:olSqlHint+'.'));}
+  d.parentElement.remove();refreshGlobalNotificationCount();
+});
+{let t;new MutationObserver(()=>{clearTimeout(t);t=setTimeout(()=>{olNotifDeco();olAdminMark();},80);}).observe(document.body,{childList:true,subtree:true});}
+
+/* 8. Liens des e-mails (confirmation, mot de passe oublié) + formulaire de nouveau mot de passe */
+function olSiteUrl(){return /github\.io$/.test(location.hostname)?location.origin+location.pathname.replace(/index\.html$/,''):'https://lasdine14.github.io/Otakulink/';}
+function olMaybeRecovery(ev){if(ev==='PASSWORD_RECOVERY'||(window.__olRec&&ev==='SIGNED_IN'))olRecoveryForm();}
+function olRecoveryForm(){
+  if(document.getElementById('ol-recovery'))return;
+  const o=document.createElement('div');o.id='ol-recovery';o.style.cssText='position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(3,10,30,.95);overflow:auto';
+  o.innerHTML=`<form class="card" style="width:100%;max-width:380px"><h3>🔑 Nouveau mot de passe</h3><p class="section-hint">Choisis un nouveau mot de passe pour ton compte OtakuLink.</p><label>Nouveau mot de passe<input name="a" type="password" minlength="8" autocomplete="new-password" required></label><label>Confirmer le mot de passe<input name="b" type="password" minlength="8" autocomplete="new-password" required></label><label style="display:flex;gap:8px;align-items:center;margin-top:8px"><input type="checkbox" id="olr-show" style="width:auto"> Afficher les mots de passe</label><p id="olr-err" style="color:#ff6070;min-height:18px;font-size:13px"></p><button class="btn block">Enregistrer le mot de passe</button></form>`;
+  document.body.appendChild(o);
+  const f=o.querySelector('form'),err=o.querySelector('#olr-err');
+  o.querySelector('#olr-show').onchange=e=>{f.a.type=f.b.type=e.target.checked?'text':'password';};
+  f.onsubmit=async e=>{e.preventDefault();err.textContent='';
+    if(f.a.value.length<8){err.textContent='Au moins 8 caractères.';return;}
+    if(f.a.value!==f.b.value){err.textContent='Les deux mots de passe ne sont pas identiques.';return;}
+    const btn=f.querySelector('button');btn.disabled=true;
+    const {error}=await state.client.auth.updateUser({password:f.a.value});
+    if(error){btn.disabled=false;err.textContent=/session/i.test(error.message)?'Le lien a expiré. Redemande un e-mail depuis « Mot de passe oublié ».':error.message;return;}
+    window.__olRec=false;o.remove();try{history.replaceState(null,'',olSiteUrl());}catch(_){}toast('Mot de passe modifié ✅');
+  };
+}
 </script>
 
 <style id="otaku-messaging-advanced">
