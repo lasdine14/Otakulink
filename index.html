@@ -1390,7 +1390,7 @@ function openComposer(){
  <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px"><button class="icon-btn" id="m-close" type="button">←</button><h3 style="flex:1">Nouvelle publication</h3><button class="btn sm" id="m-pub" type="button">Publier</button></div>
  <textarea id="m-text" maxlength="2000" placeholder="Quoi de neuf, Otaku ?"></textarea>
  <label style="display:block;margin-top:12px">📎 Ajouter une photo ou une vidéo<input id="m-file" type="file" accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/quicktime" style="display:block;width:100%;margin-top:8px;padding:10px;border:1px dashed var(--cyan);border-radius:12px;background:rgba(15,27,66,.8)"></label>
- <small style="display:block;color:var(--muted);margin-top:6px">Photos : JPG, PNG, GIF ou WebP. Vidéos : MP4, WebM ou MOV, 1 minute maximum. Taille maximale : 50 Mo.</small>
+ <small style="display:block;color:var(--muted);margin-top:6px">Photos : JPG, PNG, GIF ou WebP. Vidéos : MP4, WebM ou MOV, 3 minutes maximum. Taille maximale : 50 Mo.</small>
  <div id="m-preview" style="margin-top:10px"></div><div style="text-align:right;color:var(--muted);font-size:12px"><span id="m-count">0</span>/2000</div>
  </div></div>`;
  const t=$('#m-text'),fi=$('#m-file'),preview=$('#m-preview');let img=null,scale=1,dx=0,dy=0,drag=null,url=null;
@@ -1449,7 +1449,7 @@ function openComposer(){
      if(original.type.startsWith('video/')){
       const v=document.createElement('video');v.preload='metadata';
       const d=await new Promise(resolve=>{v.onloadedmetadata=()=>resolve(v.duration);v.onerror=()=>resolve(Infinity);v.src=localPreview;});
-      if(!Number.isFinite(d)||d>60.5)throw Error('La vidéo doit durer 1 minute maximum.');
+      if(!Number.isFinite(d)||d>180.5)throw Error('La vidéo doit durer 3 minutes maximum.');
      }
      const path=`${state.user.id}/${Date.now()}-${crypto.randomUUID()}.${uploadFile.name.split('.').pop().toLowerCase()}`;
      const {error}=await state.client.storage.from('otakulink-media').upload(path,uploadFile,{cacheControl:'3600',upsert:false,contentType:uploadFile.type});
@@ -1647,7 +1647,7 @@ async function uploadOtakuFile(file, folder='media') {
  if(!allowed.includes(file.type)) throw new Error('Format de fichier non pris en charge.');
  if(file.type.startsWith('video/')){
   const v=document.createElement('video');v.preload='metadata';const duration=await new Promise(resolve=>{v.onloadedmetadata=()=>resolve(v.duration);v.onerror=()=>resolve(Infinity);v.src=URL.createObjectURL(file);});
-  if(!Number.isFinite(duration)||duration>60.5) throw new Error('La vidéo doit durer 1 minute maximum.');
+  if(!Number.isFinite(duration)||duration>180.5) throw new Error('La vidéo doit durer 3 minutes maximum.');
  }
  const ext=(file.name.split('.').pop()||'bin').toLowerCase().replace(/[^a-z0-9]/g,'');
  const path=`${state.user.id}/${folder}/${Date.now()}-${crypto.randomUUID()}.${ext}`;
